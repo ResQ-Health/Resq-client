@@ -1,9 +1,17 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { AiOutlineCloseCircle, AiOutlineClose, AiOutlineCheckCircle } from 'react-icons/ai';
+import { useVerifyEmail } from '../../services/authService';
+import { useAuth } from '../../contexts/AuthContext';
 
 function VerificationPage() {
-  // Replace with real email as needed
-  const email = 'Joshuanasiru@yandex.com';
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { login } = useAuth();
+  const verifyMutation = useVerifyEmail();
+
+  // Get email from location state or use default
+  const email = location.state?.email || 'Joshuanasiru@yandex.com';
   const [codes, setCodes] = useState(Array(6).fill(''));
   const [notification, setNotification] = useState<'success' | 'error' | null>(null);
 
@@ -24,23 +32,25 @@ function VerificationPage() {
 
   // Verify code when the 6th digit is entered
   const handleVerify = async (enteredCodes: string[]) => {
-    const code = enteredCodes.join('');
-    try {
-      const res = await fetch('/api/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code }),
-      });
-      if (res.ok) {
-        setNotification('success');
-      } else {
-        setNotification('error');
+    const verification_code = enteredCodes.join('');
+
+    verifyMutation.mutate(
+      { email, verification_code },
+      {
+        onSuccess: (data) => {
+          // Update auth context
+          login(data.data.token, data.data);
+
+          // Navigate to patient setup
+          navigate('/patientSetup/Myaccount');
+        },
+        onError: () => {
+          setNotification('error');
+          // Reset inputs on error
+          setCodes(Array(6).fill(''));
+        },
       }
-    } catch (err) {
-      setNotification('error');
-    }
-    // Reset inputs
-    setCodes(Array(6).fill(''));
+    );
   };
 
   // Auto-hide notification after 4s
@@ -50,6 +60,11 @@ function VerificationPage() {
       return () => clearTimeout(t);
     }
   }, [notification]);
+
+  const handleResendCode = () => {
+    // TODO: Implement resend code functionality
+    console.log('Resend code clicked');
+  };
 
   return (
     <div className="w-full flex flex-col justify-center items-center my-[108px]">
@@ -105,10 +120,19 @@ function VerificationPage() {
             maxLength={1}
             value={c}
             onChange={e => handleChange(e.target.value, i)}
-            className="w-[48px] h-[48px] border border-gray-300 rounded-[6px] text-[24px] text-center focus:outline-none"
+            disabled={verifyMutation.isPending}
+            className={`w-[48px] h-[48px] border rounded-[6px] text-[24px] text-center focus:outline-none focus:ring-2 focus:ring-blue-500 ${verifyMutation.isPending ? 'bg-gray-100 cursor-not-allowed' : ''
+              }`}
           />
         ))}
       </div>
+
+      {/* Loading indicator */}
+      {verifyMutation.isPending && (
+        <div className="text-center mb-6">
+          <p className="text-sm text-gray-600">Verifying your email...</p>
+        </div>
+      )}
 
       {/* Divider */}
       <hr className="w-full max-w-[480px] border-t border-gray-300 mb-6" />
@@ -116,12 +140,16 @@ function VerificationPage() {
       {/* Resend link */}
       <p className="text-sm text-gray-700 text-center">
         Didn't get the mail? Check spam or{' '}
-        <a href="#" className="underline text-blue-600">
+        <button
+          onClick={handleResendCode}
+          disabled={verifyMutation.isPending}
+          className="underline text-blue-600 hover:text-blue-700 disabled:text-gray-400"
+        >
           send a new code
-        </a>
+        </button>
       </p>
     </div>
   );
 }
 
-export default VerificationPage 
+export default VerificationPage; 

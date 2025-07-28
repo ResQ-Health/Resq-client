@@ -3,7 +3,7 @@ import googleLogo from '/icons/googleicon.png';
 import { AiOutlineEye, AiOutlineEyeInvisible, AiOutlineCheckCircle, AiFillCheckCircle } from 'react-icons/ai';
 import { Link } from 'react-router-dom';
 
-function RegisterProviderPage() {
+function LoginProviderPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [agreed, setAgreed] = useState(false);
 
@@ -108,7 +108,7 @@ function RegisterProviderPage() {
         style={{ fontFamily: 'Plus Jakarta Sans' }}
         className={`w-[480px] h-[40px] p-4 rounded-[6px] font-medium text-[14px] leading-[22.4px] tracking-normal align-middle ${agreed ? 'bg-blue-600 text-white' : 'bg-gray-300 text-gray-500'}`}
       >
-       Create account
+        Create account
       </button>
       <p className="text-sm text-gray-700 mt-4 mb-8">
         Already have an account? <Link to="/login" className="underline text-gray-700">Sign In</Link>
@@ -117,4 +117,4 @@ function RegisterProviderPage() {
   )
 }
 
-export default RegisterProviderPage 
+export default LoginProviderPage 

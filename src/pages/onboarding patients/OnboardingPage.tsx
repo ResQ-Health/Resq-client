@@ -1,19 +1,22 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import googleLogo from '/icons/googleicon.png';
-import { AiOutlineEye, AiOutlineEyeInvisible, AiOutlineCheck } from 'react-icons/ai';
 import { IoEye } from "react-icons/io5";
 import { IoIosEyeOff, IoIosCheckmarkCircleOutline, IoIosCheckmarkCircle } from "react-icons/io";
+import { useRegister } from '../../services/authService';
 
 function OnboardingPage() {
   const navigate = useNavigate();
+  const registerMutation = useRegister();
+
   // form state
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [agreed, setAgreed] = useState(false);
-  const [errors, setErrors] = useState({ fullName: '', email: '', password: '' });
+  const [errors, setErrors] = useState({ fullName: '', email: '', password: '', phoneNumber: '' });
 
   /**
    * Redirect to backend OAuth
@@ -26,30 +29,31 @@ function OnboardingPage() {
    * Create account and navigate to verification
    */
   const handleCreateAccount = async () => {
-    let newErrors = { fullName: '', email: '', password: '' };
+    let newErrors = { fullName: '', email: '', password: '', phoneNumber: '' };
     if (!fullName) newErrors.fullName = 'Full name is required';
     if (!email) newErrors.email = 'Email address is required';
     if (!password) newErrors.password = 'Password is required';
+    if (!phoneNumber) newErrors.phoneNumber = 'Phone number is required';
     setErrors(newErrors);
-    if (!fullName || !email || !password || !agreed) return;
+    if (!fullName || !email || !password || !phoneNumber || !agreed) return;
 
-    // Navigate to verification page immediately
-    navigate('/verify', { state: { email } });
-
-    // Optionally, run the API call in the background
-    try {
-      await fetch('/api/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fullName, email, password }),
-      });
-    } catch (err) {
-      console.error(err);
-    }
+    // Call the registration API
+    registerMutation.mutate({
+      full_name: fullName,
+      email,
+      password,
+      phone_number: phoneNumber,
+      user_type: 'Patient'
+    }, {
+      onSuccess: () => {
+        // Navigate to verification page on success
+        navigate('/verify', { state: { email } });
+      }
+    });
   };
 
   return (
-    <div className=" h-[638px] mx-auto flex flex-col justify-center max-w-[480px] mt-[108.5px] items-center  ">
+    <div className=" min-h-[638px] pb-[155px] mx-auto flex flex-col justify-center max-w-[480px] mt-[108.5px] items-center  ">
       <h1
         style={{ fontFamily: 'Plus Jakarta Sans', letterSpacing: '0px' }}
         className="text-xl font-medium leading-8 mb-[40px]  text-center align-middle"
@@ -79,7 +83,7 @@ function OnboardingPage() {
       {/* Form */}
       <div className="flex flex-col w-full gap-6">
         <div className="flex flex-col">
-          <label className="text-gray-700 mb-1">Full name</label>
+          <label htmlFor="fullname" className="text-gray-700 mb-1">Full name</label>
           <input
             type="text"
             id="fullname"
@@ -94,7 +98,7 @@ function OnboardingPage() {
         </div>
 
         <div className="flex flex-col">
-          <label className="text-gray-700 mb-1">Email address</label>
+          <label htmlFor="email" className="text-gray-700 mb-1">Email address</label>
           <input
             type="email"
             id="email"
@@ -108,8 +112,23 @@ function OnboardingPage() {
           </div>
         </div>
 
+        <div className="flex flex-col">
+          <label htmlFor="phoneNumber" className="text-gray-700 mb-1">Phone number</label>
+          <input
+            type="tel"
+            id="phoneNumber"
+            value={phoneNumber}
+            onChange={e => { setPhoneNumber(e.target.value); setErrors({ ...errors, phoneNumber: '' }); }}
+            placeholder="08138966213"
+            className={`w-[480px] h-[40px] border bg-none rounded-[6px] px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.phoneNumber ? 'border-red-500' : 'border-gray-300'}`}
+          />
+          <div className="h-5">
+            {errors.phoneNumber && <span className="text-red-500 text-xs">{errors.phoneNumber}</span>}
+          </div>
+        </div>
+
         <div className="flex flex-col relative">
-          <label className="text-gray-700 mb-1">Password</label>
+          <label htmlFor="password" className="text-gray-700 mb-1">Password</label>
           <input
             type={showPassword ? 'text' : 'password'}
             id="password"
@@ -148,7 +167,7 @@ function OnboardingPage() {
         <label className="ml-2 text-sm text-gray-700">
           Yes, I understand and agree to the{' '}
           <a href="#" className="underline">
-            ResQ Health Terms of <br/> Service
+            ResQ Health Terms of <br /> Service
           </a>, including the{' '}
           <a href="#" className="underline">
             User Agreement
@@ -162,14 +181,13 @@ function OnboardingPage() {
 
       {/* CTA */}
       <button
-        disabled={!agreed}
+        disabled={!agreed || registerMutation.isPending}
         onClick={handleCreateAccount}
-        style={{ fontFamily: 'Plus Jakarta Sans', backgroundColor: agreed ? '#06202E' : undefined }}
-        className={`w-full h-[40px] flex items-start justify-center text-center  p-[7px] rounded-[6px] font-medium text-[14px] leading-[22.4px] tracking-normal align-middle ${
-          agreed ? 'text-white' : 'bg-gray-300 text-gray-500'
-        }`}
+        style={{ fontFamily: 'Plus Jakarta Sans', backgroundColor: agreed && !registerMutation.isPending ? '#06202E' : undefined }}
+        className={`w-full h-[40px] flex items-start justify-center text-center  p-[7px] rounded-[6px] font-medium text-[14px] leading-[22.4px] tracking-normal align-middle ${agreed && !registerMutation.isPending ? 'text-white' : 'bg-gray-300 text-gray-500'
+          }`}
       >
-        Create account
+        {registerMutation.isPending ? 'Creating account...' : 'Create account'}
       </button>
 
       <p className="text-sm text-gray-700 mt-4">
