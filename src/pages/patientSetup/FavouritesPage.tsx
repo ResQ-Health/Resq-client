@@ -57,9 +57,9 @@ export default function FavouritesPage() {
     };
 
     return (
-        <div className="w-full min-h-screen">
+        <div className="w-full px-[64px] min-h-screen">
             {/* Main Content */}
-            <div className="max-w-6xl mx-auto bg-white rounded-lg px-6">
+            <div className=" mx-auto bg-white rounded-lg px-6">
                 <div className="py-8">
                     <h1 className="text-2xl font-semibold mb-2">My favourites</h1>
                     <p className="text-gray-600 mb-8">Lorem ipsum dolor sit amet consectetur. Tincidunt.</p>

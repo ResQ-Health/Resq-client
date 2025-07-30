@@ -7,6 +7,7 @@ import Myaccount from './pages/patientSetup/Myaccount'
 import Layout from './components/Layout'
 import PatientLayout from './components/PatientLayout'
 import { ProtectedRoute } from './components/ProtectedRoute'
+import { PublicRoute } from './components/PublicRoute'
 // Onboarding provider imports
 import OnboardingProviderPage from './pages/onboarding provider/OnboardingProviderPage'
 import SignInProvider from './pages/onboarding provider/sign-in-provider'
@@ -25,15 +26,31 @@ function App() {
     <Routes>
       <Route element={<Layout />}>
         {/* Patient routes */}
-        <Route path="/" element={<OnboardingPage />} />
-        <Route path="/onboardingPatient" element={<OnboardingPage />} />
+        <Route path="/" element={
+          <PublicRoute>
+            <OnboardingPage />
+          </PublicRoute>
+        } />
+        <Route path="/onboardingPatient" element={
+          <PublicRoute>
+            <OnboardingPage />
+          </PublicRoute>
+        } />
         <Route path="/calendar" element={
           <ProtectedRoute>
             <CalendarPage />
           </ProtectedRoute>
         } />
-        <Route path="/sign-in-patient" element={<LoginPatientPage />} />
-        <Route path="/verify" element={<VerificationPage />} />
+        <Route path="/sign-in-patient" element={
+          <PublicRoute>
+            <LoginPatientPage />
+          </PublicRoute>
+        } />
+        <Route path="/verify" element={
+          <PublicRoute>
+            <VerificationPage />
+          </PublicRoute>
+        } />
         <Route path="/patientSetup/Myaccount" element={<Myaccount />} />
 
         {/* Patient pages with PatientLayout */}
@@ -74,11 +91,31 @@ function App() {
         } />
 
         {/* Provider routes */}
-        <Route path="/onboardingProvider" element={<OnboardingProviderPage />} />
-        <Route path="/sign-in-provider" element={<SignInProvider />} />
-        <Route path="/sign-in-provider" element={<LoginProviderPage />} />
-        <Route path="/verify-provider" element={<VerificationProviderPage />} />
-        <Route path="/welcome-provider" element={<WelcomeProviderPage />} />
+        <Route path="/onboardingProvider" element={
+          <PublicRoute>
+            <OnboardingProviderPage />
+          </PublicRoute>
+        } />
+        <Route path="/sign-in-provider" element={
+          <PublicRoute>
+            <SignInProvider />
+          </PublicRoute>
+        } />
+        <Route path="/sign-in-provider" element={
+          <PublicRoute>
+            <LoginProviderPage />
+          </PublicRoute>
+        } />
+        <Route path="/verify-provider" element={
+          <PublicRoute>
+            <VerificationProviderPage />
+          </PublicRoute>
+        } />
+        <Route path="/welcome-provider" element={
+          <PublicRoute>
+            <WelcomeProviderPage />
+          </PublicRoute>
+        } />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

@@ -9,6 +9,9 @@ interface User {
     is_admin: boolean;
     email_verified: boolean;
     created_at: string;
+    profile_picture?: {
+        url: string;
+    };
 }
 
 interface AuthContextType {

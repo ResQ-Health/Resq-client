@@ -18,7 +18,7 @@ const HospitalCard: React.FC<HospitalCardProps> = ({
   onRemove
 }) => {
   return (
-    <div className=" rounded-lg px-2 overflow-hidden shadow-sm  gap-6  flex flex-col md:flex-row w-full">
+    <div className=" rounded-lg px-2 overflow-hidden shadow-sm  gap-6  flex flex-col md:flex-row w-[421px]">
       <img
         className="object-cover w-[199px] h-[187px] flex-shrink-0"
         src="/icons/favorite.png"
