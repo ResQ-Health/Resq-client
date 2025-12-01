@@ -4,12 +4,12 @@ import Navbar from './Navbar';
 
 const Layout: React.FC = () => {
   return (
-    <>
+    <div className="min-h-screen flex flex-col bg-[#F9FAFB]">
       <Navbar />
-      <main className="flex-grow flex items-center justify-center">
+      <main className="flex-1 w-full">
         <Outlet />
       </main>
-    </>
+    </div>
   );
 };
 

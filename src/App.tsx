@@ -19,6 +19,11 @@ import BookingHistoryPage from './pages/patientSetup/BookingHistoryPage'
 import FavouritesPage from './pages/patientSetup/FavouritesPage'
 import SettingsPage from './pages/patientSetup/SettingsPage'
 import LoginProviderPage from './pages/onboarding provider/LoginProviderPage'
+import SearchPage from './pages/Patient/SearchPage'
+import ProviderPage from './pages/Patient/ProviderPage'
+import BookingPage from './pages/Patient/BookingPage'
+import BookingSuccessPage from './pages/Patient/BookingSuccessPage'
+import PaymentCallback from './components/PaymentCallback'
 
 function App() {
 
@@ -51,10 +56,24 @@ function App() {
             <VerificationPage />
           </PublicRoute>
         } />
-        <Route path="/patientSetup/Myaccount" element={<Myaccount />} />
+
+        {/* <Route path="/patientSetup/Myaccount" element={<Myaccount />} /> */}
+        <Route path="/search" element={<SearchPage />} />
+        <Route path="/search/provider/:id" element={<ProviderPage />} />
+        <Route path="/patient/booking/:id" element={<BookingPage />} />
+        <Route path="/patient/booking/success" element={<BookingSuccessPage />} />
+        <Route path="/payment/callback" element={<PaymentCallback />} />
 
         {/* Patient pages with PatientLayout */}
-        <Route path="/my-account" element={
+        <Route path="/patientSetup/Myaccount" element={
+          <ProtectedRoute>
+            <PatientLayout>
+              <Myaccount />
+            </PatientLayout>
+          </ProtectedRoute>
+        } />
+        {/* Patient pages with PatientLayout */}
+        <Route path="/patient/my-account" element={
           <ProtectedRoute>
             <PatientLayout>
               <Myaccount />
@@ -82,7 +101,7 @@ function App() {
             </PatientLayout>
           </ProtectedRoute>
         } />
-        <Route path="/settings" element={
+        <Route path="/patient/settings" element={
           <ProtectedRoute>
             <PatientLayout>
               <SettingsPage />

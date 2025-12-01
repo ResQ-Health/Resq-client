@@ -9,10 +9,10 @@ import { SlHome } from 'react-icons/sl';
 import { GoPlusCircle } from 'react-icons/go';
 import { RiDeleteBinLine } from 'react-icons/ri';
 import { LiaTimesCircle } from 'react-icons/lia';
-import uploadIcon from '../../../public/icons/upload.png';
-import favoriteIcon from '../../../public/icons/favorite.png';
+import uploadIcon from '/icons/upload.png';
+import favoriteIcon from '/icons/favorite.png';
 import HospitalCard from '../../components/HospitalCard';
-import { usePatientProfile, useUpdatePatientProfile, PatientProfileRequest } from '../../services/userService';
+import { usePatientProfile, useUpdatePatientProfile, useUploadProfilePicture, PatientProfileRequest } from '../../services/userService';
 import { useAuth } from '../../contexts/AuthContext';
 
 const TABS = [
@@ -153,6 +153,7 @@ export default function Myaccount() {
   // React Query hooks
   const { data: profileData, isLoading, error } = usePatientProfile();
   const updateProfileMutation = useUpdatePatientProfile();
+  const uploadProfilePictureMutation = useUploadProfilePicture();
 
   // Form state
   const [form, setForm] = useState({
@@ -190,6 +191,10 @@ export default function Myaccount() {
     if (profileData?.data) {
       const data = profileData.data;
       const metadata = profileData.metadata;
+      // Ensure profile image from API displays when available
+      if (data.profile_picture?.url) {
+        setProfileImage(data.profile_picture.url);
+      }
       setForm({
         // Personal Details
         firstName: data.personal_details?.first_name || '',
@@ -237,11 +242,13 @@ export default function Myaccount() {
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (ev) => setProfileImage(ev.target?.result as string);
-      reader.readAsDataURL(file);
-    }
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev) => setProfileImage(ev.target?.result as string);
+    reader.readAsDataURL(file);
+
+    uploadProfilePictureMutation.mutate(file);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -406,52 +413,7 @@ export default function Myaccount() {
     );
   }
 
-  // Safety check for data structure
-  if (!profileData?.data || !profileData?.metadata) {
-    return (
-      <div className="w-full min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="max-w-md mx-auto p-8">
-          <div className="bg-white rounded-xl shadow-lg border border-gray-100 p-8 text-center">
-            {/* Warning Icon */}
-            <div className="w-16 h-16 bg-yellow-50 rounded-full flex items-center justify-center mx-auto mb-6">
-              <svg className="w-8 h-8 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-              </svg>
-            </div>
-
-            {/* Warning Content */}
-            <h2 className="text-2xl font-semibold text-gray-900 mb-3">Profile Data Unavailable</h2>
-            <p className="text-gray-600 mb-6 leading-relaxed">
-              We couldn't retrieve your profile information. This could be due to a connection issue or incomplete data.
-            </p>
-
-            {/* Action Buttons */}
-            <div className="space-y-3">
-              <button
-                onClick={() => window.location.reload()}
-                className="w-full bg-[#16202E] text-white py-3 px-6 rounded-lg font-medium hover:bg-[#1a2a3a] transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-[#16202E] focus:ring-offset-2"
-              >
-                Refresh Page
-              </button>
-              <button
-                onClick={() => window.history.back()}
-                className="w-full bg-gray-100 text-gray-700 py-3 px-6 rounded-lg font-medium hover:bg-gray-200 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-300 focus:ring-offset-2"
-              >
-                Return to Previous Page
-              </button>
-            </div>
-
-            {/* Support Info */}
-            <div className="mt-6 pt-6 border-t border-gray-100">
-              <p className="text-sm text-gray-500">
-                Check your internet connection and try again
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // Always render; fall back to default avatar if image is absent
 
   return (
     <div className="w-full min-h-screen">

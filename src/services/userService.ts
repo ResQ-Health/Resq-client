@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { AxiosError } from 'axios';
 import { apiClient } from '../config/api';
 import toast from 'react-hot-toast';
 
@@ -73,6 +74,56 @@ export interface PatientProfileResponse {
     message?: string;
 }
 
+// Appointment types
+export interface Appointment {
+    id: string;
+    provider_id: string;
+    provider_name: string;
+    patient_id: string;
+    service: {
+        id: string;
+        name: string;
+        category: string;
+        price: number;
+        description?: string;
+    } | null;
+    date: string;
+    start_time: string;
+    end_time: string;
+    appointment_date: string;
+    appointment_time: string;
+    status: 'pending' | 'confirmed' | 'rejected' | 'cancelled' | 'completed' | 'no-show';
+    rating?: number;
+    notes?: string;
+    contact: {
+        name: string;
+        email: string;
+        phone: string;
+        address: string;
+        gender: string;
+        dob: string;
+        bookingType?: 'Self' | 'Other' | string; // Can be nested in contact object
+        communicationPreference?: string; // Can be nested in contact object
+    };
+    bookingType?: 'Self' | 'Other' | string; // Can be at appointment level or nested
+    communicationPreference?: string; // Can be at appointment level or nested
+    payment: {
+        status?: string; // Payment status (completed, pending, etc.)
+        amount: number;
+        paidAt?: string;
+        paystackReference?: string;
+        receipt?: any;
+    };
+    created_at: string;
+    updated_at: string;
+}
+
+export interface PatientAppointmentsResponse {
+    success: boolean;
+    data: Appointment[];
+    message?: string;
+}
+
 // API functions
 export const getPatientProfile = async (): Promise<PatientProfileResponse> => {
     const response = await apiClient.get('/api/v1/auth/me');
@@ -135,11 +186,56 @@ export const updatePatientProfile = async (data: PatientProfileRequest): Promise
     return response.data;
 };
 
+export const uploadProfilePicture = async (file: File): Promise<PatientProfileResponse> => {
+    const formData = new FormData();
+    formData.append('profile_picture', file);
+
+    const response = await apiClient.put('/api/v1/auth/me', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+};
+
+export const getPatientAppointments = async (): Promise<PatientAppointmentsResponse> => {
+    const response = await apiClient.get('/api/v1/appointments/patient');
+    return response.data;
+};
+
+export const deleteAppointment = async (appointmentId: string): Promise<{ success: boolean; message: string }> => {
+    const response = await apiClient.delete(`/api/v1/appointments/${appointmentId}`, {
+        data: { reason: 'user_request' }
+    });
+    return response.data;
+};
+
+// Favorite providers
+export interface ToggleFavoriteResponse {
+    success: boolean;
+    message: string;
+    data?: {
+        is_favorite: boolean;
+    };
+}
+
+export const toggleFavoriteProvider = async (providerId: string): Promise<ToggleFavoriteResponse> => {
+    const response = await apiClient.post('/api/v1/auth/favorites/providers/toggle', {
+        provider_id: providerId
+    });
+    return response.data;
+};
+
+export const checkFavoriteStatus = async (providerId: string): Promise<{ success: boolean; data: { is_favorite: boolean } }> => {
+    const response = await apiClient.get(`/api/v1/auth/favorites/providers/${providerId}/status`);
+    return response.data;
+};
+
 // React Query hooks
 export const usePatientProfile = () => {
     return useQuery({
         queryKey: ['patientProfile'],
         queryFn: getPatientProfile,
+        // Only run when a token is available to ensure Authorization header is sent
+        enabled: !!localStorage.getItem('authToken'),
         staleTime: 5 * 60 * 1000, // 5 minutes
         gcTime: 10 * 60 * 1000, // 10 minutes
     });
@@ -171,12 +267,12 @@ export const useUpdatePatientProfile = () => {
             // Return a context object with the snapshotted value
             return { previousProfile };
         },
-        onSuccess: (data) => {
+        onSuccess: () => {
             // Keep the optimistic update, just show success message
             // The optimistic update already shows the user's changes
             toast.success('Profile updated successfully!');
         },
-        onError: (error: any, newProfileData, context) => {
+        onError: (error: any, _newProfileData, context) => {
             console.error('Profile update error:', error);
 
             // If the mutation fails, use the context returned from onMutate to roll back
@@ -203,4 +299,135 @@ export const useUpdatePatientProfile = () => {
             // Only refetch if there was an error to ensure data consistency
         },
     });
-}; 
+};
+
+export const useUploadProfilePicture = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: uploadProfilePicture,
+        onMutate: async (newFile: File) => {
+            const previousProfile = queryClient.getQueryData(['patientProfile']);
+            const optimisticUrl = URL.createObjectURL(newFile);
+
+            // Optimistically update cached profile picture
+            const currentData = queryClient.getQueryData(['patientProfile']) as PatientProfileResponse | undefined;
+            if (currentData?.data) {
+                queryClient.setQueryData(['patientProfile'], {
+                    ...currentData,
+                    data: {
+                        ...currentData.data,
+                        profile_picture: { url: optimisticUrl },
+                    },
+                });
+            }
+
+            return { previousProfile, optimisticUrl };
+        },
+        onSuccess: (data) => {
+            queryClient.setQueryData(['patientProfile'], data);
+            toast.success('Profile picture updated');
+        },
+        onError: (error: any, _newFile, context) => {
+            if (context?.previousProfile) {
+                queryClient.setQueryData(['patientProfile'], context.previousProfile);
+            }
+            toast.error('Failed to upload profile picture');
+            console.error('Upload error:', error);
+        },
+    });
+};
+
+export const usePatientAppointments = () => {
+    const isAuthenticated = !!localStorage.getItem('authToken');
+
+    return useQuery({
+        queryKey: ['patientAppointments'],
+        queryFn: getPatientAppointments,
+        enabled: isAuthenticated, // Only run query if user is authenticated
+        staleTime: 30 * 1000, // 30 seconds - data is considered fresh for 30 seconds
+        gcTime: 5 * 60 * 1000, // 5 minutes - keep in cache for 5 minutes
+        refetchOnWindowFocus: isAuthenticated, // Only refetch when authenticated
+        refetchInterval: isAuthenticated ? 30 * 1000 : false, // Auto-refetch only when authenticated
+        refetchIntervalInBackground: isAuthenticated, // Continue refetching only when authenticated
+        retry: (failureCount, error) => {
+            // Don't retry on authentication errors
+            if (error instanceof AxiosError && error.response?.status === 401) {
+                return false;
+            }
+            // Retry up to 2 times for other errors
+            return failureCount < 2;
+        },
+    });
+};
+
+export const useDeleteAppointment = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: deleteAppointment,
+        onSuccess: () => {
+            // Invalidate and refetch appointments to get updated data
+            queryClient.invalidateQueries({ queryKey: ['patientAppointments'] });
+            toast.success('Appointment deleted successfully');
+        },
+        onError: (error: any) => {
+            console.error('Delete appointment error:', error);
+
+            let errorMessage = 'Failed to delete appointment';
+
+            if (error.response?.status === 400) {
+                errorMessage = error.response.data?.message || 'Invalid request';
+            } else if (error.response?.status === 401) {
+                errorMessage = 'Unauthorized. Please login again.';
+            } else if (error.response?.status === 404) {
+                errorMessage = 'Appointment not found';
+            } else if (error.response?.status === 500) {
+                errorMessage = 'Server error. Please try again later.';
+            } else if (error.code === 'NETWORK_ERROR') {
+                errorMessage = 'Network error. Please check your connection.';
+            }
+
+            toast.error(errorMessage);
+        },
+    });
+};
+
+export const useToggleFavoriteProvider = () => {
+    return useMutation({
+        mutationFn: toggleFavoriteProvider,
+        onSuccess: (data) => {
+            // Don't show toast for instant updates - just log success
+            console.log('Favorite toggled successfully:', data.message);
+        },
+        onError: (error: any) => {
+            console.error('Toggle favorite error:', error);
+
+            let errorMessage = 'Failed to update favorite status';
+
+            if (error.response?.status === 400) {
+                errorMessage = error.response.data?.message || 'Invalid request';
+            } else if (error.response?.status === 401) {
+                errorMessage = 'Unauthorized. Please login again.';
+            } else if (error.response?.status === 404) {
+                errorMessage = 'Provider not found';
+            } else if (error.response?.status === 500) {
+                errorMessage = 'Server error. Please try again later.';
+            } else if (error.code === 'NETWORK_ERROR') {
+                errorMessage = 'Network error. Please check your connection.';
+            }
+
+            toast.error(errorMessage);
+        },
+    });
+};
+
+export const useFavoriteStatus = (providerId: string | undefined) => {
+    return useQuery({
+        queryKey: ['favoriteStatus', providerId],
+        queryFn: () => checkFavoriteStatus(providerId!),
+        enabled: !!providerId && !!localStorage.getItem('authToken'),
+        staleTime: 5 * 60 * 1000, // 5 minutes
+        gcTime: 10 * 60 * 1000, // 10 minutes
+    });
+};

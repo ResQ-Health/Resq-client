@@ -64,7 +64,7 @@ describe('PublicRoute', () => {
         )
 
         expect(screen.getByTestId('navigate')).toBeInTheDocument()
-        expect(screen.getByTestId('navigate')).toHaveAttribute('data-to', '/my-account')
+        expect(screen.getByTestId('navigate')).toHaveAttribute('data-to', '/patient/my-account')
     })
 
     it('should redirect authenticated users to custom route', () => {

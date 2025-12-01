@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import googleLogo from '../../../public/icons/googleicon.png';
+import googleLogo from '/icons/googleicon.png';
 import { AiOutlineEye, AiOutlineEyeInvisible } from 'react-icons/ai';
 import { useLogin } from '../../services/authService';
 import { useAuth } from '../../contexts/AuthContext';

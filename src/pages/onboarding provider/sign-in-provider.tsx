@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import googleLogo from '../../../public/icons/googleicon.png';
+import googleLogo from '/icons/googleicon.png';
 import { AiOutlineEye, AiOutlineEyeInvisible } from 'react-icons/ai';
 
 function SignInProvider() {

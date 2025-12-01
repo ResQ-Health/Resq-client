@@ -1,6 +1,6 @@
 import React, { useRef, useState } from 'react';
 import { FaUser } from 'react-icons/fa';
-import uploadIcon from '../../../public/icons/upload.png';
+import uploadIcon from '/icons/upload.png';
 
 const TABS = [
     { label: 'Basic details' },

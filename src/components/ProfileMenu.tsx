@@ -69,7 +69,7 @@ export const ProfileMenu: React.FC<ProfileMenuProps> = ({ isOpen, onClose }) => 
             icon: <FaUser className="w-5 h-5" />,
             label: 'My Account',
             onClick: () => {
-                navigate('/my-account');
+                navigate('/patient/my-account');
                 onClose();
             }
         },
