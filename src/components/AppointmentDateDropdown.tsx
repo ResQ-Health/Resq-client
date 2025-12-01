@@ -36,7 +36,6 @@ const AppointmentDateDropdown: React.FC<AppointmentDateDropdownProps> = ({
         };
     }, []);
 
-    const selectedOption = options.find(option => option.value === selectedValue);
     const isFiltered = selectedValue !== 'nextAvailable';
 
     return (

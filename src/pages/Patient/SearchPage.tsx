@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { useFilters } from '../../contexts/FilterContext'
 import HospitalCard from '../../components/HospitalCard'
 import Pagination from '../../components/Pagination'

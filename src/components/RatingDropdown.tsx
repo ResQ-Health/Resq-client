@@ -37,7 +37,6 @@ const RatingDropdown: React.FC<RatingDropdownProps> = ({
         };
     }, []);
 
-    const selectedOption = options.find(option => option.value === selectedValue);
     const isFiltered = selectedValue !== 'any';
 
     const renderStars = (count: number) => {

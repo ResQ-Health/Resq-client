@@ -1,9 +1,8 @@
 import { useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 const PaymentCallback = () => {
     const navigate = useNavigate();
-    const location = useLocation();
 
     useEffect(() => {
         // Get appointment ID from localStorage (stored during booking)

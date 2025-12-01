@@ -36,7 +36,6 @@ const TimeDropdown: React.FC<TimeDropdownProps> = ({
         };
     }, []);
 
-    const selectedOption = options.find(option => option.value === selectedValue);
     const isFiltered = selectedValue !== 'any';
 
     return (
