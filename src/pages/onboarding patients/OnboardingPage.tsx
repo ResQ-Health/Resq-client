@@ -192,7 +192,7 @@ function OnboardingPage() {
 
       <p className="text-sm text-gray-700 mt-4">
         Already have an account?{' '}
-        <a href="/login" className="underline text-blue-600">
+        <a href="/Sign-in-Patient" className="underline text-blue-600">
           Sign In
         </a>
       </p>

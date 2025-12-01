@@ -7,6 +7,7 @@ import Myaccount from './pages/patientSetup/Myaccount'
 import Layout from './components/Layout'
 import PatientLayout from './components/PatientLayout'
 import { ProtectedRoute } from './components/ProtectedRoute'
+import { PublicRoute } from './components/PublicRoute'
 // Onboarding provider imports
 import OnboardingProviderPage from './pages/onboarding provider/OnboardingProviderPage'
 import SignInProvider from './pages/onboarding provider/sign-in-provider'
@@ -18,6 +19,11 @@ import BookingHistoryPage from './pages/patientSetup/BookingHistoryPage'
 import FavouritesPage from './pages/patientSetup/FavouritesPage'
 import SettingsPage from './pages/patientSetup/SettingsPage'
 import LoginProviderPage from './pages/onboarding provider/LoginProviderPage'
+import SearchPage from './pages/Patient/SearchPage'
+import ProviderPage from './pages/Patient/ProviderPage'
+import BookingPage from './pages/Patient/BookingPage'
+import BookingSuccessPage from './pages/Patient/BookingSuccessPage'
+import PaymentCallback from './components/PaymentCallback'
 
 function App() {
 
@@ -25,19 +31,49 @@ function App() {
     <Routes>
       <Route element={<Layout />}>
         {/* Patient routes */}
-        <Route path="/" element={<OnboardingPage />} />
-        <Route path="/onboardingPatient" element={<OnboardingPage />} />
+        <Route path="/" element={
+          <PublicRoute>
+            <OnboardingPage />
+          </PublicRoute>
+        } />
+        <Route path="/onboardingPatient" element={
+          <PublicRoute>
+            <OnboardingPage />
+          </PublicRoute>
+        } />
         <Route path="/calendar" element={
           <ProtectedRoute>
             <CalendarPage />
           </ProtectedRoute>
         } />
-        <Route path="/sign-in-patient" element={<LoginPatientPage />} />
-        <Route path="/verify" element={<VerificationPage />} />
-        <Route path="/patientSetup/Myaccount" element={<Myaccount />} />
+        <Route path="/sign-in-patient" element={
+          <PublicRoute>
+            <LoginPatientPage />
+          </PublicRoute>
+        } />
+        <Route path="/verify" element={
+          <PublicRoute>
+            <VerificationPage />
+          </PublicRoute>
+        } />
+
+        {/* <Route path="/patientSetup/Myaccount" element={<Myaccount />} /> */}
+        <Route path="/search" element={<SearchPage />} />
+        <Route path="/search/provider/:id" element={<ProviderPage />} />
+        <Route path="/patient/booking/:id" element={<BookingPage />} />
+        <Route path="/patient/booking/success" element={<BookingSuccessPage />} />
+        <Route path="/payment/callback" element={<PaymentCallback />} />
 
         {/* Patient pages with PatientLayout */}
-        <Route path="/my-account" element={
+        <Route path="/patientSetup/Myaccount" element={
+          <ProtectedRoute>
+            <PatientLayout>
+              <Myaccount />
+            </PatientLayout>
+          </ProtectedRoute>
+        } />
+        {/* Patient pages with PatientLayout */}
+        <Route path="/patient/my-account" element={
           <ProtectedRoute>
             <PatientLayout>
               <Myaccount />
@@ -65,7 +101,7 @@ function App() {
             </PatientLayout>
           </ProtectedRoute>
         } />
-        <Route path="/settings" element={
+        <Route path="/patient/settings" element={
           <ProtectedRoute>
             <PatientLayout>
               <SettingsPage />
@@ -74,11 +110,31 @@ function App() {
         } />
 
         {/* Provider routes */}
-        <Route path="/onboardingProvider" element={<OnboardingProviderPage />} />
-        <Route path="/sign-in-provider" element={<SignInProvider />} />
-        <Route path="/sign-in-provider" element={<LoginProviderPage />} />
-        <Route path="/verify-provider" element={<VerificationProviderPage />} />
-        <Route path="/welcome-provider" element={<WelcomeProviderPage />} />
+        <Route path="/onboardingProvider" element={
+          <PublicRoute>
+            <OnboardingProviderPage />
+          </PublicRoute>
+        } />
+        <Route path="/sign-in-provider" element={
+          <PublicRoute>
+            <SignInProvider />
+          </PublicRoute>
+        } />
+        <Route path="/sign-in-provider" element={
+          <PublicRoute>
+            <LoginProviderPage />
+          </PublicRoute>
+        } />
+        <Route path="/verify-provider" element={
+          <PublicRoute>
+            <VerificationProviderPage />
+          </PublicRoute>
+        } />
+        <Route path="/welcome-provider" element={
+          <PublicRoute>
+            <WelcomeProviderPage />
+          </PublicRoute>
+        } />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
     </Routes>

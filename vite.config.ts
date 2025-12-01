@@ -17,7 +17,8 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://localhost:6000',
+        // target: 'http://localhost:6000',
+        target: 'https://server-16pz.onrender.com',
         changeOrigin: true,
         secure: false,
         ws: true,

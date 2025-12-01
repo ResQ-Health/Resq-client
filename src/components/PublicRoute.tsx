@@ -2,16 +2,14 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
-interface ProtectedRouteProps {
+interface PublicRouteProps {
     children: React.ReactNode;
-    requireAuth?: boolean;
     redirectTo?: string;
 }
 
-export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
+export const PublicRoute: React.FC<PublicRouteProps> = ({
     children,
-    requireAuth = true,
-    redirectTo = '/',
+    redirectTo = '/patient/my-account',
 }) => {
     const { isAuthenticated, loading } = useAuth();
     const location = useLocation();
@@ -20,20 +18,19 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-screen">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <div
+                    className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"
+                    data-testid="loading-spinner"
+                ></div>
             </div>
         );
     }
 
-    // If authentication is required and user is not authenticated
-    if (requireAuth && !isAuthenticated) {
+    // If user is authenticated, redirect to the specified route
+    if (isAuthenticated) {
         return <Navigate to={redirectTo} state={{ from: location }} replace />;
     }
 
-    // If authentication is not required and user is authenticated
-    if (!requireAuth && isAuthenticated) {
-        return <Navigate to="/my-account" replace />;
-    }
-
+    // If user is not authenticated, allow access to the public route
     return <>{children}</>;
 }; 

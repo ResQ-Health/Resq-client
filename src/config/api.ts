@@ -68,9 +68,10 @@ apiClient.interceptors.response.use(
         // Only redirect on 401 errors for authenticated requests (not login/register)
         if (error.response?.status === 401) {
             const isAuthEndpoint = error.config?.url?.includes('/auth/login') || error.config?.url?.includes('/auth/register');
+            const isBookingEndpoint = error.config?.url?.includes('/appointments/book');
 
-            // Don't redirect for login/register errors, let the component handle them
-            if (!isAuthEndpoint) {
+            // Don't redirect for login/register errors or booking errors (allow guest flow), let the component handle them
+            if (!isAuthEndpoint && !isBookingEndpoint) {
                 localStorage.removeItem('authToken');
                 window.location.href = '/';
             }

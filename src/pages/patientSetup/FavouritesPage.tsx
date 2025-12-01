@@ -1,78 +1,23 @@
-import React, { useState } from 'react';
-import { FaRegHeart } from 'react-icons/fa';
+import { useState } from 'react';
 import HospitalCard from '../../components/HospitalCard';
-
-// Sample favorites data
-const favoriteHospitals = [
-    {
-        name: "Cottage Medicare Hospital",
-        address: "18 Iwaya Rd, Yaba 101245, Lagos",
-        rating: 5.0,
-        reviews: 60,
-        image: "/hospital-image.jpg"
-    },
-    {
-        name: "Blue Cross Hospital",
-        address: "48, Ijaiye Rd, Ogba, (Beside UBA, Ikeja",
-        rating: 5.0,
-        reviews: 60,
-        image: "/hospital-image.jpg"
-    },
-    {
-        name: "Cottage Medicare Hospital",
-        address: "18 Iwaya Rd, Yaba 101245, Lagos",
-        rating: 5.0,
-        reviews: 60,
-        image: "/hospital-image.jpg"
-    },
-    {
-        name: "Blue Cross Hospital",
-        address: "48, Ijaiye Rd, Ogba, (Beside UBA, Ikeja",
-        rating: 5.0,
-        reviews: 60,
-        image: "/hospital-image.jpg"
-    },
-    {
-        name: "Cottage Medicare Hospital",
-        address: "18 Iwaya Rd, Yaba 101245, Lagos",
-        rating: 5.0,
-        reviews: 60,
-        image: "/hospital-image.jpg"
-    },
-    {
-        name: "Cottage Medicare Hospital",
-        address: "18 Iwaya Rd, Yaba 101245, Lagos",
-        rating: 5.0,
-        reviews: 60,
-        image: "/hospital-image.jpg"
-    }
-];
+import { hospitals } from '../../data/hospitals';
 
 export default function FavouritesPage() {
-    const [favorites, setFavorites] = useState(favoriteHospitals);
-
-    const handleRemoveFavorite = (index: number) => {
-        const updatedFavorites = favorites.filter((_, i) => i !== index);
-        setFavorites(updatedFavorites);
-    };
+    const [favorites] = useState(hospitals.slice(0, 6));
 
     return (
-        <div className="w-full min-h-screen">
+        <div className="w-full min-h-screen bg-gray-50">
             {/* Main Content */}
-            <div className="max-w-6xl mx-auto bg-white rounded-lg px-6">
-                <div className="py-8">
-                    <h1 className="text-2xl font-semibold mb-2">My favourites</h1>
+            <div className="max-w-7xl mx-auto p-6">
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                    <h1 className="text-2xl font-bold text-[#16202E] mb-2">My favourites</h1>
                     <p className="text-gray-600 mb-8">Lorem ipsum dolor sit amet consectetur. Tincidunt.</p>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {favorites.map((hospital, index) => (
+                        {favorites.map((hospital) => (
                             <HospitalCard
-                                key={index}
-                                name={hospital.name}
-                                address={hospital.address}
-                                rating={hospital.rating}
-                                reviews={hospital.reviews}
-                                onRemove={() => handleRemoveFavorite(index)}
+                                key={hospital.id}
+                                hospital={hospital}
                             />
                         ))}
                     </div>
@@ -80,4 +25,4 @@ export default function FavouritesPage() {
             </div>
         </div>
     );
-} 
+}
