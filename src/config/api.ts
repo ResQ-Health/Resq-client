@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // API Configuration
-export const API_BASE_URL = import.meta.env.DEV ? '' : 'http://localhost:6000';
+export const API_BASE_URL = import.meta.env.DEV ? '' : 'https://server-16pz.onrender.com';
 
 // Create axios instance with default config
 export const apiClient = axios.create({
