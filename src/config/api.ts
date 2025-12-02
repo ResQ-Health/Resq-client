@@ -20,14 +20,19 @@ apiClient.interceptors.request.use(
             config.headers.Authorization = `Bearer ${token}`;
         }
 
-        // Debug logging in development
+        // Debug logging in development (excluding sensitive headers)
         if (import.meta.env.DEV) {
+            const safeHeaders = { ...config.headers };
+            // Redact Authorization header for security
+            if (safeHeaders.Authorization) {
+                safeHeaders.Authorization = 'Bearer [REDACTED]';
+            }
             console.log('API Request:', {
                 method: config.method,
                 url: config.url,
                 baseURL: config.baseURL,
                 fullURL: `${config.baseURL}${config.url}`,
-                headers: config.headers,
+                headers: safeHeaders,
             });
         }
 
