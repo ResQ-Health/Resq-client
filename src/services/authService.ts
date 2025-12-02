@@ -21,6 +21,42 @@ export interface VerifyRequest {
     verification_code: string;
 }
 
+export interface VerifyOTPRequest {
+    email: string;
+    otp: string;
+}
+
+export interface ResendOTPRequest {
+    email: string;
+}
+
+export interface ResendOTPResponse {
+    success: boolean;
+    message?: string;
+}
+
+export interface ForgotPasswordRequest {
+    email: string;
+}
+
+export interface ForgotPasswordResponse {
+    success: boolean;
+    message?: string;
+}
+
+export interface ResetPasswordRequest {
+    token: string;
+    newPassword: string;
+}
+
+export interface ResetPasswordResponse {
+    success: boolean;
+    message?: string;
+    data?: {
+        token?: string;
+    };
+}
+
 export interface RegisterResponse {
     success: boolean;
     message: string;
@@ -65,6 +101,29 @@ export interface VerifyResponse {
         email_verified: boolean;
         created_at: string;
         token: string;
+    };
+}
+
+export interface OAuthLoginRequest {
+    idToken: string;
+    provider: 'google' | 'facebook' | 'apple';
+    email?: string;
+    name?: string;
+    photoURL?: string;
+    phoneNumber?: string;
+}
+
+export interface OAuthLoginResponse {
+    success: boolean;
+    data: {
+        id: string;
+        email: string;
+        token: string;
+        full_name?: string;
+        phone_number?: string;
+        user_type?: string;
+        email_verified?: boolean;
+        [key: string]: any;
     };
 }
 
@@ -118,6 +177,101 @@ export const verifyEmail = async (data: VerifyRequest): Promise<VerifyResponse> 
         return response.data;
     } catch (error: any) {
         console.error('Verification error details:', {
+            message: error.message,
+            code: error.code,
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            response: error.response?.data,
+            isNetworkError: !error.response,
+        });
+
+        // Re-throw the error for React Query to handle
+        throw error;
+    }
+};
+
+export const verifyOTP = async (data: VerifyOTPRequest): Promise<VerifyResponse> => {
+    try {
+        const response = await apiClient.post(API_ENDPOINTS.AUTH.VERIFY_OTP, data);
+        return response.data;
+    } catch (error: any) {
+        console.error('OTP verification error details:', {
+            message: error.message,
+            code: error.code,
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            response: error.response?.data,
+            isNetworkError: !error.response,
+        });
+
+        // Re-throw the error for React Query to handle
+        throw error;
+    }
+};
+
+export const resendOTP = async (data: ResendOTPRequest): Promise<ResendOTPResponse> => {
+    try {
+        const response = await apiClient.post(API_ENDPOINTS.AUTH.RESEND_OTP, data);
+        return response.data;
+    } catch (error: any) {
+        console.error('Resend OTP error details:', {
+            message: error.message,
+            code: error.code,
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            response: error.response?.data,
+            isNetworkError: !error.response,
+        });
+
+        // Re-throw the error for React Query to handle
+        throw error;
+    }
+};
+
+export const forgotPassword = async (data: ForgotPasswordRequest): Promise<ForgotPasswordResponse> => {
+    try {
+        const response = await apiClient.post(API_ENDPOINTS.AUTH.FORGOT_PASSWORD, data);
+        return response.data;
+    } catch (error: any) {
+        console.error('Forgot password error details:', {
+            message: error.message,
+            code: error.code,
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            response: error.response?.data,
+            isNetworkError: !error.response,
+        });
+
+        // Re-throw the error for React Query to handle
+        throw error;
+    }
+};
+
+export const resetPassword = async (data: ResetPasswordRequest): Promise<ResetPasswordResponse> => {
+    try {
+        const response = await apiClient.post(API_ENDPOINTS.AUTH.RESET_PASSWORD, data);
+        return response.data;
+    } catch (error: any) {
+        console.error('Reset password error details:', {
+            message: error.message,
+            code: error.code,
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            response: error.response?.data,
+            isNetworkError: !error.response,
+        });
+
+        // Re-throw the error for React Query to handle
+        throw error;
+    }
+};
+
+export const oauthLogin = async (data: OAuthLoginRequest): Promise<OAuthLoginResponse> => {
+    try {
+        const response = await apiClient.post(API_ENDPOINTS.AUTH.OAUTH_LOGIN, data);
+        return response.data;
+    } catch (error: any) {
+        console.error('OAuth login error details:', {
             message: error.message,
             code: error.code,
             status: error.response?.status,
@@ -235,6 +389,172 @@ export const useVerifyEmail = () => {
             console.error('Verification mutation error:', error);
 
             let errorMessage = 'Email verification failed. Please try again.';
+
+            if (error.code === 'ERR_NETWORK') {
+                errorMessage = 'Network error: Unable to connect to the server. Please check your internet connection and try again.';
+            } else if (error.code === 'ECONNABORTED') {
+                errorMessage = 'Request timeout: The server is taking too long to respond. Please try again.';
+            } else if (error.response?.data?.message) {
+                errorMessage = error.response.data.message;
+            } else if (error.response?.data?.error) {
+                errorMessage = error.response.data.error;
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+
+            toast.error(errorMessage);
+        },
+    });
+};
+
+export const useVerifyOTP = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: verifyOTP,
+        onSuccess: (data) => {
+            // Store token and user data if provided
+            if (data.data?.token) {
+                localStorage.setItem('authToken', data.data.token);
+                localStorage.setItem('user', JSON.stringify(data.data));
+            }
+
+            // Invalidate and refetch user data
+            queryClient.invalidateQueries({ queryKey: ['user'] });
+
+            toast.success('Email verified successfully!');
+        },
+        onError: (error: any) => {
+            console.error('OTP verification mutation error:', error);
+
+            let errorMessage = 'OTP verification failed. Please try again.';
+
+            if (error.code === 'ERR_NETWORK') {
+                errorMessage = 'Network error: Unable to connect to the server. Please check your internet connection and try again.';
+            } else if (error.code === 'ECONNABORTED') {
+                errorMessage = 'Request timeout: The server is taking too long to respond. Please try again.';
+            } else if (error.response?.data?.message) {
+                errorMessage = error.response.data.message;
+            } else if (error.response?.data?.error) {
+                errorMessage = error.response.data.error;
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+
+            toast.error(errorMessage);
+        },
+    });
+};
+
+export const useResendOTP = () => {
+    return useMutation({
+        mutationFn: resendOTP,
+        onSuccess: () => {
+            toast.success('OTP has been resent to your email. Please check your inbox.');
+        },
+        onError: (error: any) => {
+            console.error('Resend OTP mutation error:', error);
+
+            let errorMessage = 'Failed to resend OTP. Please try again.';
+
+            if (error.code === 'ERR_NETWORK') {
+                errorMessage = 'Network error: Unable to connect to the server. Please check your internet connection and try again.';
+            } else if (error.code === 'ECONNABORTED') {
+                errorMessage = 'Request timeout: The server is taking too long to respond. Please try again.';
+            } else if (error.response?.data?.message) {
+                errorMessage = error.response.data.message;
+            } else if (error.response?.data?.error) {
+                errorMessage = error.response.data.error;
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+
+            toast.error(errorMessage);
+        },
+    });
+};
+
+export const useForgotPassword = () => {
+    return useMutation({
+        mutationFn: forgotPassword,
+        onSuccess: () => {
+            toast.success('Password reset link has been sent to your email. Please check your inbox.');
+        },
+        onError: (error: any) => {
+            console.error('Forgot password mutation error:', error);
+
+            let errorMessage = 'Failed to send reset link. Please try again.';
+
+            if (error.code === 'ERR_NETWORK') {
+                errorMessage = 'Network error: Unable to connect to the server. Please check your internet connection and try again.';
+            } else if (error.code === 'ECONNABORTED') {
+                errorMessage = 'Request timeout: The server is taking too long to respond. Please try again.';
+            } else if (error.response?.data?.message) {
+                errorMessage = error.response.data.message;
+            } else if (error.response?.data?.error) {
+                errorMessage = error.response.data.error;
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+
+            toast.error(errorMessage);
+        },
+    });
+};
+
+export const useResetPassword = () => {
+    return useMutation({
+        mutationFn: resetPassword,
+        onSuccess: () => {
+            toast.success('Password has been reset successfully!');
+        },
+        onError: (error: any) => {
+            console.error('Reset password mutation error:', error);
+
+            let errorMessage = 'Failed to reset password. Please try again.';
+
+            if (error.code === 'ERR_NETWORK') {
+                errorMessage = 'Network error: Unable to connect to the server. Please check your internet connection and try again.';
+            } else if (error.code === 'ECONNABORTED') {
+                errorMessage = 'Request timeout: The server is taking too long to respond. Please try again.';
+            } else if (error.response?.data?.message) {
+                errorMessage = error.response.data.message;
+            } else if (error.response?.data?.error) {
+                errorMessage = error.response.data.error;
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+
+            toast.error(errorMessage);
+        },
+    });
+};
+
+export const useOAuthLogin = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: oauthLogin,
+        onSuccess: (data) => {
+            // Store token and user data immediately
+            if (data.data?.token) {
+                localStorage.setItem('authToken', data.data.token);
+                localStorage.setItem('user', JSON.stringify(data.data));
+
+                // Ensure token is set in axios defaults for immediate use
+                apiClient.defaults.headers.common['Authorization'] = `Bearer ${data.data.token}`;
+            }
+
+            // Invalidate and refetch user data
+            queryClient.invalidateQueries({ queryKey: ['user'] });
+
+            // Don't show success toast here - navigation will handle the flow
+            // User will be taken to verification page, just like normal registration
+        },
+        onError: (error: any) => {
+            console.error('OAuth login mutation error:', error);
+
+            let errorMessage = 'OAuth login failed. Please try again.';
 
             if (error.code === 'ERR_NETWORK') {
                 errorMessage = 'Network error: Unable to connect to the server. Please check your internet connection and try again.';

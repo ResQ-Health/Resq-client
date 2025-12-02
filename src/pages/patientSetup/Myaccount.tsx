@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { MdKeyboardArrowDown, MdOutlineSearch, MdFilterList } from 'react-icons/md';
 import { FaUser, FaRegCalendarAlt, FaRegHeart, FaRegClock, FaStar } from 'react-icons/fa';
 import { FiSettings, FiFilter, FiEye } from 'react-icons/fi';
@@ -13,7 +14,9 @@ import uploadIcon from '/icons/upload.png';
 import favoriteIcon from '/icons/favorite.png';
 import HospitalCard from '../../components/HospitalCard';
 import { usePatientProfile, useUpdatePatientProfile, useUploadProfilePicture, PatientProfileRequest } from '../../services/userService';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../contexts/AuthContext';
+import toast from 'react-hot-toast';
 
 const TABS = [
   { label: 'Basic details' },
@@ -142,6 +145,7 @@ const favoriteHospitals = [
 
 export default function Myaccount() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(0);
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -154,6 +158,66 @@ export default function Myaccount() {
   const { data: profileData, isLoading, error } = usePatientProfile();
   const updateProfileMutation = useUpdatePatientProfile();
   const uploadProfilePictureMutation = useUploadProfilePicture();
+  const queryClient = useQueryClient();
+
+  // Calculate onboarding completion status and progress
+  const calculateOnboardingProgress = () => {
+    if (!profileData?.data) return { isComplete: false, progress: 0, basicComplete: false, additionalComplete: false };
+
+    const data = profileData.data;
+    const metadata = profileData.metadata;
+
+    // Basic details completion check
+    const basicDetailsComplete = !!(
+      data.personal_details?.first_name &&
+      data.personal_details?.last_name &&
+      data.personal_details?.date_of_birth &&
+      data.personal_details?.gender &&
+      data.contact_details?.email_address &&
+      data.contact_details?.phone_number
+    );
+
+    // Additional details completion check
+    const additionalDetailsComplete = !!(
+      data.location_details?.address &&
+      data.location_details?.city &&
+      data.location_details?.state &&
+      metadata?.emergency_contact?.first_name &&
+      metadata?.emergency_contact?.last_name &&
+      metadata?.emergency_contact?.phone_number &&
+      metadata?.emergency_contact?.relationship_to_you &&
+      metadata?.next_of_kin?.first_name &&
+      metadata?.next_of_kin?.last_name &&
+      metadata?.next_of_kin?.phone_number &&
+      metadata?.next_of_kin?.relationship_to_you
+    );
+
+    const isComplete = basicDetailsComplete && additionalDetailsComplete;
+    const progress = basicDetailsComplete && additionalDetailsComplete ? 100 : basicDetailsComplete ? 50 : 0;
+
+    return { isComplete, progress, basicComplete: basicDetailsComplete, additionalComplete: additionalDetailsComplete };
+  };
+
+  const onboardingStatus = calculateOnboardingProgress();
+
+  // Check if user just logged in and redirect if onboarding is complete
+  useEffect(() => {
+    // Only check if profile data is loaded
+    if (!profileData?.data || isLoading) return;
+
+    // Check if user just logged in (flag set during Google login)
+    const justLoggedIn = localStorage.getItem('justLoggedIn') === 'true';
+    
+    if (justLoggedIn && onboardingStatus.isComplete) {
+      // User just logged in and onboarding is complete - redirect to booking history
+      localStorage.removeItem('justLoggedIn'); // Clear the flag
+      navigate('/booking-history', { replace: true });
+    } else if (justLoggedIn) {
+      // User just logged in but onboarding not complete - clear flag and stay on page
+      localStorage.removeItem('justLoggedIn');
+    }
+    // If justLoggedIn is false, user navigated normally - don't redirect
+  }, [profileData, isLoading, onboardingStatus.isComplete, navigate]);
 
   // Form state
   const [form, setForm] = useState({
@@ -240,6 +304,20 @@ export default function Myaccount() {
     }
   }, [form.sameAsEmergency, form.emergencyFirstName, form.emergencyLastName, form.emergencyPhone, form.emergencyRelationship]);
 
+  // Show success message when onboarding is completed
+  useEffect(() => {
+    if (onboardingStatus.isComplete && profileData?.data) {
+      // Only show toast if this is a new completion (not on initial load)
+      const wasComplete = localStorage.getItem('onboarding_completed');
+      if (!wasComplete) {
+        toast.success('🎉 Profile complete! You can now access all features.');
+        localStorage.setItem('onboarding_completed', 'true');
+      }
+    } else {
+      localStorage.removeItem('onboarding_completed');
+    }
+  }, [onboardingStatus.isComplete, profileData]);
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -298,7 +376,75 @@ export default function Myaccount() {
       },
     };
 
-    updateProfileMutation.mutate(profileData);
+    updateProfileMutation.mutate(profileData, {
+      onSuccess: () => {
+        // Invalidate and refetch profile data to update onboarding status
+        queryClient.invalidateQueries({ queryKey: ['patientProfile'] });
+        
+        // Check if onboarding is now complete
+        const basicComplete = !!(
+          form.firstName &&
+          form.lastName &&
+          form.dob &&
+          form.gender &&
+          form.email &&
+          form.phone
+        );
+        
+        const additionalComplete = !!(
+          form.address &&
+          form.city &&
+          form.state &&
+          form.emergencyFirstName &&
+          form.emergencyLastName &&
+          form.emergencyPhone &&
+          form.emergencyRelationship &&
+          form.nextOfKinFirstName &&
+          form.nextOfKinLastName &&
+          form.nextOfKinPhone &&
+          form.nextOfKinRelationship
+        );
+        
+        const isNowComplete = basicComplete && additionalComplete;
+        
+        // If on Basic details tab and basic details are now complete, navigate to Additional details
+        if (activeTab === 0 && basicComplete && !isNowComplete) {
+          // Wait a bit for the profile data to refresh, then switch to Additional details tab
+          setTimeout(() => {
+            setActiveTab(1);
+          }, 500);
+        }
+        
+        // If onboarding is now complete, redirect to booking history
+        if (isNowComplete) {
+          setTimeout(() => {
+            toast.success('🎉 Profile complete! Redirecting to booking history...');
+            navigate('/booking-history', { replace: true });
+          }, 1000);
+        }
+      },
+    });
+  };
+
+  // Handle tab switching - block if onboarding not complete
+  const handleTabChange = (tabIndex: number) => {
+    if (onboardingStatus.isComplete) {
+      setActiveTab(tabIndex);
+    } else {
+      // If trying to switch to Additional details but Basic details not complete
+      if (tabIndex === 1 && !onboardingStatus.basicComplete) {
+        // Show a message or prevent switching
+        return;
+      }
+      // Allow switching if basic details are complete
+      if (tabIndex === 1 && onboardingStatus.basicComplete) {
+        setActiveTab(tabIndex);
+      }
+      // Allow switching back to Basic details
+      if (tabIndex === 0) {
+        setActiveTab(tabIndex);
+      }
+    }
   };
 
   const handleRatingChange = (index: number, newRating: number) => {
@@ -416,55 +562,87 @@ export default function Myaccount() {
   // Always render; fall back to default avatar if image is absent
 
   return (
-    <div className="w-full min-h-screen">
+    <div className="w-full min-h-screen bg-gray-50">
       {/* Main Content */}
-      <div className="max-w-6xl mx-auto bg-white rounded-lg px-6">
-        {/* My Account Content */}
-        <div className="max-w-4xl mx-auto">
-          {/* Tabs */}
-          <div className="flex gap-2 mb-6">
-            <button
-              onClick={() => setActiveTab(0)}
-              className={`px-4 py-2 rounded-lg text-base font-medium transition-all duration-300 ${activeTab === 0
-                ? 'bg-[#16202E] text-white'
-                : 'bg-[#F4F6F8] text-[#16202E]'
-                }`}
-            >
-              Basic details
-            </button>
-            <button
-              onClick={() => setActiveTab(1)}
-              className={`px-4 py-2 rounded-lg text-base font-medium transition-all duration-300 ${activeTab === 1
-                ? 'bg-[#16202E] text-white'
-                : 'bg-[#F4F6F8] text-[#16202E]'
-                }`}
-            >
-              Additional details
-            </button>
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        {/* Simple Progress Indicator */}
+        {!onboardingStatus.isComplete && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-sm text-gray-600">Profile Completion</span>
+              <span className="text-sm font-medium text-gray-900">{onboardingStatus.progress}%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-1.5">
+              <div
+                className="bg-[#16202E] h-1.5 rounded-full transition-all duration-300"
+                style={{ width: `${onboardingStatus.progress}%` }}
+              ></div>
+            </div>
           </div>
+        )}
 
-          {/* Tab Content Container */}
-          <div className={`bg-white rounded-lg transition-all duration-300 ${updateProfileMutation.isPending ? 'bg-green-50' : ''}`}>
-            <form onSubmit={handleSubmit}>
+        {/* Tabs */}
+        <div className="flex gap-1 mb-8 bg-white p-1 rounded-lg border border-gray-200">
+          <button
+            onClick={() => handleTabChange(0)}
+            className={`flex-1 px-4 py-2.5 rounded-md text-sm font-medium transition-all ${
+              activeTab === 0
+                ? 'bg-[#16202E] text-white shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            }`}
+          >
+            <span className="flex items-center justify-center gap-2">
+              Basic details
+              {onboardingStatus.basicComplete && (
+                <IoCheckmarkDone className="w-4 h-4" />
+              )}
+            </span>
+          </button>
+          <button
+            onClick={() => handleTabChange(1)}
+            disabled={!onboardingStatus.basicComplete && !onboardingStatus.isComplete}
+            className={`flex-1 px-4 py-2.5 rounded-md text-sm font-medium transition-all ${
+              activeTab === 1
+                ? 'bg-[#16202E] text-white shadow-sm'
+                : 'text-gray-600 hover:text-gray-900'
+            } ${
+              !onboardingStatus.basicComplete && !onboardingStatus.isComplete
+                ? 'opacity-40 cursor-not-allowed'
+                : ''
+            }`}
+          >
+            <span className="flex items-center justify-center gap-2">
+              Additional details
+              {onboardingStatus.additionalComplete && (
+                <IoCheckmarkDone className="w-4 h-4" />
+              )}
+            </span>
+          </button>
+        </div>
+
+        {/* Tab Content Container */}
+        <div className="bg-white rounded-lg border border-gray-200 shadow-sm">
+          <form onSubmit={handleSubmit}>
+            <div className="p-6">
               {activeTab === 0 ? (
                 // Basic Details Tab
                 <div className="space-y-8">
                   {/* Profile Image Section */}
-                  <div className="flex items-center gap-6">
+                  <div className="flex items-center gap-4 pb-6 border-b border-gray-100">
                     <div className="relative">
-                      <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center overflow-hidden">
+                      <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden">
                         {profileImage ? (
                           <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
                         ) : (
-                          <FaUser className="w-12 h-12 text-gray-400" />
+                          <FaUser className="w-10 h-10 text-gray-400" />
                         )}
                       </div>
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="absolute -bottom-1 -right-1 w-8 h-8 bg-[#16202E] rounded-full flex items-center justify-center"
+                        className="absolute -bottom-1 -right-1 w-7 h-7 bg-[#16202E] rounded-full flex items-center justify-center hover:bg-[#1a2a3a] transition-colors"
                       >
-                        <img src={uploadIcon} alt="Upload" className="w-4 h-4" />
+                        <img src={uploadIcon} alt="Upload" className="w-3.5 h-3.5" />
                       </button>
                       <input
                         ref={fileInputRef}
@@ -475,60 +653,60 @@ export default function Myaccount() {
                       />
                     </div>
                     <div>
-                      <h3 className="text-lg font-medium mb-2">Profile photo</h3>
-                      <p className="text-gray-600 text-sm">Upload a profile photo to personalize your account</p>
+                      <h3 className="text-base font-medium text-gray-900 mb-1">Profile photo</h3>
+                      <p className="text-sm text-gray-500">Upload a profile photo</p>
                     </div>
                   </div>
 
                   {/* Personal Information */}
                   <div>
-                    <h3 className="text-lg mb-6">Personal information</h3>
-                    <div className="space-y-6">
-                      <div className="flex gap-6">
-                        <div className="flex-1">
-                          <label className="block text-gray-600 text-sm mb-2">First name</label>
+                    <h3 className="text-base font-medium text-gray-900 mb-4">Personal information</h3>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">First name</label>
                           <input
                             type="text"
                             name="firstName"
                             value={form.firstName}
                             onChange={handleInputChange}
-                            className="w-full px-4 py-2.5 border border-gray-200 rounded-[4px]"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#16202E] focus:border-transparent"
                             placeholder="Enter first name"
                             required
                           />
                         </div>
-                        <div className="flex-1">
-                          <label className="block text-gray-600 text-sm mb-2">Last name</label>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Last name</label>
                           <input
                             type="text"
                             name="lastName"
                             value={form.lastName}
                             onChange={handleInputChange}
-                            className="w-full px-4 py-2.5 border border-gray-200 rounded-[4px]"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#16202E] focus:border-transparent"
                             placeholder="Enter last name"
                             required
                           />
                         </div>
                       </div>
-                      <div className="flex gap-6">
-                        <div className="flex-1">
-                          <label className="block text-gray-600 text-sm mb-2">Date of birth</label>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Date of birth</label>
                           <input
                             type="date"
                             name="dob"
                             value={form.dob}
                             onChange={handleInputChange}
-                            className="w-full px-4 py-2.5 border border-gray-200 rounded-[4px]"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#16202E] focus:border-transparent"
                             required
                           />
                         </div>
-                        <div className="flex-1">
-                          <label className="block text-gray-600 text-sm mb-2">Gender</label>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Gender</label>
                           <select
                             name="gender"
                             value={form.gender}
                             onChange={handleInputChange}
-                            className="w-full px-4 py-2.5 border border-gray-200 rounded-[4px] bg-white appearance-none"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-[#16202E] focus:border-transparent"
                             required
                           >
                             <option value="">--Select--</option>
@@ -542,29 +720,30 @@ export default function Myaccount() {
                   </div>
 
                   {/* Contact Information */}
-                  <div>
-                    <h3 className="text-lg mb-6">Contact information</h3>
-                    <div className="space-y-6">
+                  <div className="pt-6 border-t border-gray-100">
+                    <h3 className="text-base font-medium text-gray-900 mb-4">Contact information</h3>
+                    <div className="space-y-4">
                       <div>
-                        <label className="block text-gray-600 text-sm mb-2">Email address</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Email address</label>
                         <input
                           type="email"
                           name="email"
                           value={form.email}
                           onChange={handleInputChange}
-                          className="w-full px-4 py-2.5 border border-gray-200 rounded-[4px]"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 cursor-not-allowed text-gray-600"
                           placeholder="Enter email address"
                           required
+                          readOnly
                         />
                       </div>
                       <div>
-                        <label className="block text-gray-600 text-sm mb-2">Phone number</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone number</label>
                         <input
                           type="tel"
                           name="phone"
                           value={form.phone}
                           onChange={handleInputChange}
-                          className="w-full px-4 py-2.5 border border-gray-200 rounded-[4px]"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#16202E] focus:border-transparent"
                           placeholder="Enter phone number"
                           required
                         />
@@ -573,11 +752,11 @@ export default function Myaccount() {
                   </div>
 
                   {/* Save button */}
-                  <div className="flex justify-end items-center">
+                  <div className="flex justify-end pt-6 border-t border-gray-100">
                     <button
                       type="submit"
                       disabled={updateProfileMutation.isPending}
-                      className="bg-[#16202E] text-white px-6 py-2.5 rounded-[6px] text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      className="bg-[#16202E] text-white px-6 py-2.5 rounded-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 hover:bg-[#1a2a3a] transition-colors"
                     >
                       {updateProfileMutation.isPending ? (
                         <>
@@ -585,15 +764,9 @@ export default function Myaccount() {
                           Saving...
                         </>
                       ) : (
-                        'Save to account'
+                        'Save changes'
                       )}
                     </button>
-                    {updateProfileMutation.isPending && (
-                      <div className="ml-3 flex items-center text-sm text-green-600">
-                        <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
-                        Updating...
-                      </div>
-                    )}
                   </div>
                 </div>
               ) : (
@@ -604,38 +777,38 @@ export default function Myaccount() {
                     <h3 className="text-lg mb-6">Address information</h3>
                     <div className="space-y-6">
                       <div>
-                        <label className="block text-gray-600 text-sm mb-2">Address</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Address</label>
                         <input
                           type="text"
                           name="address"
                           value={form.address}
                           onChange={handleInputChange}
-                          className="w-full px-4 py-2.5 border border-gray-200 rounded-[4px]"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#16202E] focus:border-transparent"
                           placeholder="Enter address"
                           required
                         />
                       </div>
-                      <div className="flex gap-6">
-                        <div className="flex-1">
-                          <label className="block text-gray-600 text-sm mb-2">City</label>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">City</label>
                           <input
                             type="text"
                             name="city"
                             value={form.city}
                             onChange={handleInputChange}
-                            className="w-full px-4 py-2.5 border border-gray-200 rounded-[4px]"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#16202E] focus:border-transparent"
                             placeholder="Enter city"
                             required
                           />
                         </div>
-                        <div className="flex-1">
-                          <label className="block text-gray-600 text-sm mb-2">State</label>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">State</label>
                           <input
                             type="text"
                             name="state"
                             value={form.state}
                             onChange={handleInputChange}
-                            className="w-full px-4 py-2.5 border border-gray-200 rounded-[4px]"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#16202E] focus:border-transparent"
                             placeholder="Enter state"
                             required
                           />
@@ -645,55 +818,55 @@ export default function Myaccount() {
                   </div>
 
                   {/* Emergency contact */}
-                  <div>
-                    <h3 className="text-lg mb-6">Emergency contact</h3>
-                    <div className="space-y-6">
-                      <div className="flex gap-6">
-                        <div className="flex-1">
-                          <label className="block text-gray-600 text-sm mb-2">First name</label>
+                  <div className="pt-6 border-t border-gray-100">
+                    <h3 className="text-base font-medium text-gray-900 mb-4">Emergency contact</h3>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">First name</label>
                           <input
                             type="text"
                             name="emergencyFirstName"
                             value={form.emergencyFirstName}
                             onChange={handleInputChange}
-                            className="w-full px-4 py-2.5 border border-gray-200 rounded-[4px]"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#16202E] focus:border-transparent"
                             placeholder="Enter first name"
                             required
                           />
                         </div>
-                        <div className="flex-1">
-                          <label className="block text-gray-600 text-sm mb-2">Last name</label>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Last name</label>
                           <input
                             type="text"
                             name="emergencyLastName"
                             value={form.emergencyLastName}
                             onChange={handleInputChange}
-                            className="w-full px-4 py-2.5 border border-gray-200 rounded-[4px]"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#16202E] focus:border-transparent"
                             placeholder="Enter last name"
                             required
                           />
                         </div>
                       </div>
-                      <div className="flex gap-6">
-                        <div className="flex-1">
-                          <label className="block text-gray-600 text-sm mb-2">Phone number</label>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone number</label>
                           <input
                             type="text"
                             name="emergencyPhone"
                             value={form.emergencyPhone}
                             onChange={handleInputChange}
-                            className="w-full px-4 py-2.5 border border-gray-200 rounded-[4px]"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#16202E] focus:border-transparent"
                             placeholder="Enter phone number"
                             required
                           />
                         </div>
-                        <div className="flex-1">
-                          <label className="block text-gray-600 text-sm mb-2">Relationship to you</label>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Relationship to you</label>
                           <select
                             name="emergencyRelationship"
                             value={form.emergencyRelationship}
                             onChange={handleInputChange}
-                            className="w-full px-4 py-2.5 border border-gray-200 rounded-[4px] bg-white appearance-none"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-[#16202E] focus:border-transparent"
                             required
                           >
                             <option value="">--Select--</option>
@@ -710,55 +883,55 @@ export default function Myaccount() {
                   </div>
 
                   {/* Next of kin */}
-                  <div>
-                    <h3 className="text-lg mb-6">Next of kin</h3>
-                    <div className="space-y-6">
-                      <div className="flex gap-6">
-                        <div className="flex-1">
-                          <label className="block text-gray-600 text-sm mb-2">First name</label>
+                  <div className="pt-6 border-t border-gray-100">
+                    <h3 className="text-base font-medium text-gray-900 mb-4">Next of kin</h3>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">First name</label>
                           <input
                             type="text"
                             name="nextOfKinFirstName"
                             value={form.nextOfKinFirstName}
                             onChange={handleInputChange}
-                            className="w-full px-4 py-2.5 border border-gray-200 rounded-[4px]"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#16202E] focus:border-transparent"
                             placeholder="Enter first name"
                             required
                           />
                         </div>
-                        <div className="flex-1">
-                          <label className="block text-gray-600 text-sm mb-2">Last name</label>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Last name</label>
                           <input
                             type="text"
                             name="nextOfKinLastName"
                             value={form.nextOfKinLastName}
                             onChange={handleInputChange}
-                            className="w-full px-4 py-2.5 border border-gray-200 rounded-[4px]"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#16202E] focus:border-transparent"
                             placeholder="Enter last name"
                             required
                           />
                         </div>
                       </div>
-                      <div className="flex gap-6">
-                        <div className="flex-1">
-                          <label className="block text-gray-600 text-sm mb-2">Phone number</label>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone number</label>
                           <input
                             type="text"
                             name="nextOfKinPhone"
                             value={form.nextOfKinPhone}
                             onChange={handleInputChange}
-                            className="w-full px-4 py-2.5 border border-gray-200 rounded-[4px]"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#16202E] focus:border-transparent"
                             placeholder="Enter phone number"
                             required
                           />
                         </div>
-                        <div className="flex-1">
-                          <label className="block text-gray-600 text-sm mb-2">Relationship to you</label>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1.5">Relationship to you</label>
                           <select
                             name="nextOfKinRelationship"
                             value={form.nextOfKinRelationship}
                             onChange={handleInputChange}
-                            className="w-full px-4 py-2.5 border border-gray-200 rounded-[4px] bg-white appearance-none"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-[#16202E] focus:border-transparent"
                             required
                           >
                             <option value="">--Select--</option>
@@ -772,13 +945,13 @@ export default function Myaccount() {
                         </div>
                       </div>
                       <div>
-                        <label className="inline-flex items-center text-sm text-gray-600">
+                        <label className="inline-flex items-center text-sm text-gray-700">
                           <input
                             type="checkbox"
                             name="sameAsEmergency"
                             checked={form.sameAsEmergency}
                             onChange={handleInputChange}
-                            className="mr-2"
+                            className="mr-2 w-4 h-4 text-[#16202E] border-gray-300 rounded focus:ring-[#16202E]"
                           />
                           <span>Same as emergency contact?</span>
                         </label>
@@ -787,11 +960,11 @@ export default function Myaccount() {
                   </div>
 
                   {/* Save button */}
-                  <div className="flex justify-end items-center">
+                  <div className="flex justify-end pt-6 border-t border-gray-100">
                     <button
                       type="submit"
                       disabled={updateProfileMutation.isPending}
-                      className="bg-[#16202E] text-white px-6 py-2.5 rounded-[6px] text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                      className="bg-[#16202E] text-white px-6 py-2.5 rounded-md text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 hover:bg-[#1a2a3a] transition-colors"
                     >
                       {updateProfileMutation.isPending ? (
                         <>
@@ -799,20 +972,14 @@ export default function Myaccount() {
                           Saving...
                         </>
                       ) : (
-                        'Save to account'
+                        'Save changes'
                       )}
                     </button>
-                    {updateProfileMutation.isPending && (
-                      <div className="ml-3 flex items-center text-sm text-green-600">
-                        <div className="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></div>
-                        Updating...
-                      </div>
-                    )}
                   </div>
                 </div>
               )}
-            </form>
-          </div>
+            </div>
+          </form>
         </div>
       </div>
     </div>

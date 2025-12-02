@@ -1,14 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { AiOutlineCloseCircle, AiOutlineClose, AiOutlineCheckCircle } from 'react-icons/ai';
-import { useVerifyEmail } from '../../services/authService';
+import { useVerifyOTP, useResendOTP } from '../../services/authService';
 import { useAuth } from '../../contexts/AuthContext';
 
 function VerificationPage() {
   const location = useLocation();
   const navigate = useNavigate();
   const { login } = useAuth();
-  const verifyMutation = useVerifyEmail();
+  const verifyMutation = useVerifyOTP();
+  const resendOTPMutation = useResendOTP();
 
   // Get email from location state or use default
   const email = location.state?.email || 'Joshuanasiru@yandex.com';
@@ -32,17 +33,22 @@ function VerificationPage() {
 
   // Verify code when the 6th digit is entered
   const handleVerify = async (enteredCodes: string[]) => {
-    const verification_code = enteredCodes.join('');
+    const otp = enteredCodes.join('');
 
     verifyMutation.mutate(
-      { email, verification_code },
+      { email, otp },
       {
         onSuccess: (data) => {
           // Update auth context
           login(data.data.token, data.data);
 
-          // Navigate to patient setup
-          navigate('/patientSetup/Myaccount');
+          // Show success notification
+          setNotification('success');
+
+          // Navigate to search page after successful verification (like normal login flow)
+          setTimeout(() => {
+            navigate('/search');
+          }, 1500); // Small delay to show success message
         },
         onError: () => {
           setNotification('error');
@@ -62,8 +68,7 @@ function VerificationPage() {
   }, [notification]);
 
   const handleResendCode = () => {
-    // TODO: Implement resend code functionality
-    console.log('Resend code clicked');
+    resendOTPMutation.mutate({ email });
   };
 
   return (

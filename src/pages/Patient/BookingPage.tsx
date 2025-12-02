@@ -25,6 +25,8 @@ const BookingPage = () => {
     const [selectedDate, setSelectedDate] = useState('');
     const [selectedTime, setSelectedTime] = useState('');
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'paystack'>('paystack');
+    const [couponCode, setCouponCode] = useState('');
+    const [couponApplied, setCouponApplied] = useState(false);
 
     // Patient details form state
     const [fullName, setFullName] = useState('');
@@ -1379,13 +1381,48 @@ const BookingPage = () => {
                                             <div className="flex space-x-2">
                                                 <input
                                                     type="text"
-                                                    value="IJKZYB"
-                                                    className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                    value={couponCode}
+                                                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                                                    placeholder="Enter coupon code"
+                                                    disabled={couponApplied}
+                                                    className={`flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${couponApplied ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                                                 />
-                                                <button className="px-4 py-2 bg-gray-900 text-white rounded-md hover:bg-gray-800 transition-colors">
-                                                    Apply
-                                                </button>
+                                                {couponApplied ? (
+                                                    <button
+                                                        onClick={() => {
+                                                            setCouponApplied(false);
+                                                            setCouponCode('');
+                                                            toast.success('Coupon removed');
+                                                        }}
+                                                        className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+                                                    >
+                                                        Remove
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => {
+                                                            if (!couponCode.trim()) {
+                                                                toast.error('Please enter a coupon code');
+                                                                return;
+                                                            }
+                                                            if (couponCode.toUpperCase() === 'IJKZYB') {
+                                                                setCouponApplied(true);
+                                                                toast.success('Coupon applied! 25% discount applied');
+                                                            } else {
+                                                                toast.error('Invalid coupon code');
+                                                            }
+                                                        }}
+                                                        className="px-4 py-2 bg-gray-900 text-white rounded-md hover:bg-gray-800 transition-colors"
+                                                    >
+                                                        Apply
+                                                    </button>
+                                                )}
                                             </div>
+                                            {couponApplied && (
+                                                <p className="mt-2 text-sm text-green-600 font-medium">
+                                                    ✓ 25% discount applied
+                                                </p>
+                                            )}
                                         </div>
                                     </div>
 
@@ -1409,6 +1446,23 @@ const BookingPage = () => {
                                                     <span className="text-sm text-gray-600">Price</span>
                                                     <span className="text-sm font-medium text-black">{(() => { try { const s = JSON.parse(localStorage.getItem('bookingDraft') || '{}')?.service; const price = s?.price ?? s?.amount ?? s?.cost; return price ? `₦${price}` : '—'; } catch { return '—'; } })()}</span>
                                                 </div>
+                                                {couponApplied && (() => {
+                                                    try {
+                                                        const draft = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
+                                                        const s = draft?.service;
+                                                        const price = s?.price ?? s?.amount ?? s?.cost;
+                                                        if (price) {
+                                                            const discount = price * 0.25;
+                                                            return (
+                                                                <div className="flex justify-between items-center">
+                                                                    <span className="text-sm text-gray-600">Discount (25%)</span>
+                                                                    <span className="text-sm font-medium text-green-600">-₦{discount.toFixed(2)}</span>
+                                                                </div>
+                                                            );
+                                                        }
+                                                    } catch { }
+                                                    return null;
+                                                })()}
                                                 <div className="flex justify-between items-center">
                                                     <span className="text-sm text-gray-600">Provider</span>
                                                     <span className="text-sm font-medium text-black">{providerData?.name || JSON.parse(localStorage.getItem('bookingDraft') || '{}')?.provider?.name || 'N/A'}</span>
@@ -1417,11 +1471,23 @@ const BookingPage = () => {
                                                     <span className="text-sm text-gray-600">When</span>
                                                     <span className="text-sm font-medium text-black">{selectedDate} {selectedTime ? `at ${selectedTime}` : ''}</span>
                                                 </div>
-                                                {/* Coupon removed */}
                                                 <div className="border-t border-gray-200 pt-3">
                                                     <div className="flex justify-between items-center">
                                                         <span className="text-lg font-bold text-black">Total</span>
-                                                        <span className="text-lg font-bold text-black">{(() => { try { const draft = JSON.parse(localStorage.getItem('bookingDraft') || '{}'); const s = draft?.service; const price = s?.price ?? s?.amount ?? s?.cost; return price ? `₦${price}` : '—'; } catch { return '—'; } })()}</span>
+                                                        <span className="text-lg font-bold text-black">{(() => {
+                                                            try {
+                                                                const draft = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
+                                                                const s = draft?.service;
+                                                                const price = s?.price ?? s?.amount ?? s?.cost;
+                                                                if (price) {
+                                                                    const finalPrice = couponApplied ? price * 0.75 : price;
+                                                                    return `₦${finalPrice.toFixed(2)}`;
+                                                                }
+                                                                return '—';
+                                                            } catch {
+                                                                return '—';
+                                                            }
+                                                        })()}</span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -1445,7 +1511,9 @@ const BookingPage = () => {
                                                         const draft = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
                                                         const appointmentId = draft?.appointment?.id;
                                                         const s = draft?.service || {};
-                                                        const amount = s?.price ?? s?.amount ?? s?.cost ?? 0;
+                                                        const baseAmount = s?.price ?? s?.amount ?? s?.cost ?? 0;
+                                                        // Apply 25% discount if coupon is applied
+                                                        const amount = couponApplied ? baseAmount * 0.75 : baseAmount;
                                                         // Use profile email if available, otherwise use the email entered in the form
                                                         const emailToUse = profileData?.data?.contact_details?.email_address || profileData?.data?.email || email || patientEmail || '';
 

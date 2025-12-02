@@ -3,11 +3,14 @@ import CalendarPage from './pages/CalendarPage'
 import OnboardingPage from './pages/onboarding patients/OnboardingPage'
 import LoginPatientPage from './pages/onboarding patients/LoginPatientPage'
 import VerificationPage from './pages/onboarding patients/VerificationPage'
+import ForgotPasswordPage from './pages/onboarding patients/ForgotPasswordPage'
+import ResetPasswordPage from './pages/onboarding patients/ResetPasswordPage'
 import Myaccount from './pages/patientSetup/Myaccount'
 import Layout from './components/Layout'
 import PatientLayout from './components/PatientLayout'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { PublicRoute } from './components/PublicRoute'
+import { OnboardingRoute } from './components/OnboardingRoute'
 // Onboarding provider imports
 import OnboardingProviderPage from './pages/onboarding provider/OnboardingProviderPage'
 import SignInProvider from './pages/onboarding provider/sign-in-provider'
@@ -24,6 +27,7 @@ import ProviderPage from './pages/Patient/ProviderPage'
 import BookingPage from './pages/Patient/BookingPage'
 import BookingSuccessPage from './pages/Patient/BookingSuccessPage'
 import PaymentCallback from './components/PaymentCallback'
+import TermsAndPolicyPage from './pages/TermsAndPolicyPage'
 
 function App() {
 
@@ -56,6 +60,21 @@ function App() {
             <VerificationPage />
           </PublicRoute>
         } />
+        <Route path="/forgot-password" element={
+          <PublicRoute>
+            <ForgotPasswordPage />
+          </PublicRoute>
+        } />
+        <Route path="/reset-password" element={
+          <PublicRoute>
+            <ResetPasswordPage />
+          </PublicRoute>
+        } />
+        <Route path="/terms-and-policy" element={
+          <PublicRoute>
+            <TermsAndPolicyPage />
+          </PublicRoute>
+        } />
 
         {/* <Route path="/patientSetup/Myaccount" element={<Myaccount />} /> */}
         <Route path="/search" element={<SearchPage />} />
@@ -82,30 +101,38 @@ function App() {
         } />
         <Route path="/account" element={
           <ProtectedRoute>
-            <PatientLayout>
-              <AccountDetailsPage />
-            </PatientLayout>
+            <OnboardingRoute>
+              <PatientLayout>
+                <AccountDetailsPage />
+              </PatientLayout>
+            </OnboardingRoute>
           </ProtectedRoute>
         } />
         <Route path="/booking-history" element={
           <ProtectedRoute>
-            <PatientLayout>
-              <BookingHistoryPage />
-            </PatientLayout>
+            <OnboardingRoute>
+              <PatientLayout>
+                <BookingHistoryPage />
+              </PatientLayout>
+            </OnboardingRoute>
           </ProtectedRoute>
         } />
         <Route path="/favourites" element={
           <ProtectedRoute>
-            <PatientLayout>
-              <FavouritesPage />
-            </PatientLayout>
+            <OnboardingRoute>
+              <PatientLayout>
+                <FavouritesPage />
+              </PatientLayout>
+            </OnboardingRoute>
           </ProtectedRoute>
         } />
         <Route path="/patient/settings" element={
           <ProtectedRoute>
-            <PatientLayout>
-              <SettingsPage />
-            </PatientLayout>
+            <OnboardingRoute>
+              <PatientLayout>
+                <SettingsPage />
+              </PatientLayout>
+            </OnboardingRoute>
           </ProtectedRoute>
         } />
 

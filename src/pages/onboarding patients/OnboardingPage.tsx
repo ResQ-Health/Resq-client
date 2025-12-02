@@ -1,13 +1,26 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import googleLogo from '/icons/googleicon.png';
 import { IoEye } from "react-icons/io5";
 import { IoIosEyeOff, IoIosCheckmarkCircleOutline, IoIosCheckmarkCircle } from "react-icons/io";
-import { useRegister } from '../../services/authService';
+import { useRegister, useOAuthLogin, useResendOTP } from '../../services/authService';
+import { useAuth } from '../../contexts/AuthContext';
+import { apiClient } from '../../config/api';
+import { signInWithPopup } from 'firebase/auth';
+import { auth, googleProvider } from '../../config/firebase';
+import toast from 'react-hot-toast';
+
+// Module-level flag to prevent multiple auth checks across component instances
+let globalAuthCheckInProgress = false;
 
 function OnboardingPage() {
   const navigate = useNavigate();
   const registerMutation = useRegister();
+  const oauthLoginMutation = useOAuthLogin();
+  const resendOTPMutation = useResendOTP();
+  const { isAuthenticated } = useAuth();
+  const hasCheckedAuth = useRef(false);
+  const isNavigating = useRef(false);
 
   // form state
   const [fullName, setFullName] = useState('');
@@ -17,12 +30,144 @@ function OnboardingPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const [errors, setErrors] = useState({ fullName: '', email: '', password: '', phoneNumber: '' });
+  const [checkingAuth, setCheckingAuth] = useState(false);
+
+  // Check if user is already logged in and redirect accordingly
+  useEffect(() => {
+    // Prevent multiple checks - use both component and module-level guards
+    if (hasCheckedAuth.current || isNavigating.current || globalAuthCheckInProgress) {
+      return;
+    }
+
+    // Only check if user is authenticated
+    const token = localStorage.getItem('authToken');
+    if (!token || !isAuthenticated) {
+      return;
+    }
+
+    // Mark as checked at both levels immediately to prevent re-runs
+    hasCheckedAuth.current = true;
+    globalAuthCheckInProgress = true;
+    setCheckingAuth(true);
+
+    // Use a single API call with AbortController to prevent multiple requests
+    const abortController = new AbortController();
+
+    const checkAndRedirect = async () => {
+      try {
+        // Fetch user profile to check onboarding status
+        const response = await apiClient.get('/api/v1/auth/me', {
+          signal: abortController.signal
+        });
+
+        const profileData = response.data;
+        // Check if user has completed onboarding
+        const hasCompletedOnboarding = profileData?.data?.personal_details?.first_name &&
+          profileData?.data?.personal_details?.last_name;
+
+        if (isNavigating.current) {
+          globalAuthCheckInProgress = false;
+          return; // Already navigating
+        }
+
+        isNavigating.current = true;
+        globalAuthCheckInProgress = false;
+
+        // Check if user just logged in (flag set during Google login)
+        const justLoggedIn = localStorage.getItem('justLoggedIn') === 'true';
+
+        if (justLoggedIn) {
+          // User just logged in - always go to my-account first
+          // My-account will check onboarding status and redirect if complete
+          navigate('/patient/my-account', { replace: true });
+        } else if (hasCompletedOnboarding) {
+          // User has completed onboarding and navigated normally - go to booking history
+          navigate('/booking-history', { replace: true });
+        } else {
+          // User needs to complete onboarding - go to my account page
+          navigate('/patient/my-account', { replace: true });
+        }
+      } catch (error: any) {
+        // Ignore abort errors
+        if (error.name === 'AbortError' || error.code === 'ERR_CANCELED') {
+          globalAuthCheckInProgress = false;
+          return;
+        }
+
+        // If token is invalid, clear it
+        if (error.response?.status === 401) {
+          localStorage.removeItem('authToken');
+          localStorage.removeItem('user');
+        }
+
+        setCheckingAuth(false);
+        hasCheckedAuth.current = false; // Allow retry on error
+        globalAuthCheckInProgress = false;
+      }
+    };
+
+    checkAndRedirect();
+
+    // Cleanup: abort request if component unmounts
+    return () => {
+      abortController.abort();
+      globalAuthCheckInProgress = false;
+    };
+  }, [isAuthenticated, navigate]);
 
   /**
-   * Redirect to backend OAuth
+   * Handle Google Sign-In with Firebase
    */
-  const handleContinueWithGoogle = () => {
-    window.location.href = '/api/auth/google';
+  const handleContinueWithGoogle = async () => {
+    try {
+      // Sign in with Google using Firebase
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+
+      // Get the Firebase ID token
+      const idToken = await user.getIdToken();
+
+      // Get user info from Firebase user object
+      const email = user.email || '';
+      const name = user.displayName || '';
+      const photoURL = user.photoURL || '';
+      const phoneNumber = user.phoneNumber || '';
+
+      // Call OAuth login API with Firebase ID token
+      oauthLoginMutation.mutate({
+        idToken: idToken,
+        provider: 'google',
+        email: email,
+        name: name,
+        photoURL: photoURL,
+        phoneNumber: phoneNumber,
+      }, {
+        onSuccess: (data) => {
+          // Google Sign-In users don't need OTP verification
+          // Set flag to indicate user just logged in (for redirect logic in my-account)
+          localStorage.setItem('justLoggedIn', 'true');
+          // Refresh the page after successful login (200 response) to reset state and trigger auth check
+          // Reset the global flag so the auth check runs again after refresh
+          globalAuthCheckInProgress = false;
+          // The useEffect will handle navigation based on onboarding status
+          window.location.reload();
+        },
+        onError: (error: any) => {
+          console.error('OAuth login error:', error);
+        }
+      });
+    } catch (error: any) {
+      console.error('Error during Google sign-in:', error);
+
+      // Handle specific Firebase errors
+      if (error.code === 'auth/popup-closed-by-user') {
+        toast.error('Sign-in was cancelled. Please try again.');
+      } else if (error.code === 'auth/popup-blocked') {
+        toast.error('Popup was blocked. Please allow popups and try again.');
+      } else {
+        toast.error('An error occurred during Google sign-in. Please try again.');
+      }
+    }
   };
 
   /**
@@ -51,6 +196,18 @@ function OnboardingPage() {
       }
     });
   };
+
+  // Show loading state while checking authentication
+  if (checkingAuth) {
+    return (
+      <div className="min-h-[638px] pb-[155px] mx-auto flex flex-col justify-center max-w-[480px] mt-[108.5px] items-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#06202E] mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className=" min-h-[638px] pb-[155px] mx-auto flex flex-col justify-center max-w-[480px] mt-[108.5px] items-center  ">
@@ -166,16 +323,16 @@ function OnboardingPage() {
         )}
         <label className="ml-2 text-sm text-gray-700">
           Yes, I understand and agree to the{' '}
-          <a href="#" className="underline">
+          <Link to="/terms-and-policy" className="underline hover:text-blue-600">
             ResQ Health Terms of <br /> Service
-          </a>, including the{' '}
-          <a href="#" className="underline">
+          </Link>, including the{' '}
+          <Link to="/terms-and-policy" className="underline hover:text-blue-600">
             User Agreement
-          </a>{' '}
+          </Link>{' '}
           and{' '}
-          <a href="#" className="underline">
+          <Link to="/terms-and-policy" className="underline hover:text-blue-600">
             Privacy Policy
-          </a>.
+          </Link>.
         </label>
       </div>
 
