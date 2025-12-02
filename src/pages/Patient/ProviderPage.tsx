@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useAllProviders, useProviderAvailability } from '../../services/providerService';
+import { useAllProviders } from '../../services/providerService';
 import { createReview, likeReview, saveReview } from '../../services/providerService';
 import { useToggleFavoriteProvider, useFavoriteStatus } from '../../services/userService';
 import { useAuth } from '../../contexts/AuthContext';
@@ -28,6 +28,7 @@ const ProviderPage = () => {
     const [currentGalleryImage, setCurrentGalleryImage] = useState(0);
     const [activeServiceTab, setActiveServiceTab] = useState('scans');
     const [activeTab, setActiveTab] = useState('About');
+    const [showAllServices, setShowAllServices] = useState(false);
     const [showReviewsModal, setShowReviewsModal] = useState(false);
     const [showAddReviewModal, setShowAddReviewModal] = useState(false);
     const [isSubmittingReview, setIsSubmittingReview] = useState(false);
@@ -48,7 +49,7 @@ const ProviderPage = () => {
     const [calendarYear, setCalendarYear] = useState<number>(today.getFullYear());
 
     // Review interaction states
-    const [sortBy, setSortBy] = useState('most_helpful');
+    const [sortBy, setSortBy] = useState('newest');
     const [loadingInteractions, setLoadingInteractions] = useState<Set<string>>(new Set());
 
     // Scroll spy functionality
@@ -72,6 +73,11 @@ const ProviderPage = () => {
 
     // Helper functions for extracting review data
     const extractAuthor = (r: any): string => {
+        // Check for patient.full_name first (from API response)
+        if (r?.patient?.full_name) {
+            return r.patient.full_name;
+        }
+
         const user = r?.user || r?.created_by || r?.author_details;
         const nameFromParts =
             (user?.first_name && user?.last_name)
@@ -150,31 +156,74 @@ const ProviderPage = () => {
             description: `${p.provider_name} healthcare provider`,
             policy: typeof p?.policy === 'string' ? p.policy : '',
             image: p.banner_image_url || p.logo || '/hospital.jpg',
-            services: (p?.services || []).map((s: any) => s?.name || String(s)),
+            services: (p?.services || []).map((s: any) => {
+                if (typeof s === 'string') {
+                    return s;
+                } else if (s && typeof s === 'object') {
+                    return s.name || s.serviceName || s.service || String(s);
+                }
+                return String(s);
+            }).filter(Boolean),
             reviews: Array.isArray(p?.reviews)
-                ? p.reviews.map((r: any) => ({
-                    id: r._id || r.id,
-                    rating: extractRating(r),
-                    text: extractText(r),
-                    author: extractAuthor(r),
-                    date: extractDate(r),
-                    profilePicture: r.patient_profile_picture_url || null,
-                    likes: r.likes || [],
-                    dislikes: r.dislikes || [],
-                    savedBy: r.saved_by || [],
-                }))
+                ? p.reviews
+                    .map((r: any) => {
+                        // Get current user ID for checking likes/saves
+                        const currentUserId = user?.id;
+                        const likesArray = Array.isArray(r.likes) ? r.likes : [];
+                        const savedByArray = Array.isArray(r.saved_by) ? r.saved_by : [];
+
+                        return {
+                            id: r._id || r.id,
+                            rating: extractRating(r),
+                            text: extractText(r),
+                            author: extractAuthor(r),
+                            date: extractDate(r),
+                            profilePicture: r?.patient?.profile_picture?.url || r.patient_profile_picture_url || null,
+                            likes: likesArray, // Array of user IDs (strings)
+                            dislikes: r.dislikes || [],
+                            savedBy: savedByArray, // Array of user IDs (strings)
+                            isLiked: r.is_liked !== undefined ? r.is_liked : (currentUserId ? likesArray.includes(currentUserId) : false),
+                            isSaved: r.is_saved !== undefined ? r.is_saved : (currentUserId ? savedByArray.includes(currentUserId) : false),
+                            likesCount: r.likes_count !== undefined ? r.likes_count : likesArray.length,
+                            savedCount: r.saved_count !== undefined ? r.saved_count : savedByArray.length,
+                        };
+                    })
+                    .sort((a: any, b: any) => {
+                        // Sort by most recent first (newest date first)
+                        const dateA = new Date(a.date).getTime();
+                        const dateB = new Date(b.date).getTime();
+                        return dateB - dateA; // Descending order (newest first)
+                    })
                 : Array.isArray(p?.comments)
-                    ? p.comments.map((r: any) => ({
-                        id: r._id || r.id,
-                        rating: extractRating(r),
-                        text: extractText(r),
-                        author: extractAuthor(r),
-                        date: extractDate(r),
-                        profilePicture: r.patient_profile_picture_url || null,
-                        likes: r.likes || [],
-                        dislikes: r.dislikes || [],
-                        savedBy: r.saved_by || [],
-                    }))
+                    ? p.comments
+                        .map((r: any) => {
+                            // Get current user ID for checking likes/saves
+                            const currentUserId = user?.id;
+                            const likesArray = Array.isArray(r.likes) ? r.likes : [];
+                            const savedByArray = Array.isArray(r.saved_by) ? r.saved_by : [];
+
+                            return {
+                                id: r._id || r.id,
+                                rating: extractRating(r),
+                                text: extractText(r),
+                                author: extractAuthor(r),
+                                date: extractDate(r),
+                                profilePicture: r?.patient?.profile_picture?.url || r.patient_profile_picture_url || null,
+                                likes: likesArray, // Array of user IDs (strings)
+                                dislikes: r.dislikes || [],
+                                savedBy: savedByArray, // Array of user IDs (strings)
+                                isLiked: r.is_liked !== undefined ? r.is_liked : (currentUserId ? likesArray.includes(currentUserId) : false),
+                                isSaved: r.is_saved !== undefined ? r.is_saved : (currentUserId ? savedByArray.includes(currentUserId) : false),
+                                likesCount: r.likes_count !== undefined ? r.likes_count : likesArray.length,
+                                savedCount: r.saved_count !== undefined ? r.saved_count : savedByArray.length,
+                            };
+                        })
+                        .sort((a: any, b: any) => {
+                            // Sort by most recent first (newest date first)
+                            const dateA = new Date(a.date).getTime();
+                            const dateB = new Date(b.date).getTime();
+                            return dateB - dateA; // Descending order (newest first)
+                        })
                     : [],
             timeSlots: {},
             practiceInfo: {
@@ -201,7 +250,7 @@ const ProviderPage = () => {
         const firstService = (mapped.services || [])[0] || '';
         setBookingSelectedService(firstService);
         setLoading(false);
-    }, [isLoading, isError, providerFromApi]);
+    }, [isLoading, isError, providerFromApi, user?.id]); // Add user?.id as dependency to update isLiked/isSaved when user changes
 
     // Set initial favorite state when favorite status data loads
     useEffect(() => {
@@ -209,6 +258,39 @@ const ProviderPage = () => {
             setIsFavorite(favoriteStatusData.data.is_favorite);
         }
     }, [favoriteStatusData]);
+
+    // Ensure services are set when booking modal opens
+    useEffect(() => {
+        if (showBookingModal && providerData) {
+            // Ensure services are available
+            if (providerData.services && providerData.services.length > 0) {
+                // Set bookingSelectedService if not already set
+                if (!bookingSelectedService && providerData.services[0]) {
+                    setBookingSelectedService(providerData.services[0]);
+                }
+            } else if (providerFromApi?.services) {
+                // Extract services from API if not in providerData
+                const servicesFromApi = (providerFromApi.services || []).map((s: any) => {
+                    if (typeof s === 'string') {
+                        return s;
+                    } else if (s && typeof s === 'object') {
+                        return s.name || s.serviceName || String(s);
+                    }
+                    return String(s);
+                });
+
+                if (servicesFromApi.length > 0) {
+                    setProviderData((prev: any) => ({
+                        ...prev,
+                        services: servicesFromApi
+                    }));
+                    if (!bookingSelectedService) {
+                        setBookingSelectedService(servicesFromApi[0]);
+                    }
+                }
+            }
+        }
+    }, [showBookingModal, providerData, providerFromApi, bookingSelectedService]);
 
     const ratingDistribution = useMemo(() => {
         if (!providerData?.reviews || providerData.reviews.length === 0) {
@@ -246,9 +328,11 @@ const ProviderPage = () => {
             case 'lowest_rating':
                 return reviews.sort((a, b) => a.rating - b.rating);
             case 'most_helpful':
-            default:
                 // Sort by likes count (most helpful)
-                return reviews.sort((a, b) => (b.likes?.length || 0) - (a.likes?.length || 0));
+                return reviews.sort((a: any, b: any) => (b.likes?.length || 0) - (a.likes?.length || 0));
+            default:
+                // Default: Sort by most recent first (newest date first)
+                return reviews.sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
         }
     }, [providerData?.reviews, sortBy]);
 
@@ -293,31 +377,37 @@ const ProviderPage = () => {
         // Apply optimistic update immediately
         setProviderData((prev: any) => {
             previousState = prev;
+            if (!user?.id) return prev;
+
             return {
                 ...prev,
                 reviews: prev.reviews.map((review: any) => {
                     if (review.id === reviewId) {
                         // Toggle like state optimistically
-                        const currentLikes = review.likes || [];
-                        const isCurrentlyLiked = currentLikes.some((like: any) =>
-                            like.patient_id === user?.id
-                        );
+                        // likes is an array of user IDs (strings)
+                        const currentLikes = Array.isArray(review.likes) ? review.likes : [];
+                        const isCurrentlyLiked = currentLikes.includes(user.id);
 
-                        let newLikes = [...currentLikes];
+                        let newLikes: string[] = [...currentLikes];
+                        let newLikesCount = review.likesCount || currentLikes.length;
 
                         if (isCurrentlyLiked) {
-                            // Remove like
-                            newLikes = newLikes.filter((like: any) =>
-                                like.patient_id !== user?.id
-                            );
+                            // Remove like - filter out current user ID
+                            newLikes = newLikes.filter((userId: string) => userId !== user.id);
+                            newLikesCount = Math.max(0, newLikesCount - 1);
                         } else {
-                            // Add like
-                            newLikes.push({ patient_id: user?.id }); // Use actual user ID
+                            // Add like - add current user ID if not already present
+                            if (!newLikes.includes(user.id)) {
+                                newLikes.push(user.id);
+                                newLikesCount = newLikesCount + 1;
+                            }
                         }
 
                         return {
                             ...review,
                             likes: newLikes,
+                            isLiked: !isCurrentlyLiked,
+                            likesCount: newLikesCount,
                         };
                     }
                     return review;
@@ -328,18 +418,22 @@ const ProviderPage = () => {
         try {
             const response = await likeReview(reviewId);
             if (response.success) {
-                // Only update with server response if it contains valid data
-                if (response.data && response.data.likes) {
-                    setProviderData((prev: any) => ({
-                        ...prev,
-                        reviews: prev.reviews.map((review: any) =>
-                            review.id === reviewId
-                                ? { ...review, likes: response.data?.likes || [] }
-                                : review
-                        ),
-                    }));
-                }
-                // If no server data, keep the optimistic update
+                // Update with server response data
+                setProviderData((prev: any) => ({
+                    ...prev,
+                    reviews: prev.reviews.map((review: any) => {
+                        if (review.id === reviewId) {
+                            const serverData: any = response.data || {};
+                            return {
+                                ...review,
+                                likes: Array.isArray(serverData.likes) ? serverData.likes : review.likes,
+                                isLiked: serverData.is_liked !== undefined ? serverData.is_liked : review.isLiked,
+                                likesCount: serverData.likes_count !== undefined ? serverData.likes_count : (Array.isArray(serverData.likes) ? serverData.likes.length : review.likesCount),
+                            };
+                        }
+                        return review;
+                    }),
+                }));
 
                 // Show appropriate success message
                 const actionMessage = response.message || 'Review interaction updated!';
@@ -397,31 +491,37 @@ const ProviderPage = () => {
         // Apply optimistic update immediately
         setProviderData((prev: any) => {
             previousState = prev;
+            if (!user?.id) return prev;
+
             return {
                 ...prev,
                 reviews: prev.reviews.map((review: any) => {
                     if (review.id === reviewId) {
                         // Toggle save state optimistically
-                        const currentSavedBy = review.savedBy || [];
-                        const isCurrentlySaved = currentSavedBy.some((save: any) =>
-                            save.patient_id === user?.id
-                        );
+                        // savedBy is an array of user IDs (strings)
+                        const currentSavedBy = Array.isArray(review.savedBy) ? review.savedBy : [];
+                        const isCurrentlySaved = currentSavedBy.includes(user.id);
 
-                        let newSavedBy = [...currentSavedBy];
+                        let newSavedBy: string[] = [...currentSavedBy];
+                        let newSavedCount = review.savedCount || currentSavedBy.length;
 
                         if (isCurrentlySaved) {
-                            // Remove save
-                            newSavedBy = newSavedBy.filter((save: any) =>
-                                save.patient_id !== user?.id
-                            );
+                            // Remove save - filter out current user ID
+                            newSavedBy = newSavedBy.filter((userId: string) => userId !== user.id);
+                            newSavedCount = Math.max(0, newSavedCount - 1);
                         } else {
-                            // Add save
-                            newSavedBy.push({ patient_id: user?.id }); // Use actual user ID
+                            // Add save - add current user ID if not already present
+                            if (!newSavedBy.includes(user.id)) {
+                                newSavedBy.push(user.id);
+                                newSavedCount = newSavedCount + 1;
+                            }
                         }
 
                         return {
                             ...review,
                             savedBy: newSavedBy,
+                            isSaved: !isCurrentlySaved,
+                            savedCount: newSavedCount,
                         };
                     }
                     return review;
@@ -432,18 +532,22 @@ const ProviderPage = () => {
         try {
             const response = await saveReview(reviewId);
             if (response.success) {
-                // Only update with server response if it contains valid data
-                if (response.data && response.data.saved_by) {
-                    setProviderData((prev: any) => ({
-                        ...prev,
-                        reviews: prev.reviews.map((review: any) =>
-                            review.id === reviewId
-                                ? { ...review, savedBy: response.data?.saved_by || [] }
-                                : review
-                        ),
-                    }));
-                }
-                // If no server data, keep the optimistic update
+                // Update with server response data
+                setProviderData((prev: any) => ({
+                    ...prev,
+                    reviews: prev.reviews.map((review: any) => {
+                        if (review.id === reviewId) {
+                            const serverData: any = response.data || {};
+                            return {
+                                ...review,
+                                savedBy: Array.isArray(serverData.saved_by) ? serverData.saved_by : review.savedBy,
+                                isSaved: serverData.is_saved !== undefined ? serverData.is_saved : review.isSaved,
+                                savedCount: serverData.saved_count !== undefined ? serverData.saved_count : (Array.isArray(serverData.saved_by) ? serverData.saved_by.length : review.savedCount),
+                            };
+                        }
+                        return review;
+                    }),
+                }));
 
                 // Show appropriate success message
                 const actionMessage = response.message || 'Review saved!';
@@ -523,12 +627,11 @@ const ProviderPage = () => {
         }
     };
 
-    // Availability hook for modal based on selected service and calendar month (must be before any early returns)
-    const { data: availabilityData } = useProviderAvailability(id, {
-        service: bookingSelectedService || undefined,
-        month: calendarMonth,
-        year: calendarYear,
-    });
+    // Parse YYYY-MM-DD as a local date to avoid UTC day shifts
+    const parseLocalDate = (iso: string) => {
+        const [y, m, d] = iso.split('-').map((v) => parseInt(v, 10));
+        return new Date(y, (m || 1) - 1, d || 1);
+    };
 
     // Build a set of available weekdays from provider working_hours
     const availableDaysSet = useMemo(() => {
@@ -540,24 +643,76 @@ const ProviderPage = () => {
         return set;
     }, [providerFromApi]);
 
-    // Parse YYYY-MM-DD as a local date to avoid UTC day shifts
-    const parseLocalDate = (iso: string) => {
-        const [y, m, d] = iso.split('-').map((v) => parseInt(v, 10));
-        return new Date(y, (m || 1) - 1, d || 1);
-    };
-
+    // Generate availability slots directly from working hours (no API call needed)
     const availabilityByDate: Record<string, string[]> = useMemo(() => {
         const result: Record<string, string[]> = {};
-        const slots = availabilityData?.data || [];
-        const dayName = (d: number) => ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][d].toLowerCase();
-        for (const s of slots) {
-            const dateObj = parseLocalDate(s.date);
-            const allowed = availableDaysSet.has(dayName(dateObj.getDay()));
-            // If provider is not available on this weekday, force no slots
-            result[s.date] = allowed ? (s.times || []) : [];
+        const workingHours: any[] = (providerFromApi as any)?.working_hours || [];
+
+        if (workingHours.length === 0) {
+            return result;
         }
+
+        // Helper to convert time string to minutes
+        const toMinutes = (timeStr: string) => {
+            if (!timeStr) return 0;
+            const [time, mer] = timeStr.split(' ');
+            const [hh, mm] = time.split(':').map(Number);
+            let h = hh % 12;
+            if ((mer || '').toUpperCase().startsWith('P')) h += 12;
+            return h * 60 + (mm || 0);
+        };
+
+        // Helper to format minutes to time string
+        const formatTime = (minutes: number) => {
+            const h24 = Math.floor(minutes / 60);
+            const mm = minutes % 60;
+            const mer = h24 >= 12 ? 'pm' : 'am';
+            let h = h24 % 12;
+            if (h === 0) h = 12;
+            const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+            return `${h}:${pad(mm)} ${mer}`;
+        };
+
+        // Get day name from date
+        const dayName = (date: Date) => {
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            return days[date.getDay()].toLowerCase();
+        };
+
+        // Generate slots for the current calendar month
+        const daysInMonth = new Date(calendarYear, calendarMonth + 1, 0).getDate();
+
+        for (let day = 1; day <= daysInMonth; day++) {
+            const date = new Date(calendarYear, calendarMonth, day);
+            const dayNameStr = dayName(date);
+
+            // Find working hours for this day
+            const wh = workingHours.find((w: any) =>
+                w?.isAvailable &&
+                String(w.day || '').toLowerCase() === dayNameStr
+            );
+
+            if (!wh || !wh.startTime || !wh.endTime) {
+                continue;
+            }
+
+            // Generate time slots (every 60 minutes)
+            const startMinutes = toMinutes(wh.startTime);
+            const endMinutes = toMinutes(wh.endTime);
+            const times: string[] = [];
+
+            for (let m = startMinutes; m + 30 <= endMinutes; m += 60) {
+                times.push(formatTime(m));
+            }
+
+            if (times.length > 0) {
+                const isoDate = `${calendarYear}-${String(calendarMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                result[isoDate] = times;
+            }
+        }
+
         return result;
-    }, [availabilityData, availableDaysSet]);
+    }, [providerFromApi, calendarMonth, calendarYear]);
 
     // Helpers for Today/Tomorrow rendering
     const todayISO = useMemo(() => {
@@ -923,38 +1078,128 @@ const ProviderPage = () => {
                             <div className="mb-8">
                                 <div className="flex items-center justify-between mb-4">
                                     <h4 className="text-md font-medium text-gray-900">Services</h4>
-                                    <button className="text-blue-600 hover:text-blue-800 text-sm">Show all</button>
+                                    <button
+                                        onClick={() => setShowAllServices(!showAllServices)}
+                                        className="text-blue-600 hover:text-blue-800 text-sm underline"
+                                    >
+                                        {showAllServices ? 'Show by category' : 'Show all'}
+                                    </button>
                                 </div>
 
-                                {/* Service Tabs */}
-                                <div className="flex space-x-1 mb-4">
-                                    {['scans', 'tests', 'consultation'].map((tab) => (
-                                        <button
-                                            key={tab}
-                                            onClick={() => setActiveServiceTab(tab)}
-                                            className={`px-4 py-2 text-sm rounded-md transition-colors ${activeServiceTab === tab
-                                                ? 'bg-gray-800 text-white'
-                                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                                }`}
-                                        >
-                                            {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                                        </button>
-                                    ))}
-                                </div>
+                                {/* Service Tabs - Hide when showing all */}
+                                {!showAllServices && (
+                                    <div className="flex space-x-1 mb-4">
+                                        {['scans', 'tests', 'consultation'].map((tab) => (
+                                            <button
+                                                key={tab}
+                                                onClick={() => setActiveServiceTab(tab)}
+                                                className={`px-4 py-2 text-sm rounded-md transition-colors ${activeServiceTab === tab
+                                                    ? 'bg-gray-800 text-white'
+                                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                                    }`}
+                                            >
+                                                {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
 
                                 {/* Service List */}
                                 <div className="space-y-3">
-                                    {providerData.practiceInfo?.services[activeServiceTab as keyof typeof providerData.practiceInfo.services]?.map((service: { name: string; price: string }, index: number) => (
-                                        <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100">
-                                            <span className="text-gray-700">{service.name}</span>
-                                            <div className="flex items-center space-x-4">
-                                                <span className="text-gray-900 font-medium">{service.price}</span>
-                                                <button className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition-colors">
-                                                    Book
-                                                </button>
+                                    {showAllServices ? (
+                                        // Show all services from all categories
+                                        (() => {
+                                            const allServices: { name: string; price: string; category?: string }[] = [];
+                                            const serviceNamesSet = new Set<string>(); // To avoid duplicates
+
+                                            // First, get services from practiceInfo.services (categorized)
+                                            const practiceServices = providerData.practiceInfo?.services;
+                                            if (practiceServices && typeof practiceServices === 'object') {
+                                                Object.entries(practiceServices).forEach(([category, serviceList]: [string, any]) => {
+                                                    if (Array.isArray(serviceList)) {
+                                                        serviceList.forEach((service: { name: string; price: string }) => {
+                                                            if (service.name && !serviceNamesSet.has(service.name)) {
+                                                                allServices.push({ ...service, category });
+                                                                serviceNamesSet.add(service.name);
+                                                            }
+                                                        });
+                                                    }
+                                                });
+                                            }
+
+                                            // Also add services from providerData.services (flat array) if not already included
+                                            if (providerData.services && Array.isArray(providerData.services)) {
+                                                providerData.services.forEach((service: any) => {
+                                                    const serviceName = typeof service === 'string' ? service : (service?.name || String(service));
+                                                    if (serviceName && !serviceNamesSet.has(serviceName)) {
+                                                        const servicePrice = typeof service === 'object' && service?.price ? service.price : '';
+                                                        allServices.push({ name: serviceName, price: servicePrice });
+                                                        serviceNamesSet.add(serviceName);
+                                                    }
+                                                });
+                                            }
+
+                                            // Also check providerFromApi as additional source
+                                            if (providerFromApi?.services && Array.isArray(providerFromApi.services)) {
+                                                providerFromApi.services.forEach((service: any) => {
+                                                    const serviceName = typeof service === 'string' ? service : (service?.name || service?.serviceName || String(service));
+                                                    if (serviceName && !serviceNamesSet.has(serviceName)) {
+                                                        const servicePrice = typeof service === 'object' && service?.price ? service.price : '';
+                                                        allServices.push({ name: serviceName, price: servicePrice });
+                                                        serviceNamesSet.add(serviceName);
+                                                    }
+                                                });
+                                            }
+
+                                            if (allServices.length === 0) {
+                                                return <div className="text-gray-500 text-sm py-4">No services available</div>;
+                                            }
+
+                                            return allServices.map((service, index) => (
+                                                <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100">
+                                                    <div className="flex flex-col">
+                                                        <span className="text-gray-700">{service.name}</span>
+                                                        {service.category && (
+                                                            <span className="text-xs text-gray-500 capitalize">{service.category}</span>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex items-center space-x-4">
+                                                        {service.price && (
+                                                            <span className="text-gray-900 font-medium">{service.price}</span>
+                                                        )}
+                                                        <button
+                                                            onClick={() => {
+                                                                setShowBookingModal(true);
+                                                                setBookingSelectedService(service.name);
+                                                            }}
+                                                            className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition-colors"
+                                                        >
+                                                            Book
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ));
+                                        })()
+                                    ) : (
+                                        // Show services for active tab
+                                        providerData.practiceInfo?.services[activeServiceTab as keyof typeof providerData.practiceInfo.services]?.map((service: { name: string; price: string }, index: number) => (
+                                            <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100">
+                                                <span className="text-gray-700">{service.name}</span>
+                                                <div className="flex items-center space-x-4">
+                                                    <span className="text-gray-900 font-medium">{service.price}</span>
+                                                    <button
+                                                        onClick={() => {
+                                                            setShowBookingModal(true);
+                                                            setBookingSelectedService(service.name);
+                                                        }}
+                                                        className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition-colors"
+                                                    >
+                                                        Book
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
-                                    ))}
+                                        ))
+                                    )}
                                 </div>
                             </div>
 
@@ -969,7 +1214,19 @@ const ProviderPage = () => {
                                         </svg>
                                         <div>
                                             <p className="text-gray-700">{providerData.practiceInfo?.contactDetails.address}</p>
-                                            <button className="text-blue-600 hover:text-blue-800 text-sm">View in map</button>
+                                            <button
+                                                onClick={() => {
+                                                    const address = providerData.practiceInfo?.contactDetails.address;
+                                                    if (address) {
+                                                        // Open Google Maps with the address
+                                                        const encodedAddress = encodeURIComponent(address);
+                                                        window.open(`https://www.google.com/maps/search/?api=1&query=${encodedAddress}`, '_blank');
+                                                    }
+                                                }}
+                                                className="text-blue-600 hover:text-blue-800 text-sm underline"
+                                            >
+                                                View in map
+                                            </button>
                                         </div>
                                     </div>
 
@@ -1048,111 +1305,7 @@ const ProviderPage = () => {
 
                 {/* Contact Section */}
                 <section id="Contact" className="mb-16">
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-
-                            {/* Contact Details */}
-                            <div>
-                                <h3 className="text-lg font-bold text-gray-900 mb-4">Contact details</h3>
-                                <div className="space-y-4">
-                                    <div className="flex items-start space-x-3">
-                                        <svg className="w-5 h-5 text-gray-600 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                                        </svg>
-                                        <div>
-                                            <span className="text-gray-900">{providerData.practiceInfo?.contactDetails.address}</span>
-                                            <br />
-                                            <a href="#" className="text-blue-600 underline text-sm">View in map</a>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-center space-x-3">
-                                        <svg className="w-5 h-5 text-gray-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                                        </svg>
-                                        <a href={`tel:${providerData.practiceInfo?.contactDetails.phone}`} className="text-gray-900 underline">
-                                            {providerData.practiceInfo?.contactDetails.phone}
-                                        </a>
-                                    </div>
-
-                                    <div className="flex items-center space-x-3">
-                                        <svg className="w-5 h-5 text-gray-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                                        </svg>
-                                        <a href={`mailto:${providerData.practiceInfo?.contactDetails.email}`} className="text-gray-900 underline">
-                                            {providerData.practiceInfo?.contactDetails.email}
-                                        </a>
-                                    </div>
-
-                                    <div className="flex items-center space-x-3">
-                                        <svg className="w-5 h-5 text-gray-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9v-9m0-9v9m0 9c-5 0-9-4-9-9s4-9 9-9" />
-                                        </svg>
-                                        <a href={providerData.practiceInfo?.contactDetails.website} className="text-gray-900 underline">
-                                            {providerData.practiceInfo?.contactDetails.website}
-                                        </a>
-                                    </div>
-                                </div>
-
-                                {/* Social Media */}
-                                <div className="mt-6">
-                                    <h4 className="text-lg font-bold text-gray-900 mb-3">Social media</h4>
-                                    <div className="flex space-x-4">
-                                        <a href={(providerData.practiceInfo?.socialMedia.facebook || '') as string} className="text-gray-600 hover:text-gray-900">
-                                            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                                                <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
-                                            </svg>
-                                        </a>
-                                        <a href={(providerData.practiceInfo?.socialMedia.instagram || '') as string} className="text-gray-600 hover:text-gray-900">
-                                            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                                                <path d="M12.017 0C5.396 0 .029 5.367.029 11.987c0 6.62 5.367 11.987 11.988 11.987 6.62 0 11.987-5.367 11.987-11.987C24.014 5.367 18.637.001 12.017.001zM8.449 16.988c-1.297 0-2.448-.49-3.323-1.297C4.198 14.895 3.708 13.744 3.708 12.447s.49-2.448 1.297-3.323c.875-.807 2.026-1.297 3.323-1.297s2.448.49 3.323 1.297c.807.875 1.297 2.026 1.297 3.323s-.49 2.448-1.297 3.323c-.875.807-2.026 1.297-3.323 1.297zm7.718-1.297c-.875.807-2.026 1.297-3.323 1.297s-2.448-.49-3.323-1.297c-.807-.875-1.297-2.026-1.297-3.323s.49-2.448 1.297-3.323c.875-.807 2.026-1.297 3.323-1.297s2.448.49 3.323 1.297c.807.875 1.297 2.026 1.297 3.323s-.49 2.448-1.297 3.323z" />
-                                            </svg>
-                                        </a>
-                                        <a href={(providerData.practiceInfo?.socialMedia.twitter || '') as string} className="text-gray-600 hover:text-gray-900">
-                                            <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                                                <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z" />
-                                            </svg>
-                                        </a>
-                                    </div>
-                                </div>
-
-
-                            </div>
-
-                            {/* Opening Hours */}
-                            <div>
-                                <h3 className="text-lg font-bold text-gray-900 mb-4">Opening hours</h3>
-                                <div className="space-y-2">
-                                    {Object.entries((providerData.practiceInfo?.openingHours || {}) as Record<string, string>).map(([day, hours]) => (
-                                        <div key={day} className="flex justify-between">
-                                            <span className={`text-gray-900 capitalize ${day === 'tuesday' ? 'font-bold' : ''}`}>
-                                                {day}
-                                            </span>
-                                            <span className={`text-gray-900 ${day === 'tuesday' ? 'font-bold' : ''}`}>
-                                                {hours as string}
-                                            </span>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Accreditations */}
-                            <div>
-                                <h3 className="text-lg font-bold text-gray-900 mb-4">Accreditations</h3>
-                                <div className="space-y-2">
-                                    {providerData.practiceInfo?.accreditations.map((accreditation: string, index: number) => (
-                                        <div key={index} className="text-gray-900">
-                                            {accreditation}
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Ratings and Reviews Section - Outside Grid */}
+                    {/* Ratings and Reviews Section */}
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
                         <div className="flex items-center justify-between mb-4">
                             <div>
@@ -1357,7 +1510,7 @@ const ProviderPage = () => {
                                                 <button
                                                     onClick={() => handleLikeReview(review.id)}
                                                     disabled={loadingInteractions.has(review.id)}
-                                                    className={`flex items-center space-x-1 p-1 transition-colors disabled:opacity-50 ${(review.likes || []).some((like: any) => like.patient_id === user?.id)
+                                                    className={`flex items-center space-x-1 p-1 transition-colors disabled:opacity-50 ${review.isLiked
                                                         ? 'text-green-600 hover:text-green-700'
                                                         : 'text-gray-400 hover:text-green-600'
                                                         }`}
@@ -1369,7 +1522,7 @@ const ProviderPage = () => {
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
                                                         </svg>
                                                     )}
-                                                    <span className="text-xs">{review.likes?.length || 0}</span>
+                                                    <span className="text-xs">{review.likesCount || 0}</span>
                                                 </button>
 
 
@@ -1377,7 +1530,7 @@ const ProviderPage = () => {
                                                 <button
                                                     onClick={() => handleSaveReview(review.id)}
                                                     disabled={loadingInteractions.has(review.id)}
-                                                    className={`flex items-center space-x-1 p-1 transition-colors disabled:opacity-50 ${(review.savedBy || []).some((save: any) => save.patient_id === user?.id)
+                                                    className={`flex items-center space-x-1 p-1 transition-colors disabled:opacity-50 ${review.isSaved
                                                         ? 'text-blue-600 hover:text-blue-700'
                                                         : 'text-gray-400 hover:text-blue-600'
                                                         }`}
@@ -1389,7 +1542,7 @@ const ProviderPage = () => {
                                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
                                                         </svg>
                                                     )}
-                                                    <span className="text-xs">{review.savedBy?.length || 0}</span>
+                                                    <span className="text-xs">{review.savedCount || 0}</span>
                                                 </button>
                                             </div>
                                         </div>
@@ -1475,6 +1628,10 @@ const ProviderPage = () => {
                                             likes: [],
                                             dislikes: [],
                                             savedBy: [],
+                                            isLiked: false,
+                                            isSaved: false,
+                                            likesCount: 0,
+                                            savedCount: 0,
                                         };
 
                                         setIsSubmittingReview(true);
@@ -1523,13 +1680,48 @@ const ProviderPage = () => {
 
                                             if (response?.success && response.data) {
                                                 // Replace optimistic review with server response
-                                                const serverReview = response.data;
+                                                const serverReview: any = response.data;
+
+                                                // Get profile picture from user or server response
+                                                const profilePictureUrl =
+                                                    serverReview.patient?.profile_picture?.url ||
+                                                    user?.profile_picture?.url ||
+                                                    null;
+
+                                                // Get author name from server response or user
+                                                const authorName =
+                                                    serverReview.patient?.full_name ||
+                                                    serverReview.patient_name ||
+                                                    user?.full_name ||
+                                                    'You';
+
+                                                // Extract likes and saved_by arrays (should be arrays of user IDs)
+                                                const likesArray = Array.isArray(serverReview.likes) ? serverReview.likes : [];
+                                                const savedByArray = Array.isArray(serverReview.saved_by) ? serverReview.saved_by : [];
+                                                const currentUserId = user?.id;
+
                                                 const finalReview = {
-                                                    id: serverReview._id || serverReview.id || serverReview.id,
-                                                    rating: serverReview.rating,
-                                                    text: serverReview.comment,
-                                                    author: serverReview.patient_name || 'You',
+                                                    id: serverReview._id || serverReview.id || tempId,
+                                                    rating: serverReview.rating || selectedRating,
+                                                    text: serverReview.comment || serverReview.text || reviewText,
+                                                    author: authorName,
+                                                    profilePicture: profilePictureUrl,
                                                     date: serverReview.created_at || serverReview.updated_at || createdAtIso,
+                                                    likes: likesArray,
+                                                    dislikes: serverReview.dislikes || [],
+                                                    savedBy: savedByArray,
+                                                    isLiked: serverReview.is_liked !== undefined
+                                                        ? serverReview.is_liked
+                                                        : (currentUserId ? likesArray.includes(currentUserId) : false),
+                                                    isSaved: serverReview.is_saved !== undefined
+                                                        ? serverReview.is_saved
+                                                        : (currentUserId ? savedByArray.includes(currentUserId) : false),
+                                                    likesCount: serverReview.likes_count !== undefined
+                                                        ? serverReview.likes_count
+                                                        : likesArray.length,
+                                                    savedCount: serverReview.saved_count !== undefined
+                                                        ? serverReview.saved_count
+                                                        : savedByArray.length,
                                                 };
 
                                                 setProviderData((prev: any) => ({
@@ -1694,11 +1886,15 @@ const ProviderPage = () => {
                                             onChange={(e) => setBookingSelectedService(e.target.value)}
                                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                         >
-                                            {providerData.services.map((service: string, idx: number) => (
-                                                <option key={`${service}-${idx}`} value={service}>
-                                                    {service}
-                                                </option>
-                                            ))}
+                                            {(!providerData?.services || providerData.services.length === 0) ? (
+                                                <option value="">No services available</option>
+                                            ) : (
+                                                providerData.services.map((service: string, idx: number) => (
+                                                    <option key={`${service}-${idx}`} value={service}>
+                                                        {service}
+                                                    </option>
+                                                ))
+                                            )}
                                         </select>
                                     </div>
 

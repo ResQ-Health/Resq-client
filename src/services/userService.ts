@@ -36,10 +36,34 @@ export interface NextOfKin {
     relationship_to_you: string;
 }
 
+export interface FavoriteProvider {
+    _id?: string;
+    id: string;
+    provider_name: string;
+    work_email?: string;
+    work_phone?: string;
+    address?: {
+        street?: string;
+        city?: string;
+        state?: string;
+        country?: string;
+        postal_code?: string;
+    };
+    services?: any[];
+    ratings?: {
+        average?: number;
+        count?: number;
+    };
+    logo?: string;
+    banner_image_url?: string;
+    [key: string]: any; // Allow other provider fields
+}
+
 export interface Metadata {
     emergency_contact: EmergencyContact;
     next_of_kin: NextOfKin;
     same_as_emergency_contact: boolean;
+    favorite_providers?: FavoriteProvider[];
 }
 
 export interface ProfilePicture {
