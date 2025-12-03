@@ -19,7 +19,7 @@ function OnboardingProviderPage() {
    * Redirect to backend OAuth
    */
   const handleContinueWithGoogle = () => {
-    window.location.href = '/api/auth/google';
+    window.location.href = '/api/v1/auth/google';
   };
 
   /**
@@ -148,7 +148,7 @@ function OnboardingProviderPage() {
         <label className="ml-2 text-sm text-gray-700">
           Yes, I understand and agree to the{' '}
           <a href="#" className="underline">
-            ResQ Health Terms of <br/> Service
+            ResQ Health Terms of <br /> Service
           </a>, including the{' '}
           <a href="#" className="underline">
             User Agreement
@@ -165,9 +165,8 @@ function OnboardingProviderPage() {
         disabled={!agreed}
         onClick={handleCreateAccount}
         style={{ fontFamily: 'Plus Jakarta Sans', backgroundColor: agreed ? '#06202E' : undefined }}
-        className={`w-full h-[40px] flex items-start justify-center text-center  p-[7px] rounded-[6px] font-medium text-[14px] leading-[22.4px] tracking-normal align-middle ${
-          agreed ? 'text-white' : 'bg-gray-300 text-gray-500'
-        }`}
+        className={`w-full h-[40px] flex items-start justify-center text-center  p-[7px] rounded-[6px] font-medium text-[14px] leading-[22.4px] tracking-normal align-middle ${agreed ? 'text-white' : 'bg-gray-300 text-gray-500'
+          }`}
       >
         Create account
       </button>
