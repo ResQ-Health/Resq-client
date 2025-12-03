@@ -883,17 +883,7 @@ export default function BookingHistoryPage() {
                                                                 <FiEye className="w-4 h-4" />
                                                                 View details
                                                             </button>
-                                                            <button
-                                                                onClick={() => {
-                                                                    setSelectedAppointment(appointment);
-                                                                    setShowDeleteConfirm(true);
-                                                                    setOpenDropdownIndex(null);
-                                                                }}
-                                                                className="flex items-center gap-2 w-full px-4 py-3 text-sm hover:bg-gray-50 text-red-600"
-                                                            >
-                                                                <RiDeleteBinLine className="w-4 h-4" />
-                                                                Remove
-                                                            </button>
+
                                                         </div>
                                                     )}
                                                 </div>
@@ -1084,13 +1074,7 @@ export default function BookingHistoryPage() {
 
                         {/* Modal Footer */}
                         <div className="flex justify-between items-center p-6 border-t border-gray-200 bg-gray-50">
-                            <button
-                                onClick={confirmDelete}
-                                className="px-6 py-2 text-red-600 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 transition-colors flex items-center gap-2"
-                            >
-                                <RiDeleteBinLine className="w-4 h-4" />
-                                Delete Appointment
-                            </button>
+
                             <button
                                 onClick={closeDetailsModal}
                                 className="px-6 py-2 text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
