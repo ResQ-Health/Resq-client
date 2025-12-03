@@ -3,6 +3,10 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useBookAppointment, useInitializePayment, useAllProviders } from '../../services/providerService';
 import { usePatientProfile } from '../../services/userService';
+import { useOAuthLogin } from '../../services/authService';
+import { useAuth } from '../../contexts/AuthContext';
+import { signInWithPopup } from 'firebase/auth';
+import { auth, googleProvider } from '../../config/firebase';
 import toast from 'react-hot-toast';
 
 // Validation helper functions
@@ -14,22 +18,22 @@ const validateEmail = (email: string): boolean => {
 const validatePhoneNumber = (phone: string): boolean => {
     // Accepts formats: +234XXXXXXXXXX, 234XXXXXXXXXX, 0XXXXXXXXXX (Nigerian phone numbers)
     const cleaned = phone.trim().replace(/[\s-]/g, '');
-    
+
     // Check for +234 format (13 digits: +234 + 10 digits)
     if (cleaned.startsWith('+234')) {
         return cleaned.length === 14 && /^\+234[0-9]{10}$/.test(cleaned);
     }
-    
+
     // Check for 234 format (13 digits: 234 + 10 digits)
     if (cleaned.startsWith('234')) {
         return cleaned.length === 13 && /^234[0-9]{10}$/.test(cleaned);
     }
-    
+
     // Check for 0 format (11 digits: 0 + 10 digits)
     if (cleaned.startsWith('0')) {
         return cleaned.length === 11 && /^0[0-9]{10}$/.test(cleaned);
     }
-    
+
     // If none of the above, it's invalid
     return false;
 };
@@ -38,17 +42,17 @@ const validateDateOfBirth = (dob: string): boolean => {
     // Accepts YYYY-MM-DD format
     const dateRegex = /^(\d{4})-(\d{2})-(\d{2})$/;
     if (!dateRegex.test(dob.trim())) return false;
-    
+
     const [, year, month, day] = dob.trim().match(dateRegex) || [];
     const y = parseInt(year, 10);
     const m = parseInt(month, 10);
     const d = parseInt(day, 10);
-    
+
     // Basic validation
     if (d < 1 || d > 31 || m < 1 || m > 12 || y < 1900 || y > new Date().getFullYear()) {
         return false;
     }
-    
+
     // Check if date is valid
     const date = new Date(y, m - 1, d);
     return date.getDate() === d && date.getMonth() === m - 1 && date.getFullYear() === y;
@@ -68,7 +72,7 @@ const BookingPage = () => {
     const initializePaymentMutation = useInitializePayment();
     const [providerData, setProviderData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
-    
+
     // Refs to prevent duplicate submissions
     const isBookingInProgressRef = useRef(false);
     const isPaymentInProgressRef = useRef(false);
@@ -154,14 +158,86 @@ const BookingPage = () => {
 
     // Load profile for prefilling when booking for Myself and to detect login status
     const { data: profileData } = usePatientProfile();
+    const { login } = useAuth();
+    const oauthLoginMutation = useOAuthLogin();
     const isLoggedIn = !!(profileData?.data?.id) || !!localStorage.getItem('authToken');
 
     // If user is logged in, skip showing the login step
     useEffect(() => {
         if (currentStep === 'login' && isLoggedIn) {
-            setCurrentStep('payment');
+            setCurrentStep('patient-details');
         }
     }, [currentStep, isLoggedIn]);
+
+    /**
+     * Handle Google Sign-In with Firebase
+     * Stays on booking page even if onboarding is not completed
+     */
+    const handleGoogleLogin = async () => {
+        try {
+            // Sign in with Google using Firebase
+            const result = await signInWithPopup(auth, googleProvider);
+            const user = result.user;
+
+            // Get the Firebase ID token
+            const idToken = await user.getIdToken();
+
+            // Get user info from Firebase user object
+            const email = user.email || '';
+            const name = user.displayName || '';
+            const photoURL = user.photoURL || '';
+            const phoneNumber = user.phoneNumber || '';
+
+            // Call OAuth login API with Firebase ID token
+            oauthLoginMutation.mutate({
+                idToken: idToken,
+                provider: 'google',
+                email: email,
+                name: name,
+                photoURL: photoURL,
+                phoneNumber: phoneNumber,
+            }, {
+                onSuccess: (data) => {
+                    // Update auth context
+                    if (data.data?.token && data.data) {
+                        // Construct User object with required fields
+                        const userData = {
+                            id: data.data.id || '',
+                            full_name: data.data.full_name || name || '',
+                            email: data.data.email || email || '',
+                            phone_number: data.data.phone_number || phoneNumber || '',
+                            user_type: data.data.user_type || 'patient',
+                            is_admin: data.data.is_admin || false,
+                            email_verified: data.data.email_verified || false,
+                            created_at: data.data.created_at || new Date().toISOString(),
+                            profile_picture: data.data.profile_picture || (photoURL ? { url: photoURL } : undefined),
+                        };
+                        login(data.data.token, userData);
+                    }
+
+                    // Stay on booking page and proceed to patient-details step
+                    // Don't redirect to onboarding even if not completed
+                    setCurrentStep('patient-details');
+                    toast.success('Logged in successfully!');
+                },
+                onError: (error: any) => {
+                    console.error('OAuth login error:', error);
+                    // Error message is already handled by the useOAuthLogin hook
+                }
+            });
+        } catch (error: any) {
+            console.error('Error during Google sign-in:', error);
+
+            // Handle specific Firebase errors
+            if (error.code === 'auth/popup-closed-by-user') {
+                toast.error('Sign-in was cancelled. Please try again.');
+            } else if (error.code === 'auth/popup-blocked') {
+                toast.error('Popup was blocked. Please allow popups and try again.');
+            } else {
+                toast.error('An error occurred during Google sign-in. Please try again.');
+            }
+        }
+    };
 
     // Pre-fill "About" section when booking for Myself
     useEffect(() => {
@@ -834,7 +910,12 @@ const BookingPage = () => {
                                         <button
                                             type="button"
                                             onClick={() => {
-                                                setCurrentStep('patient-details');
+                                                // If user is not logged in, show login/guest options
+                                                if (!isLoggedIn) {
+                                                    setCurrentStep('login');
+                                                } else {
+                                                    setCurrentStep('patient-details');
+                                                }
                                             }}
                                             className="w-full py-3 px-6 rounded-md transition-colors font-medium bg-gray-900 text-white hover:bg-gray-800"
                                         >
@@ -992,35 +1073,35 @@ const BookingPage = () => {
                                                         }
                                                         // Validate required fields with proper format checks
                                                         const validationErrors = [];
-                                                        
+
                                                         if (!fullName?.trim()) {
                                                             validationErrors.push('Full Name is required');
                                                         } else if (!validateFullName(fullName)) {
                                                             validationErrors.push('Full Name must be at least 3 characters');
                                                         }
-                                                        
+
                                                         if (!email?.trim()) {
                                                             validationErrors.push('Email is required');
                                                         } else if (!validateEmail(email)) {
                                                             validationErrors.push('Please enter a valid email address (e.g. john.doe@example.com)');
                                                         }
-                                                        
+
                                                         if (!mobileNumber?.trim()) {
                                                             validationErrors.push('Mobile Number is required');
                                                         } else if (!validatePhoneNumber(mobileNumber)) {
                                                             validationErrors.push('Please enter a valid phone number (e.g. 08012345678 or +2348012345678)');
                                                         }
-                                                        
+
                                                         if (!gender?.trim()) {
                                                             validationErrors.push('Gender is required');
                                                         }
-                                                        
+
                                                         if (!dateOfBirth?.trim()) {
                                                             validationErrors.push('Date of Birth is required');
                                                         } else if (!validateDateOfBirth(dateOfBirth)) {
                                                             validationErrors.push('Please enter a valid date in YYYY-MM-DD format (e.g. 1990-03-15)');
                                                         }
-                                                        
+
                                                         if (validationErrors.length > 0) {
                                                             toast.error(validationErrors[0]);
                                                             return;
@@ -1045,16 +1126,16 @@ const BookingPage = () => {
                                                         if (isBookingInProgressRef.current || bookAppointmentMutation.isPending) {
                                                             return;
                                                         }
-                                                        
+
                                                         // Check if booking already exists
                                                         const draftCheck = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
                                                         if (draftCheck?.appointment?.id) {
                                                             toast.error('A booking is already in progress. Please complete the payment first.');
                                                             return;
                                                         }
-                                                        
+
                                                         isBookingInProgressRef.current = true;
-                                                        
+
                                                         // Prepare formData based on booking type - include patient details for "Self" bookings
                                                         const formData = {
                                                             forWhom,
@@ -1337,55 +1418,55 @@ const BookingPage = () => {
                                                         }
                                                         // Validate required fields with proper format checks
                                                         const validationErrors = [];
-                                                        
+
                                                         // Validate "About You" section
                                                         if (!fullName?.trim()) {
                                                             validationErrors.push('Your Full Name is required');
                                                         } else if (!validateFullName(fullName)) {
                                                             validationErrors.push('Your Full Name must be at least 3 characters');
                                                         }
-                                                        
+
                                                         if (!email?.trim()) {
                                                             validationErrors.push('Your Email is required');
                                                         } else if (!validateEmail(email)) {
                                                             validationErrors.push('Please enter a valid email address for yourself (e.g. john.doe@example.com)');
                                                         }
-                                                        
+
                                                         if (!mobileNumber?.trim()) {
                                                             validationErrors.push('Your Mobile Number is required');
                                                         } else if (!validatePhoneNumber(mobileNumber)) {
                                                             validationErrors.push('Please enter a valid phone number for yourself (e.g. 08012345678 or +2348012345678)');
                                                         }
-                                                        
+
                                                         // Validate "About Patient" section
                                                         if (!patientFullName?.trim()) {
                                                             validationErrors.push('Patient Full Name is required');
                                                         } else if (!validateFullName(patientFullName)) {
                                                             validationErrors.push('Patient Full Name must be at least 3 characters');
                                                         }
-                                                        
+
                                                         if (!patientEmail?.trim()) {
                                                             validationErrors.push('Patient Email is required');
                                                         } else if (!validateEmail(patientEmail)) {
                                                             validationErrors.push('Please enter a valid email address for the patient (e.g. jane.doe@example.com)');
                                                         }
-                                                        
+
                                                         if (!patientMobileNumber?.trim()) {
                                                             validationErrors.push('Patient Mobile Number is required');
                                                         } else if (!validatePhoneNumber(patientMobileNumber)) {
                                                             validationErrors.push('Please enter a valid phone number for the patient (e.g. 08012345678 or +2348012345678)');
                                                         }
-                                                        
+
                                                         if (!patientGender?.trim()) {
                                                             validationErrors.push('Patient Gender is required');
                                                         }
-                                                        
+
                                                         if (!patientDateOfBirth?.trim()) {
                                                             validationErrors.push('Patient Date of Birth is required');
                                                         } else if (!validateDateOfBirth(patientDateOfBirth)) {
                                                             validationErrors.push('Please enter a valid date of birth for the patient in YYYY-MM-DD format (e.g. 1990-03-15)');
                                                         }
-                                                        
+
                                                         if (validationErrors.length > 0) {
                                                             toast.error(validationErrors[0]);
                                                             return;
@@ -1410,16 +1491,16 @@ const BookingPage = () => {
                                                         if (isBookingInProgressRef.current || bookAppointmentMutation.isPending) {
                                                             return;
                                                         }
-                                                        
+
                                                         // Check if booking already exists
                                                         const draftCheck = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
                                                         if (draftCheck?.appointment?.id) {
                                                             toast.error('A booking is already in progress. Please complete the payment first.');
                                                             return;
                                                         }
-                                                        
+
                                                         isBookingInProgressRef.current = true;
-                                                        
+
                                                         // Prepare formData for "Someone else" booking with patient details
                                                         const formData = {
                                                             forWhom,
@@ -1506,9 +1587,15 @@ const BookingPage = () => {
                                             <li>• Save your favourite healthcare providers</li>
                                             <li>• Manage your appointments easily</li>
                                         </ul>
-                                        <button className="w-full border border-gray-300 rounded-lg py-3 px-4 flex items-center justify-center space-x-3 hover:bg-gray-50 transition-colors">
+                                        <button
+                                            onClick={handleGoogleLogin}
+                                            disabled={oauthLoginMutation.isPending}
+                                            className="w-full border border-gray-300 rounded-lg py-3 px-4 flex items-center justify-center space-x-3 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
                                             <img src="/google.png" alt="Google" className="w-5 h-5" />
-                                            <span className="text-sm font-medium">Continue with Google</span>
+                                            <span className="text-sm font-medium">
+                                                {oauthLoginMutation.isPending ? 'Signing in...' : 'Continue with Google'}
+                                            </span>
                                         </button>
                                     </div>
 
@@ -1711,7 +1798,7 @@ const BookingPage = () => {
                                                     if (isPaymentInProgressRef.current || initializePaymentMutation.isPending) {
                                                         return;
                                                     }
-                                                    
+
                                                     try {
                                                         const draft = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
                                                         const appointmentId = draft?.appointment?.id;
@@ -1726,9 +1813,9 @@ const BookingPage = () => {
                                                             if (!emailToUse) toast.error("Email address is missing");
                                                             return;
                                                         }
-                                                        
+
                                                         isPaymentInProgressRef.current = true;
-                                                        
+
                                                         const res = await initializePaymentMutation.mutateAsync({
                                                             appointmentId,
                                                             amount,

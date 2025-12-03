@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface User {
     id: string;
@@ -42,6 +43,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const [user, setUser] = useState<User | null>(null);
     const [token, setToken] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
+    const queryClient = useQueryClient();
 
     useEffect(() => {
         // Check for existing token on app load
@@ -83,10 +85,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     const logout = () => {
-        setToken(null);
-        setUser(null);
+        // Clear React Query cache
+        queryClient.clear();
+        
+        // Clear all user-specific localStorage items
         localStorage.removeItem('authToken');
         localStorage.removeItem('user');
+        localStorage.removeItem('bookingDraft');
+        localStorage.removeItem('justLoggedIn');
+        localStorage.removeItem('onboarding_completed');
+        
+        // Clear all receipt sent flags (they follow pattern: receipt_sent_${appointmentId})
+        Object.keys(localStorage).forEach(key => {
+            if (key.startsWith('receipt_sent_')) {
+                localStorage.removeItem(key);
+            }
+        });
+        
+        // Clear state
+        setToken(null);
+        setUser(null);
     };
 
     const updateUser = (userData: Partial<User>) => {
