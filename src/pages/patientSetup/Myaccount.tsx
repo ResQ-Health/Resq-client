@@ -255,38 +255,79 @@ export default function Myaccount() {
     if (profileData?.data) {
       const data = profileData.data;
       const metadata = profileData.metadata;
+      
+      // Debug: Log the actual API response structure for verification
+      if (import.meta.env.DEV) {
+        console.log('[My Account] API Response Structure:', {
+          personal_details: data.personal_details,
+          contact_details: data.contact_details,
+          location_details: data.location_details,
+          metadata: metadata,
+          email: data.email,
+          phone_number: data.phone_number,
+        });
+      }
+      
       // Ensure profile image from API displays when available
       if (data.profile_picture?.url) {
         setProfileImage(data.profile_picture.url);
       }
+      
+      // Map API response to form fields
+      // Use nested fields first, fall back to top-level fields if nested are empty
+      // Handle null, undefined, and empty string values properly
+      const getValue = (value: any, fallback: any = '') => {
+        return value !== null && value !== undefined && value !== '' ? value : fallback;
+      };
+
+      // Format date to YYYY-MM-DD for date input (required format)
+      const formatDateForInput = (dateString: string | null | undefined): string => {
+        if (!dateString) return '';
+        try {
+          // If already in YYYY-MM-DD format, return as is
+          if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+            return dateString;
+          }
+          // Try to parse and format the date
+          const date = new Date(dateString);
+          if (isNaN(date.getTime())) return '';
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        } catch {
+          return '';
+        }
+      };
+
       setForm({
-        // Personal Details
-        firstName: data.personal_details?.first_name || '',
-        lastName: data.personal_details?.last_name || '',
-        dob: data.personal_details?.date_of_birth || '',
-        gender: data.personal_details?.gender || '',
+        // Personal Details - from personal_details nested object
+        firstName: getValue(data.personal_details?.first_name),
+        lastName: getValue(data.personal_details?.last_name),
+        dob: formatDateForInput(data.personal_details?.date_of_birth),
+        gender: getValue(data.personal_details?.gender),
 
-        // Contact Details
-        email: data.contact_details?.email_address || '',
-        phone: data.contact_details?.phone_number || '',
+        // Contact Details - use nested contact_details first, fall back to top-level email/phone_number
+        email: getValue(data.contact_details?.email_address) || getValue(data.email),
+        phone: getValue(data.contact_details?.phone_number) || getValue(data.phone_number),
 
-        // Location Details
-        address: data.location_details?.address || '',
-        city: data.location_details?.city || '',
-        state: data.location_details?.state || '',
+        // Location Details - from location_details nested object
+        address: getValue(data.location_details?.address),
+        city: getValue(data.location_details?.city),
+        state: getValue(data.location_details?.state),
 
-        // Emergency Contact
-        emergencyFirstName: metadata?.emergency_contact?.first_name || '',
-        emergencyLastName: metadata?.emergency_contact?.last_name || '',
-        emergencyPhone: metadata?.emergency_contact?.phone_number || '',
-        emergencyRelationship: metadata?.emergency_contact?.relationship_to_you || '',
+        // Emergency Contact - from metadata.emergency_contact
+        emergencyFirstName: getValue(metadata?.emergency_contact?.first_name),
+        emergencyLastName: getValue(metadata?.emergency_contact?.last_name),
+        emergencyPhone: getValue(metadata?.emergency_contact?.phone_number),
+        emergencyRelationship: getValue(metadata?.emergency_contact?.relationship_to_you),
 
-        // Next of Kin
-        nextOfKinFirstName: metadata?.next_of_kin?.first_name || '',
-        nextOfKinLastName: metadata?.next_of_kin?.last_name || '',
-        nextOfKinPhone: metadata?.next_of_kin?.phone_number || '',
-        nextOfKinRelationship: metadata?.next_of_kin?.relationship_to_you || '',
-        sameAsEmergency: metadata?.same_as_emergency_contact || false,
+        // Next of Kin - from metadata.next_of_kin
+        nextOfKinFirstName: getValue(metadata?.next_of_kin?.first_name),
+        nextOfKinLastName: getValue(metadata?.next_of_kin?.last_name),
+        nextOfKinPhone: getValue(metadata?.next_of_kin?.phone_number),
+        nextOfKinRelationship: getValue(metadata?.next_of_kin?.relationship_to_you),
+        sameAsEmergency: metadata?.same_as_emergency_contact === true,
       });
     }
   }, [profileData]);
