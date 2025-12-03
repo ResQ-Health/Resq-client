@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useBookAppointment, useInitializePayment, useAllProviders } from '../../services/providerService';
 import { usePatientProfile } from '../../services/userService';
@@ -12,6 +12,10 @@ const BookingPage = () => {
     const initializePaymentMutation = useInitializePayment();
     const [providerData, setProviderData] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    
+    // Refs to prevent duplicate submissions
+    const isBookingInProgressRef = useRef(false);
+    const isPaymentInProgressRef = useRef(false);
 
     // Multi-step booking state
     const [currentStep, setCurrentStep] = useState('appointment'); // 'appointment', 'patient-details', 'login', 'payment'
@@ -945,6 +949,20 @@ const BookingPage = () => {
                                                         };
                                                         const endTime = fmt(toMinutes(selectedTime) + 30);
 
+                                                        // Prevent duplicate booking submissions
+                                                        if (isBookingInProgressRef.current || bookAppointmentMutation.isPending) {
+                                                            return;
+                                                        }
+                                                        
+                                                        // Check if booking already exists
+                                                        const draftCheck = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
+                                                        if (draftCheck?.appointment?.id) {
+                                                            toast.error('A booking is already in progress. Please complete the payment first.');
+                                                            return;
+                                                        }
+                                                        
+                                                        isBookingInProgressRef.current = true;
+                                                        
                                                         // Prepare formData based on booking type - include patient details for "Self" bookings
                                                         const formData = {
                                                             forWhom,
@@ -971,6 +989,7 @@ const BookingPage = () => {
                                                             notes: comments || '',
                                                         }, {
                                                             onSuccess: (res) => {
+                                                                isBookingInProgressRef.current = false;
                                                                 if (!res?.success) {
                                                                     const msg = res?.message || 'Unable to book this slot. Please choose another time.';
                                                                     toast.error(msg);
@@ -988,6 +1007,7 @@ const BookingPage = () => {
                                                                 setCurrentStep('payment');
                                                             },
                                                             onError: (error: any) => {
+                                                                isBookingInProgressRef.current = false;
                                                                 const apiMsg = error?.response?.data?.message;
                                                                 const mongoCode = error?.response?.data?.code || error?.code;
                                                                 const isDup = mongoCode === 11000 || /duplicate key/i.test(String(apiMsg || ''));
@@ -998,10 +1018,10 @@ const BookingPage = () => {
                                                             }
                                                         });
                                                     }}
-                                                    disabled={bookAppointmentMutation.isPending}
-                                                    className={`w-full py-3 px-6 rounded-md transition-colors font-medium relative ${bookAppointmentMutation.isPending ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-gray-900 text-white hover:bg-gray-800'}`}
+                                                    disabled={isBookingInProgressRef.current || bookAppointmentMutation.isPending}
+                                                    className={`w-full py-3 px-6 rounded-md transition-colors font-medium relative ${(isBookingInProgressRef.current || bookAppointmentMutation.isPending) ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-gray-900 text-white hover:bg-gray-800'}`}
                                                 >
-                                                    {bookAppointmentMutation.isPending ? 'Booking…' : 'Continue'}
+                                                    {(isBookingInProgressRef.current || bookAppointmentMutation.isPending) ? 'Booking…' : 'Continue'}
                                                 </button>
                                             </div>
                                         </form>
@@ -1224,6 +1244,20 @@ const BookingPage = () => {
                                                         };
                                                         const endTime = fmt(toMinutes(selectedTime) + 30);
 
+                                                        // Prevent duplicate booking submissions
+                                                        if (isBookingInProgressRef.current || bookAppointmentMutation.isPending) {
+                                                            return;
+                                                        }
+                                                        
+                                                        // Check if booking already exists
+                                                        const draftCheck = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
+                                                        if (draftCheck?.appointment?.id) {
+                                                            toast.error('A booking is already in progress. Please complete the payment first.');
+                                                            return;
+                                                        }
+                                                        
+                                                        isBookingInProgressRef.current = true;
+                                                        
                                                         // Prepare formData for "Someone else" booking with patient details
                                                         const formData = {
                                                             forWhom,
@@ -1249,6 +1283,7 @@ const BookingPage = () => {
                                                             notes: comments || '',
                                                         }, {
                                                             onSuccess: (res) => {
+                                                                isBookingInProgressRef.current = false;
                                                                 if (!res?.success) {
                                                                     const msg = res?.message || 'Unable to book this slot. Please choose another time.';
                                                                     toast.error(msg);
@@ -1266,6 +1301,7 @@ const BookingPage = () => {
                                                                 setCurrentStep('payment');
                                                             },
                                                             onError: (error: any) => {
+                                                                isBookingInProgressRef.current = false;
                                                                 const apiMsg = error?.response?.data?.message;
                                                                 const mongoCode = error?.response?.data?.code || error?.code;
                                                                 const isDup = mongoCode === 11000 || /duplicate key/i.test(String(apiMsg || ''));
@@ -1276,10 +1312,10 @@ const BookingPage = () => {
                                                             }
                                                         });
                                                     }}
-                                                    disabled={bookAppointmentMutation.isPending}
-                                                    className={`w-full py-3 px-6 rounded-md transition-colors font-medium relative ${bookAppointmentMutation.isPending ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-gray-900 text-white hover:bg-gray-800'}`}
+                                                    disabled={isBookingInProgressRef.current || bookAppointmentMutation.isPending}
+                                                    className={`w-full py-3 px-6 rounded-md transition-colors font-medium relative ${(isBookingInProgressRef.current || bookAppointmentMutation.isPending) ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-gray-900 text-white hover:bg-gray-800'}`}
                                                 >
-                                                    {bookAppointmentMutation.isPending ? 'Booking…' : 'Continue'}
+                                                    {(isBookingInProgressRef.current || bookAppointmentMutation.isPending) ? 'Booking…' : 'Continue'}
                                                 </button>
                                             </div>
                                         </form>
@@ -1507,6 +1543,11 @@ const BookingPage = () => {
                                             {/* Confirm and Pay Button */}
                                             <button
                                                 onClick={async () => {
+                                                    // Prevent duplicate payment initializations
+                                                    if (isPaymentInProgressRef.current || initializePaymentMutation.isPending) {
+                                                        return;
+                                                    }
+                                                    
                                                     try {
                                                         const draft = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
                                                         const appointmentId = draft?.appointment?.id;
@@ -1521,6 +1562,9 @@ const BookingPage = () => {
                                                             if (!emailToUse) toast.error("Email address is missing");
                                                             return;
                                                         }
+                                                        
+                                                        isPaymentInProgressRef.current = true;
+                                                        
                                                         const res = await initializePaymentMutation.mutateAsync({
                                                             appointmentId,
                                                             amount,
@@ -1528,15 +1572,23 @@ const BookingPage = () => {
                                                         });
                                                         const url = res?.data?.authorization_url;
                                                         if (url) {
+                                                            // Payment initiated successfully, redirect to payment gateway
+                                                            isPaymentInProgressRef.current = false;
                                                             window.location.href = url;
+                                                        } else {
+                                                            isPaymentInProgressRef.current = false;
+                                                            toast.error('Failed to initialize payment. Please try again.');
                                                         }
-                                                    } catch (e) {
-                                                        // Stay on page
+                                                    } catch (e: any) {
+                                                        isPaymentInProgressRef.current = false;
+                                                        const errorMsg = e?.response?.data?.message || 'Failed to initialize payment. Please try again.';
+                                                        toast.error(errorMsg);
                                                     }
                                                 }}
-                                                className="w-full bg-gray-900 text-white py-3 px-6 rounded-md hover:bg-gray-800 transition-colors font-medium mb-4"
+                                                disabled={isPaymentInProgressRef.current || initializePaymentMutation.isPending}
+                                                className={`w-full bg-gray-900 text-white py-3 px-6 rounded-md transition-colors font-medium mb-4 ${isPaymentInProgressRef.current || initializePaymentMutation.isPending ? 'bg-gray-400 cursor-not-allowed hover:bg-gray-400' : 'hover:bg-gray-800'}`}
                                             >
-                                                Confirm and pay
+                                                {isPaymentInProgressRef.current || initializePaymentMutation.isPending ? 'Processing...' : 'Confirm and pay'}
                                             </button>
 
                                             {/* Promotions Checkbox */}
