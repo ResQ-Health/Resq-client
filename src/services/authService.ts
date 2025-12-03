@@ -7,7 +7,7 @@ export interface RegisterRequest {
     full_name: string;
     email: string;
     password: string;
-    phone_number: string;
+    phone_number?: string;
     user_type: 'Patient' | 'Provider';
 }
 

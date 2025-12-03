@@ -31,6 +31,60 @@ function VerificationPage() {
     }
   };
 
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>, startIdx: number) => {
+    e.preventDefault();
+    const pastedText = e.clipboardData.getData('text');
+    // Extract only digits from pasted text
+    const digits = pastedText.replace(/\D/g, '').slice(0, 6);
+    
+    if (digits.length === 0) return;
+    
+    const newCodes = Array(6).fill('');
+    // Always fill from the beginning when pasting a code
+    for (let i = 0; i < digits.length && i < 6; i++) {
+      newCodes[i] = digits[i];
+    }
+    
+    setCodes(newCodes);
+    
+    // Auto-verify if all 6 digits are filled
+    if (newCodes.every(c => c !== '')) {
+      handleVerify(newCodes);
+    } else {
+      // Focus on the first empty field or the last field if all are filled
+      const firstEmptyIdx = newCodes.findIndex(c => c === '');
+      const focusIdx = firstEmptyIdx !== -1 ? firstEmptyIdx : 5;
+      setTimeout(() => {
+        const nextInput = document.getElementById(`code-${focusIdx}`) as HTMLInputElement;
+        nextInput?.focus();
+      }, 0);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, idx: number) => {
+    // Handle backspace to go to previous field
+    if (e.key === 'Backspace' && !codes[idx] && idx > 0) {
+      e.preventDefault();
+      const prevInput = document.getElementById(`code-${idx - 1}`) as HTMLInputElement;
+      prevInput?.focus();
+      // Clear the previous field
+      const newCodes = [...codes];
+      newCodes[idx - 1] = '';
+      setCodes(newCodes);
+    }
+    // Handle arrow keys for navigation
+    else if (e.key === 'ArrowLeft' && idx > 0) {
+      e.preventDefault();
+      const prevInput = document.getElementById(`code-${idx - 1}`) as HTMLInputElement;
+      prevInput?.focus();
+    }
+    else if (e.key === 'ArrowRight' && idx < 5) {
+      e.preventDefault();
+      const nextInput = document.getElementById(`code-${idx + 1}`) as HTMLInputElement;
+      nextInput?.focus();
+    }
+  };
+
   // Verify code when the 6th digit is entered
   const handleVerify = async (enteredCodes: string[]) => {
     const otp = enteredCodes.join('');
@@ -45,9 +99,9 @@ function VerificationPage() {
           // Show success notification
           setNotification('success');
 
-          // Navigate to search page after successful verification (like normal login flow)
+          // Navigate to sign-in page after successful verification
           setTimeout(() => {
-            navigate('/search');
+            navigate('/Sign-in-Patient');
           }, 1500); // Small delay to show success message
         },
         onError: () => {
@@ -122,9 +176,12 @@ function VerificationPage() {
             key={i}
             id={`code-${i}`}
             type="text"
+            inputMode="numeric"
             maxLength={1}
             value={c}
             onChange={e => handleChange(e.target.value, i)}
+            onPaste={e => handlePaste(e, i)}
+            onKeyDown={e => handleKeyDown(e, i)}
             disabled={verifyMutation.isPending}
             className={`w-[48px] h-[48px] border rounded-[6px] text-[24px] text-center focus:outline-none focus:ring-2 focus:ring-blue-500 ${verifyMutation.isPending ? 'bg-gray-100 cursor-not-allowed' : ''
               }`}

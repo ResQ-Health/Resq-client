@@ -148,6 +148,13 @@ export default function BookingHistoryPage() {
         }
     };
 
+    // Helper function to format communication preference display
+    const formatCommunicationPreference = (preference: string | undefined) => {
+        if (!preference) return 'N/A';
+        if (preference.toLowerCase() === 'booker') return 'You';
+        return preference;
+    };
+
     // Filter and search logic
     const filteredAppointments = useMemo(() => {
         let filtered = appointments || [];
@@ -916,7 +923,7 @@ export default function BookingHistoryPage() {
                                     </div>
                                     <div className="p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
                                         <span className="text-xs text-gray-500 block mb-1">Communication Preference</span>
-                                        <span className="font-medium text-gray-900">{selectedAppointment.communicationPreference || 'N/A'}</span>
+                                        <span className="font-medium text-gray-900">{formatCommunicationPreference(selectedAppointment.communicationPreference)}</span>
                                     </div>
                                 </div>
                             </div>

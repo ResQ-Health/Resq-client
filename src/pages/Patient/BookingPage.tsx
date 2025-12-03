@@ -5,6 +5,61 @@ import { useBookAppointment, useInitializePayment, useAllProviders } from '../..
 import { usePatientProfile } from '../../services/userService';
 import toast from 'react-hot-toast';
 
+// Validation helper functions
+const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email.trim());
+};
+
+const validatePhoneNumber = (phone: string): boolean => {
+    // Accepts formats: +234XXXXXXXXXX, 234XXXXXXXXXX, 0XXXXXXXXXX (Nigerian phone numbers)
+    const cleaned = phone.trim().replace(/[\s-]/g, '');
+    
+    // Check for +234 format (13 digits: +234 + 10 digits)
+    if (cleaned.startsWith('+234')) {
+        return cleaned.length === 14 && /^\+234[0-9]{10}$/.test(cleaned);
+    }
+    
+    // Check for 234 format (13 digits: 234 + 10 digits)
+    if (cleaned.startsWith('234')) {
+        return cleaned.length === 13 && /^234[0-9]{10}$/.test(cleaned);
+    }
+    
+    // Check for 0 format (11 digits: 0 + 10 digits)
+    if (cleaned.startsWith('0')) {
+        return cleaned.length === 11 && /^0[0-9]{10}$/.test(cleaned);
+    }
+    
+    // If none of the above, it's invalid
+    return false;
+};
+
+const validateDateOfBirth = (dob: string): boolean => {
+    // Accepts DD/MM/YYYY format
+    const dateRegex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+    if (!dateRegex.test(dob.trim())) return false;
+    
+    const [, day, month, year] = dob.trim().match(dateRegex) || [];
+    const d = parseInt(day, 10);
+    const m = parseInt(month, 10);
+    const y = parseInt(year, 10);
+    
+    // Basic validation
+    if (d < 1 || d > 31 || m < 1 || m > 12 || y < 1900 || y > new Date().getFullYear()) {
+        return false;
+    }
+    
+    // Check if date is valid
+    const date = new Date(y, m - 1, d);
+    return date.getDate() === d && date.getMonth() === m - 1 && date.getFullYear() === y;
+};
+
+const validateFullName = (name: string): boolean => {
+    // At least 2 characters, allows letters, spaces, hyphens, apostrophes
+    const nameRegex = /^[a-zA-Z\s'-]{2,}$/;
+    return nameRegex.test(name.trim());
+};
+
 const BookingPage = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
@@ -807,8 +862,9 @@ const BookingPage = () => {
                                                         type="text"
                                                         value={fullName}
                                                         onChange={(e) => setFullName(e.target.value)}
-                                                        placeholder="Enter full name"
+                                                        placeholder="e.g. John Doe"
                                                         disabled={isLoggedIn}
+                                                        maxLength={100}
                                                         className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                                                     />
                                                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
@@ -829,8 +885,9 @@ const BookingPage = () => {
                                                         type="email"
                                                         value={email}
                                                         onChange={(e) => setEmail(e.target.value)}
-                                                        placeholder="Enter email address"
+                                                        placeholder="e.g. john.doe@example.com"
                                                         disabled={isLoggedIn}
+                                                        maxLength={100}
                                                         className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                                                     />
                                                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
@@ -851,8 +908,9 @@ const BookingPage = () => {
                                                         type="tel"
                                                         value={mobileNumber}
                                                         onChange={(e) => setMobileNumber(e.target.value)}
-                                                        placeholder="Enter mobile number"
+                                                        placeholder="e.g. 08012345678 or +2348012345678"
                                                         disabled={isLoggedIn}
+                                                        maxLength={15}
                                                         className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                                                     />
                                                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
@@ -872,8 +930,9 @@ const BookingPage = () => {
                                                     type="text"
                                                     value={homeAddress}
                                                     onChange={(e) => setHomeAddress(e.target.value)}
-                                                    placeholder="Enter home address"
+                                                    placeholder="e.g. 123 Main Street, Lagos"
                                                     disabled={isLoggedIn}
+                                                    maxLength={200}
                                                     className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                                                 />
                                             </div>
@@ -888,6 +947,7 @@ const BookingPage = () => {
                                                         disabled={isLoggedIn}
                                                         className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                                                     >
+                                                        <option value="">Select Gender</option>
                                                         <option value="Male">Male</option>
                                                         <option value="Female">Female</option>
                                                         <option value="Other">Other</option>
@@ -906,9 +966,16 @@ const BookingPage = () => {
                                                 <input
                                                     type="text"
                                                     value={dateOfBirth}
-                                                    onChange={(e) => setDateOfBirth(e.target.value)}
-                                                    placeholder="DD/MM/YYYY"
+                                                    onChange={(e) => {
+                                                        // Auto-format date as user types
+                                                        let value = e.target.value.replace(/\D/g, '');
+                                                        if (value.length >= 2) value = value.slice(0, 2) + '/' + value.slice(2);
+                                                        if (value.length >= 5) value = value.slice(0, 5) + '/' + value.slice(5, 9);
+                                                        setDateOfBirth(value);
+                                                    }}
+                                                    placeholder="DD/MM/YYYY (e.g. 15/03/1990)"
                                                     disabled={isLoggedIn}
+                                                    maxLength={10}
                                                     className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                                                 />
                                             </div>
@@ -931,8 +998,39 @@ const BookingPage = () => {
                                                             toast.error("Please enter your identification number.");
                                                             return;
                                                         }
-                                                        if (!fullName || !email || !mobileNumber || !gender || !dateOfBirth) {
-                                                            toast.error("Please ensure Full Name, Email, Mobile Number, Gender, and Date of Birth are provided.");
+                                                        // Validate required fields with proper format checks
+                                                        const validationErrors = [];
+                                                        
+                                                        if (!fullName?.trim()) {
+                                                            validationErrors.push('Full Name is required');
+                                                        } else if (!validateFullName(fullName)) {
+                                                            validationErrors.push('Full Name must be at least 2 characters and contain only letters, spaces, hyphens, or apostrophes');
+                                                        }
+                                                        
+                                                        if (!email?.trim()) {
+                                                            validationErrors.push('Email is required');
+                                                        } else if (!validateEmail(email)) {
+                                                            validationErrors.push('Please enter a valid email address (e.g. john.doe@example.com)');
+                                                        }
+                                                        
+                                                        if (!mobileNumber?.trim()) {
+                                                            validationErrors.push('Mobile Number is required');
+                                                        } else if (!validatePhoneNumber(mobileNumber)) {
+                                                            validationErrors.push('Please enter a valid phone number (e.g. 08012345678 or +2348012345678)');
+                                                        }
+                                                        
+                                                        if (!gender?.trim()) {
+                                                            validationErrors.push('Gender is required');
+                                                        }
+                                                        
+                                                        if (!dateOfBirth?.trim()) {
+                                                            validationErrors.push('Date of Birth is required');
+                                                        } else if (!validateDateOfBirth(dateOfBirth)) {
+                                                            validationErrors.push('Please enter a valid date in DD/MM/YYYY format (e.g. 15/03/1990)');
+                                                        }
+                                                        
+                                                        if (validationErrors.length > 0) {
+                                                            toast.error(validationErrors[0]);
                                                             return;
                                                         }
                                                         const toMinutes = (t: string) => {
@@ -1046,8 +1144,9 @@ const BookingPage = () => {
                                                                 type="text"
                                                                 value={fullName}
                                                                 onChange={(e) => setFullName(e.target.value)}
-                                                                placeholder="Enter full name"
+                                                                placeholder="e.g. John Doe"
                                                                 disabled={isLoggedIn}
+                                                                maxLength={100}
                                                                 className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                                                             />
                                                             <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
@@ -1068,8 +1167,9 @@ const BookingPage = () => {
                                                                 type="email"
                                                                 value={email}
                                                                 onChange={(e) => setEmail(e.target.value)}
-                                                                placeholder="Enter email address"
+                                                                placeholder="e.g. john.doe@example.com"
                                                                 disabled={isLoggedIn}
+                                                                maxLength={100}
                                                                 className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                                                             />
                                                             <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
@@ -1090,8 +1190,9 @@ const BookingPage = () => {
                                                                 type="tel"
                                                                 value={mobileNumber}
                                                                 onChange={(e) => setMobileNumber(e.target.value)}
-                                                                placeholder="Enter mobile number"
+                                                                placeholder="e.g. 08012345678 or +2348012345678"
                                                                 disabled={isLoggedIn}
+                                                                maxLength={15}
                                                                 className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                                                             />
                                                             <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
@@ -1117,7 +1218,8 @@ const BookingPage = () => {
                                                             type="text"
                                                             value={patientFullName}
                                                             onChange={(e) => setPatientFullName(e.target.value)}
-                                                            placeholder="Enter full name"
+                                                            placeholder="e.g. Jane Doe"
+                                                            maxLength={100}
                                                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                                         />
                                                     </div>
@@ -1129,7 +1231,8 @@ const BookingPage = () => {
                                                             type="email"
                                                             value={patientEmail}
                                                             onChange={(e) => setPatientEmail(e.target.value)}
-                                                            placeholder="Enter email address"
+                                                            placeholder="e.g. jane.doe@example.com"
+                                                            maxLength={100}
                                                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                                         />
                                                     </div>
@@ -1141,7 +1244,8 @@ const BookingPage = () => {
                                                             type="tel"
                                                             value={patientMobileNumber}
                                                             onChange={(e) => setPatientMobileNumber(e.target.value)}
-                                                            placeholder="Enter mobile number"
+                                                            placeholder="e.g. 08012345678 or +2348012345678"
+                                                            maxLength={15}
                                                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                                         />
                                                     </div>
@@ -1153,7 +1257,8 @@ const BookingPage = () => {
                                                             type="text"
                                                             value={patientHomeAddress}
                                                             onChange={(e) => setPatientHomeAddress(e.target.value)}
-                                                            placeholder="Enter home address"
+                                                            placeholder="e.g. 123 Main Street, Lagos"
+                                                            maxLength={200}
                                                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                                         />
                                                     </div>
@@ -1167,6 +1272,7 @@ const BookingPage = () => {
                                                                 onChange={(e) => setPatientGender(e.target.value)}
                                                                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
                                                             >
+                                                                <option value="">Select Gender</option>
                                                                 <option value="Male">Male</option>
                                                                 <option value="Female">Female</option>
                                                                 <option value="Other">Other</option>
@@ -1185,8 +1291,15 @@ const BookingPage = () => {
                                                         <input
                                                             type="text"
                                                             value={patientDateOfBirth}
-                                                            onChange={(e) => setPatientDateOfBirth(e.target.value)}
-                                                            placeholder="DD/MM/YYYY"
+                                                            onChange={(e) => {
+                                                                // Auto-format date as user types
+                                                                let value = e.target.value.replace(/\D/g, '');
+                                                                if (value.length >= 2) value = value.slice(0, 2) + '/' + value.slice(2);
+                                                                if (value.length >= 5) value = value.slice(0, 5) + '/' + value.slice(5, 9);
+                                                                setPatientDateOfBirth(value);
+                                                            }}
+                                                            placeholder="DD/MM/YYYY (e.g. 15/03/1990)"
+                                                            maxLength={10}
                                                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                                         />
                                                     </div>
@@ -1230,6 +1343,66 @@ const BookingPage = () => {
                                                         const forWhom = 'Other';
                                                         const visited = visitedBefore === 'Yes';
                                                         if (!id || !serviceId || !selectedDate || !selectedTime) {
+                                                            toast.error("Please select a service, date and time to proceed.");
+                                                            return;
+                                                        }
+                                                        if (visited && !identificationNumber.trim()) {
+                                                            toast.error("Please enter your identification number.");
+                                                            return;
+                                                        }
+                                                        // Validate required fields with proper format checks
+                                                        const validationErrors = [];
+                                                        
+                                                        // Validate "About You" section
+                                                        if (!fullName?.trim()) {
+                                                            validationErrors.push('Your Full Name is required');
+                                                        } else if (!validateFullName(fullName)) {
+                                                            validationErrors.push('Your Full Name must be at least 2 characters and contain only letters, spaces, hyphens, or apostrophes');
+                                                        }
+                                                        
+                                                        if (!email?.trim()) {
+                                                            validationErrors.push('Your Email is required');
+                                                        } else if (!validateEmail(email)) {
+                                                            validationErrors.push('Please enter a valid email address for yourself (e.g. john.doe@example.com)');
+                                                        }
+                                                        
+                                                        if (!mobileNumber?.trim()) {
+                                                            validationErrors.push('Your Mobile Number is required');
+                                                        } else if (!validatePhoneNumber(mobileNumber)) {
+                                                            validationErrors.push('Please enter a valid phone number for yourself (e.g. 08012345678 or +2348012345678)');
+                                                        }
+                                                        
+                                                        // Validate "About Patient" section
+                                                        if (!patientFullName?.trim()) {
+                                                            validationErrors.push('Patient Full Name is required');
+                                                        } else if (!validateFullName(patientFullName)) {
+                                                            validationErrors.push('Patient Full Name must be at least 2 characters and contain only letters, spaces, hyphens, or apostrophes');
+                                                        }
+                                                        
+                                                        if (!patientEmail?.trim()) {
+                                                            validationErrors.push('Patient Email is required');
+                                                        } else if (!validateEmail(patientEmail)) {
+                                                            validationErrors.push('Please enter a valid email address for the patient (e.g. jane.doe@example.com)');
+                                                        }
+                                                        
+                                                        if (!patientMobileNumber?.trim()) {
+                                                            validationErrors.push('Patient Mobile Number is required');
+                                                        } else if (!validatePhoneNumber(patientMobileNumber)) {
+                                                            validationErrors.push('Please enter a valid phone number for the patient (e.g. 08012345678 or +2348012345678)');
+                                                        }
+                                                        
+                                                        if (!patientGender?.trim()) {
+                                                            validationErrors.push('Patient Gender is required');
+                                                        }
+                                                        
+                                                        if (!patientDateOfBirth?.trim()) {
+                                                            validationErrors.push('Patient Date of Birth is required');
+                                                        } else if (!validateDateOfBirth(patientDateOfBirth)) {
+                                                            validationErrors.push('Please enter a valid date of birth for the patient in DD/MM/YYYY format (e.g. 15/03/1990)');
+                                                        }
+                                                        
+                                                        if (validationErrors.length > 0) {
+                                                            toast.error(validationErrors[0]);
                                                             return;
                                                         }
                                                         const toMinutes = (t: string) => {
