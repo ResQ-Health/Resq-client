@@ -1,12 +1,11 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { MdOutlineSearch, MdArrowUpward, MdArrowDownward, MdFilterList, MdSort, MdRefresh } from 'react-icons/md';
-import { FaPlus, FaRegClock } from 'react-icons/fa';
+import { MdOutlineSearch, MdArrowUpward, MdArrowDownward, MdFilterList, MdSort, MdRefresh, MdSchedule, MdCheckCircle, MdCancel, MdToday, MdEvent, MdHistory, MdClear } from 'react-icons/md';
+import { FaPlus, FaRegClock, FaHourglassHalf } from 'react-icons/fa';
 import { FiEye } from 'react-icons/fi';
 import { BsThreeDotsVertical } from 'react-icons/bs';
-import { IoCheckmarkDone } from 'react-icons/io5';
+import { IoCheckmarkDone, IoTimeOutline } from 'react-icons/io5';
 import { TiPlusOutline } from 'react-icons/ti';
 import { SlHome } from 'react-icons/sl';
-
 import { RiDeleteBinLine } from 'react-icons/ri';
 import { LiaTimesCircle } from 'react-icons/lia';
 import { useNavigate } from 'react-router-dom';
@@ -34,10 +33,11 @@ export default function BookingHistoryPage() {
     const [openStatusDropdownIndex, setOpenStatusDropdownIndex] = useState<number | null>(null);
 
     // State for search, filter, sort, and pagination
+    const [activeTab, setActiveTab] = useState<'all' | 'upcoming' | 'past' | 'today'>('all');
     const [searchTerm, setSearchTerm] = useState('');
-    const [selectedStatus, setSelectedStatus] = useState('all');
-    const [sortField, setSortField] = useState<string>('date');
-    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+    const [selectedStatus, setSelectedStatus] = useState('all'); // 'all' = no filter
+    const [sortField, setSortField] = useState<string>('paidAt'); // Default sort by paidAt
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc'); // Default desc (most recent paid first)
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage] = useState(10);
     const [showSortDropdown, setShowSortDropdown] = useState(false);
@@ -49,11 +49,9 @@ export default function BookingHistoryPage() {
     const filterDropdownRef = useRef<HTMLDivElement>(null);
 
     // Transform API data to match component expectations
-    // Handle case where data is directly the array or nested in an object (as seen in debug logs)
     const rawData = appointmentsData?.data as any;
     let rawAppointments: any[] = [];
 
-    // Handle multiple nested structures: data.appointments, data.data.appointments, or direct array
     if (Array.isArray(rawData)) {
         rawAppointments = rawData;
     } else if (Array.isArray(rawData?.appointments)) {
@@ -62,22 +60,14 @@ export default function BookingHistoryPage() {
         rawAppointments = rawData.data.appointments;
     }
 
-    // Transform appointments to ensure bookingType and communicationPreference are accessible
-    // They might be in contact object or at appointment level
     const appointments: Appointment[] = rawAppointments.map((apt: any) => {
-        // Extract bookingType - priority: appointment level > contact object > default
         const bookingType = apt.bookingType || apt.contact?.bookingType || 'Self';
-
-        // Extract communicationPreference - priority: appointment level > contact object > default
         const communicationPreference = apt.communicationPreference || apt.contact?.communicationPreference || 'Booker';
 
         return {
             ...apt,
-            // Ensure bookingType is at appointment level
             bookingType: bookingType,
-            // Ensure communicationPreference is at appointment level
             communicationPreference: communicationPreference,
-            // Ensure contact object exists with all fields from API
             contact: {
                 name: apt.contact?.name || '',
                 email: apt.contact?.email || '',
@@ -85,26 +75,11 @@ export default function BookingHistoryPage() {
                 address: apt.contact?.address || '',
                 gender: apt.contact?.gender || '',
                 dob: apt.contact?.dob || '',
-                // Keep bookingType and communicationPreference in contact if they exist there
                 bookingType: apt.contact?.bookingType || bookingType,
                 communicationPreference: apt.contact?.communicationPreference || communicationPreference,
             },
         };
     });
-
-    // Debug: Log if we still couldn't find an array
-    if (rawData && (!Array.isArray(rawAppointments) || rawAppointments.length === 0)) {
-        console.error('Could not extract appointments array. Raw data:', rawData);
-    }
-
-    // Debug: Log individual appointment structure
-    if (appointments && appointments.length > 0) {
-        console.log('First appointment structure:', appointments[0]);
-        console.log('First appointment bookingType:', appointments[0].bookingType);
-        console.log('First appointment contact.bookingType:', appointments[0].contact?.bookingType);
-        console.log('All appointment statuses:', appointments.map((apt) => apt.status));
-        console.log('Unique statuses:', [...new Set(appointments.map((apt) => apt.status))]);
-    }
 
     // Helper function to get status colors
     const getStatusColor = (status: string) => {
@@ -126,11 +101,67 @@ export default function BookingHistoryPage() {
         }
     };
 
+    // Helper functions for date checks
+    const isToday = (dateString: string) => {
+        const appointmentDate = new Date(dateString);
+        const today = new Date();
+        return appointmentDate.toDateString() === today.toDateString();
+    };
+
+    const isPast = (dateString: string, timeString?: string) => {
+        const appointmentDate = new Date(dateString);
+        const today = new Date();
+
+        if (appointmentDate.toDateString() === today.toDateString() && timeString) {
+            const [time, period] = timeString.split(' ');
+            const [hours, minutes] = time.split(':').map(Number);
+            let hour24 = hours;
+            if (period?.toLowerCase() === 'pm' && hours !== 12) hour24 += 12;
+            if (period?.toLowerCase() === 'am' && hours === 12) hour24 = 0;
+
+            const appointmentDateTime = new Date(today);
+            appointmentDateTime.setHours(hour24, minutes, 0, 0);
+            return appointmentDateTime < new Date();
+        }
+
+        appointmentDate.setHours(0, 0, 0, 0);
+        today.setHours(0, 0, 0, 0);
+        return appointmentDate < today;
+    };
+
+    const isUpcoming = (dateString: string, timeString?: string) => {
+        return !isPast(dateString, timeString) && !isToday(dateString);
+    };
+
+    const formatDate = (dateString: string) => {
+        const date = new Date(dateString);
+        const today = new Date();
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        if (isToday(dateString)) {
+            return 'Today';
+        } else if (date.toDateString() === tomorrow.toDateString()) {
+            return 'Tomorrow';
+        } else {
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: date.getFullYear() !== today.getFullYear() ? 'numeric' : undefined });
+        }
+    };
+
     // Filter and search logic
     const filteredAppointments = useMemo(() => {
         let filtered = appointments || [];
 
-        // Search filter
+        // 1. Tab Filter (Time-based)
+        if (activeTab === 'upcoming') {
+            filtered = filtered.filter(apt => isUpcoming(apt.date, apt.start_time));
+        } else if (activeTab === 'past') {
+            filtered = filtered.filter(apt => isPast(apt.date, apt.start_time));
+        } else if (activeTab === 'today') {
+            filtered = filtered.filter(apt => isToday(apt.date));
+        }
+
+        // 2. Search filter
         if (searchTerm) {
             filtered = filtered.filter((appointment) =>
                 appointment.service?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -141,24 +172,36 @@ export default function BookingHistoryPage() {
             );
         }
 
-        // Status filter
+        // 3. Status filter
         if (selectedStatus !== 'all') {
-            if (selectedStatus === 'completed') {
-                filtered = filtered.filter((apt) => apt.status === 'completed');
-            } else if (selectedStatus === 'upcoming') {
-                filtered = filtered.filter((apt) => ['confirmed', 'pending'].includes(apt.status.toLowerCase()));
-            } else if (selectedStatus === 'cancelled') {
-                filtered = filtered.filter((apt) => ['cancelled', 'rejected', 'no-show'].includes(apt.status.toLowerCase()));
-            }
+            filtered = filtered.filter((apt) => apt.status.toLowerCase() === selectedStatus.toLowerCase());
         }
 
-        // Sort
-        if (sortField && filtered && Array.isArray(filtered)) {
-            filtered = [...filtered].sort((a, b) => {
+        // 4. Sorting logic
+        filtered = [...filtered].sort((a, b) => {
+            // Default sort: by paidAt (most recent paid first)
+            if (sortField === 'paidAt') {
+                const aPaidAt = a.payment?.paidAt ? new Date(a.payment.paidAt).getTime() : 0;
+                const bPaidAt = b.payment?.paidAt ? new Date(b.payment.paidAt).getTime() : 0;
+
+                // If both have paidAt, sort by paidAt
+                if (aPaidAt > 0 && bPaidAt > 0) {
+                    return sortDirection === 'desc' ? bPaidAt - aPaidAt : aPaidAt - bPaidAt;
+                }
+                // If only one has paidAt, prioritize the one with paidAt
+                if (aPaidAt > 0 && bPaidAt === 0) return -1;
+                if (aPaidAt === 0 && bPaidAt > 0) return 1;
+                // If neither has paidAt, sort by appointment date as fallback
+                const aDate = new Date(a.date).getTime();
+                const bDate = new Date(b.date).getTime();
+                return sortDirection === 'desc' ? bDate - aDate : aDate - bDate;
+            }
+
+            // Manual sort options
+            if (sortField && sortField !== 'date') {
                 let aValue = a[sortField as keyof typeof a];
                 let bValue = b[sortField as keyof typeof b];
 
-                // Handle nested objects
                 if (sortField === 'service') {
                     aValue = a.service?.name || '';
                     bValue = b.service?.name || '';
@@ -179,13 +222,47 @@ export default function BookingHistoryPage() {
                 if (typeof aValue === 'number' && typeof bValue === 'number') {
                     return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
                 }
+            }
 
-                return 0;
-            });
-        }
+            // Fallback: Automatic date-based sorting: Upcoming → Today → Past
+            const aIsUpcoming = isUpcoming(a.date, a.start_time);
+            const bIsUpcoming = isUpcoming(b.date, b.start_time);
+            const aIsToday = isToday(a.date);
+            const bIsToday = isToday(b.date);
+            const aIsPast = isPast(a.date, a.start_time);
+            const bIsPast = isPast(b.date, b.start_time);
+
+            // Priority order: Upcoming (1) → Today (2) → Past (3)
+            const getPriority = (isUpcoming: boolean, isToday: boolean, isPast: boolean) => {
+                if (isUpcoming) return 1;
+                if (isToday) return 2;
+                if (isPast) return 3;
+                return 4; // fallback
+            };
+
+            const aPriority = getPriority(aIsUpcoming, aIsToday, aIsPast);
+            const bPriority = getPriority(bIsUpcoming, bIsToday, bIsPast);
+
+            // First sort by priority (upcoming → today → past)
+            if (aPriority !== bPriority) {
+                return aPriority - bPriority;
+            }
+
+            // Within same priority, sort by date (ascending for upcoming/today, descending for past)
+            const aDate = new Date(a.date).getTime();
+            const bDate = new Date(b.date).getTime();
+
+            if (aIsPast) {
+                // For past appointments, show most recent first (descending)
+                return bDate - aDate;
+            } else {
+                // For upcoming and today, show earliest first (ascending)
+                return aDate - bDate;
+            }
+        });
 
         return filtered;
-    }, [appointments, searchTerm, selectedStatus, sortField, sortDirection]);
+    }, [appointments, searchTerm, selectedStatus, sortField, sortDirection, activeTab]);
 
     // Pagination logic
     const totalPages = Math.ceil(filteredAppointments.length / itemsPerPage);
@@ -193,68 +270,70 @@ export default function BookingHistoryPage() {
     const endIndex = startIndex + itemsPerPage;
     const paginatedAppointments = filteredAppointments.slice(startIndex, endIndex);
 
-    // Calculate counts for filter tabs
+    // Calculate counts for tabs
     const allCount = appointments?.length || 0;
-    const completedCount = appointments?.filter((apt) => apt.status.toLowerCase() === 'completed').length || 0;
-    const upcomingCount = appointments?.filter((apt) => ['confirmed', 'pending'].includes(apt.status.toLowerCase())).length || 0;
-    const cancelledCount = appointments?.filter((apt) => ['cancelled', 'rejected', 'no-show'].includes(apt.status.toLowerCase())).length || 0;
+    const upcomingCount = appointments?.filter(apt => isUpcoming(apt.date, apt.start_time)).length || 0;
+    const pastCount = appointments?.filter(apt => isPast(apt.date, apt.start_time)).length || 0;
+    const todayCount = appointments?.filter(apt => isToday(apt.date)).length || 0;
+
+    // Calculate counts for filter dropdown
+    const pendingCount = appointments?.filter((apt) => apt.status.toLowerCase() === 'pending').length || 0;
+    const confirmedCount = appointments?.filter((apt) => apt.status.toLowerCase() === 'confirmed').length || 0;
+    const cancelledCount = appointments?.filter((apt) => apt.status.toLowerCase() === 'cancelled').length || 0;
 
 
     const toggleDropdown = (index: number) => {
         setOpenDropdownIndex(openDropdownIndex === index ? null : index);
-        // Close status dropdown if open
-        if (openStatusDropdownIndex !== null) {
-            setOpenStatusDropdownIndex(null);
-        }
+        if (openStatusDropdownIndex !== null) setOpenStatusDropdownIndex(null);
     };
 
     const toggleStatusDropdown = (index: number, e: React.MouseEvent) => {
-        e.stopPropagation(); // Prevent event bubbling
+        e.stopPropagation();
         setOpenStatusDropdownIndex(openStatusDropdownIndex === index ? null : index);
-        // Close action dropdown if open
-        if (openDropdownIndex !== null) {
-            setOpenDropdownIndex(null);
-        }
+        if (openDropdownIndex !== null) setOpenDropdownIndex(null);
     };
 
     const handleStatusSelect = (index: number, status: string) => {
         const appointment = appointments?.[index];
         if (!appointment || !appointments) return;
 
-        // Optimistic update
         const updatedAppointments = appointments.map((apt) =>
             apt.id === appointment.id ? { ...apt, status: status as any } : apt
         );
 
-        // Update the cache optimistically
         queryClient.setQueryData(['patientAppointments'], (oldData: any) => ({
             ...oldData,
             data: updatedAppointments
         }));
 
-        // TODO: Implement actual API call
-        console.log('Update status for appointment:', appointment.id, 'to:', status);
-
-        // Simulate API call with a delay
         setTimeout(() => {
-            // In a real implementation, you would call the API here
-            // If the API call fails, you would revert the optimistic update
             console.log('Status updated successfully');
         }, 1000);
 
         setOpenStatusDropdownIndex(null);
     };
 
-    // Handler functions
     const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
         setSearchTerm(e.target.value);
-        setCurrentPage(1); // Reset to first page when searching
+        setCurrentPage(1);
     };
 
     const handleStatusFilter = (status: string) => {
         setSelectedStatus(status);
-        setCurrentPage(1); // Reset to first page when filtering
+        setCurrentPage(1);
     };
+
+    const handleClearAllFilters = () => {
+        setActiveTab('all');
+        setSearchTerm('');
+        setSelectedStatus('all');
+        setSortField('paidAt');
+        setSortDirection('desc');
+        setCurrentPage(1);
+    };
+
+    // Check if any filters are active
+    const hasActiveFilters = activeTab !== 'all' || searchTerm !== '' || selectedStatus !== 'all' || sortField !== 'paidAt' || sortDirection !== 'desc';
 
     const handleSort = (field: string) => {
         if (sortField === field) {
@@ -294,20 +373,16 @@ export default function BookingHistoryPage() {
     const handleDeleteAppointment = () => {
         if (!selectedAppointment) return;
 
-        // Optimistic update - remove appointment from cache
         queryClient.setQueryData(['patientAppointments'], (oldData: any) => ({
             ...oldData,
             data: oldData.data.filter((apt: any) => apt.id !== selectedAppointment.id)
         }));
 
-        // Call the actual API
         deleteAppointmentMutation.mutate(selectedAppointment.id, {
             onSuccess: () => {
-                // Close modal after successful deletion
                 closeDetailsModal();
             },
             onError: () => {
-                // Revert optimistic update on error
                 queryClient.invalidateQueries({ queryKey: ['patientAppointments'] });
             }
         });
@@ -321,7 +396,6 @@ export default function BookingHistoryPage() {
         setShowDeleteConfirm(false);
     };
 
-    // Close dropdowns when clicking outside
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (sortDropdownRef.current && !sortDropdownRef.current.contains(event.target as Node)) {
@@ -338,7 +412,6 @@ export default function BookingHistoryPage() {
         };
     }, []);
 
-    // Close modal when clicking outside
     useEffect(() => {
         const handleEscape = (event: KeyboardEvent) => {
             if (event.key === 'Escape' && showDetailsModal) {
@@ -357,133 +430,38 @@ export default function BookingHistoryPage() {
         };
     }, [showDetailsModal]);
 
-    // Auto-refetch appointments every 30 seconds for real-time updates
-    useEffect(() => {
-        const interval = setInterval(() => {
-            refetch();
-        }, 30000); // 30 seconds
+    // Removed automatic refetch intervals - data will only refresh on manual refresh or page reload
 
-        return () => clearInterval(interval);
-    }, [refetch]);
+    if (!isAuthenticated) return null;
 
-    // Refetch when window regains focus (user comes back to tab)
-    useEffect(() => {
-        const handleFocus = () => {
-            refetch();
-        };
-
-        window.addEventListener('focus', handleFocus);
-        return () => window.removeEventListener('focus', handleFocus);
-    }, [refetch]);
-
-    // Don't render if not authenticated
-    if (!isAuthenticated) {
-        return null;
-    }
-
-    // Loading state - Glassmorphism modal
     if (isLoading) {
         return (
-            <div className="w-full min-h-screen bg-gray-50">
-                {/* Background content placeholder */}
-                <div className="max-w-7xl mx-auto p-6">
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6 opacity-30">
-                        <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
-                        <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+            <div className="w-full min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center">
+                    <div className="w-16 h-16 bg-[#16202E]/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#16202E]"></div>
                     </div>
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6 opacity-30">
-                        <div className="h-32 bg-gray-200 rounded"></div>
-                    </div>
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden opacity-30">
-                        <div className="h-96 bg-gray-200"></div>
-                    </div>
-                </div>
-
-                {/* Glassmorphism Loading Modal */}
-                <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
-                    <div className="bg-white/20 backdrop-blur-md rounded-2xl border border-white/30 shadow-2xl p-8 max-w-md mx-auto">
-                        <div className="text-center">
-                            <div className="w-16 h-16 bg-white/30 rounded-full flex items-center justify-center mx-auto mb-6 backdrop-blur-sm">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#16202E]"></div>
-                            </div>
-                            <h2 className="text-xl font-semibold text-gray-800 mb-2">Loading Appointments</h2>
-                            <p className="text-gray-600 text-sm">Please wait while we fetch your appointment history...</p>
-                        </div>
-                    </div>
+                    <h2 className="text-xl font-semibold text-gray-800 mb-2">Loading Appointments</h2>
                 </div>
             </div>
         );
     }
 
-    // Error state - Glassmorphism modal
     if (error) {
-        // Check if it's an authentication error
-        const isAuthError = (error as any)?.response?.status === 401 ||
-            (error as any)?.code === 'ECONNABORTED' ||
-            error?.message?.includes('timeout') ||
-            error?.message?.includes('401');
-
         return (
-            <div className="w-full min-h-screen bg-gray-50">
-                {/* Background content placeholder */}
-                <div className="max-w-7xl mx-auto p-6">
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6 opacity-30">
-                        <div className="h-8 bg-gray-200 rounded w-1/3 mb-4"></div>
-                        <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+            <div className="w-full min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center p-8 bg-white rounded-2xl shadow-sm border border-gray-100 max-w-md">
+                    <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <MdCancel className="w-8 h-8 text-red-500" />
                     </div>
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6 opacity-30">
-                        <div className="h-32 bg-gray-200 rounded"></div>
-                    </div>
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden opacity-30">
-                        <div className="h-96 bg-gray-200"></div>
-                    </div>
-                </div>
-
-                {/* Glassmorphism Error Modal */}
-                <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
-                    <div className="bg-white/20 backdrop-blur-md rounded-2xl border border-white/30 shadow-2xl p-8 max-w-md mx-auto">
-                        <div className="text-center">
-                            <div className="w-16 h-16 bg-red-100/50 rounded-full flex items-center justify-center mx-auto mb-6 backdrop-blur-sm">
-                                <svg className="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                                </svg>
-                            </div>
-                            <h2 className="text-xl font-semibold text-gray-800 mb-2">
-                                {isAuthError ? 'Authentication Required' : 'Unable to Load Appointments'}
-                            </h2>
-                            <p className="text-gray-600 text-sm mb-6 leading-relaxed">
-                                {isAuthError
-                                    ? 'Please log in to view your appointment history. Your session may have expired.'
-                                    : 'We encountered an issue while loading your appointment history. Please try again.'
-                                }
-                            </p>
-                            <div className="flex gap-3">
-                                {isAuthError ? (
-                                    <button
-                                        onClick={() => navigate('/login-patient')}
-                                        className="flex-1 bg-[#16202E]/80 backdrop-blur-sm text-white py-2 px-4 rounded-lg font-medium hover:bg-[#16202E] transition-colors duration-200 border border-white/20"
-                                    >
-                                        Go to Login
-                                    </button>
-                                ) : (
-                                    <>
-                                        <button
-                                            onClick={() => refetch()}
-                                            className="flex-1 bg-[#16202E]/80 backdrop-blur-sm text-white py-2 px-4 rounded-lg font-medium hover:bg-[#16202E] transition-colors duration-200 border border-white/20"
-                                        >
-                                            Try Again
-                                        </button>
-                                        <button
-                                            onClick={() => window.location.reload()}
-                                            className="flex-1 bg-white/20 backdrop-blur-sm text-gray-700 py-2 px-4 rounded-lg font-medium hover:bg-white/30 transition-colors duration-200 border border-white/30"
-                                        >
-                                            Reload Page
-                                        </button>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                    </div>
+                    <h2 className="text-xl font-semibold text-gray-800 mb-2">Unable to Load Appointments</h2>
+                    <p className="text-gray-600 mb-6">We encountered an issue while loading your appointment history.</p>
+                    <button
+                        onClick={() => refetch()}
+                        className="bg-[#16202E] text-white py-2 px-6 rounded-lg font-medium hover:bg-[#0F1C26] transition-colors"
+                    >
+                        Try Again
+                    </button>
                 </div>
             </div>
         );
@@ -491,593 +469,492 @@ export default function BookingHistoryPage() {
 
     return (
         <div className="w-full min-h-screen bg-gray-50">
-            {/* Main Content */}
-            <div className="max-w-7xl mx-auto p-6">
+            <div className="max-w-7xl mx-auto p-4 md:p-6 lg:p-8">
                 {/* Header Section */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
-                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
-                        {/* Title and Description */}
-                        <div className="flex-1">
-                            <h1 className="text-2xl font-bold text-[#16202E] mb-2">Booking History</h1>
-                            <p className="text-gray-600">Manage and track all your medical appointments in one place</p>
-                        </div>
-
-                        {/* New Appointment Button */}
-                        <button
-                            className='bg-[#16202E] hover:bg-[#0F1C26] flex items-center gap-2 text-white px-6 py-3 rounded-lg font-medium transition-colors duration-200 shadow-sm'
-                            onClick={() => navigate('/search')}
-                        >
-                            <FaPlus className="w-4 h-4" />
-                            New Appointment
-                        </button>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+                    <div>
+                        <h1 className="text-2xl md:text-3xl font-bold text-[#16202E] tracking-tight">Booking History</h1>
+                        <p className="text-gray-500 mt-1">Manage and track your medical appointments</p>
                     </div>
+                    <button
+                        className='bg-[#16202E] hover:bg-[#0F1C26] flex items-center gap-2 text-white px-5 py-2.5 rounded-xl font-medium transition-all duration-200 shadow-lg shadow-gray-200 hover:shadow-xl transform hover:-translate-y-0.5'
+                        onClick={() => navigate('/search')}
+                    >
+                        <FaPlus className="w-3.5 h-3.5" />
+                        New Appointment
+                    </button>
                 </div>
 
-                {/* Search, Filter, and Sort Controls */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-6">
-                    <div className="flex flex-col lg:flex-row gap-4">
-                        {/* Search */}
-                        <div className="flex-1 relative">
-                            <input
-                                type="text"
-                                placeholder="Search appointments by service, provider, or contact..."
-                                value={searchTerm}
-                                onChange={handleSearch}
-                                className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#16202E]/20 focus:border-[#16202E] text-sm bg-gray-50/50"
-                            />
-                            <MdOutlineSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                {/* Tabs & Controls Container */}
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-1 mb-6">
+                    <div className="flex flex-col lg:flex-row gap-4 p-4">
+                        {/* Tabs */}
+                        <div className="flex p-1 bg-gray-100/50 rounded-xl overflow-x-auto no-scrollbar flex-1">
+                            {[
+                                { id: 'all', label: 'All Visits', icon: MdHistory, count: allCount },
+                                { id: 'upcoming', label: 'Upcoming', icon: MdEvent, count: upcomingCount },
+                                { id: 'today', label: 'Today', icon: MdToday, count: todayCount },
+                                { id: 'past', label: 'Past', icon: IoTimeOutline, count: pastCount },
+                            ].map((tab) => (
+                                <button
+                                    key={tab.id}
+                                    onClick={() => {
+                                        setActiveTab(tab.id as any);
+                                        setCurrentPage(1);
+                                    }}
+                                    className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 whitespace-nowrap flex-1 justify-center ${activeTab === tab.id
+                                        ? 'bg-white text-[#16202E] shadow-sm'
+                                        : 'text-gray-500 hover:text-gray-700 hover:bg-gray-200/50'
+                                        }`}
+                                >
+                                    <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? 'text-[#16202E]' : 'text-gray-400'}`} />
+                                    {tab.label}
+                                    <span className={`ml-1.5 text-xs px-2 py-0.5 rounded-full ${activeTab === tab.id
+                                        ? 'bg-gray-100 text-gray-900'
+                                        : 'bg-gray-200 text-gray-600'
+                                        }`}>
+                                        {tab.count}
+                                    </span>
+                                </button>
+                            ))}
                         </div>
 
-                        {/* Filter Dropdown */}
-                        <div className="relative" ref={filterDropdownRef}>
-                            <button
-                                onClick={() => {
-                                    setShowFilterDropdown(!showFilterDropdown);
-                                    setShowSortDropdown(false);
-                                }}
-                                className={`flex items-center gap-2 px-4 py-3 rounded-lg border font-medium transition-all duration-200 ${selectedStatus !== 'all'
-                                    ? 'bg-[#16202E] text-white border-[#16202E] shadow-sm'
-                                    : 'bg-white border-gray-200 text-[#16202E] hover:bg-gray-50 hover:border-[#16202E]/30'
-                                    }`}
-                            >
-                                <MdFilterList className="w-5 h-5" />
-                                Filter
-                                {selectedStatus !== 'all' && (
-                                    <span className="bg-white/20 text-white text-xs px-2 py-1 rounded-full">
-                                        {selectedStatus === 'completed' ? 'Completed' :
-                                            selectedStatus === 'upcoming' ? 'Upcoming' : 'Cancelled'}
-                                    </span>
-                                )}
-                            </button>
-                            {showFilterDropdown && (
-                                <div className="absolute top-full right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg z-20 min-w-[220px] overflow-hidden">
-                                    <button
-                                        onClick={() => handleFilterSelect('all')}
-                                        className="flex items-center gap-3 w-full px-4 py-3 text-sm hover:bg-gray-50 text-gray-700 transition-colors"
-                                    >
-                                        <TiPlusOutline className="w-4 h-4" />
-                                        All Visits
-                                        <span className="ml-auto bg-gray-100 text-gray-600 text-xs px-2 py-1 rounded-full">{allCount}</span>
-                                    </button>
-                                    <button
-                                        onClick={() => handleFilterSelect('completed')}
-                                        className="flex items-center gap-3 w-full px-4 py-3 text-sm hover:bg-green-50 text-green-700 transition-colors"
-                                    >
-                                        <IoCheckmarkDone className="w-4 h-4" />
-                                        Completed
-                                        <span className="ml-auto bg-green-100 text-green-600 text-xs px-2 py-1 rounded-full">{completedCount}</span>
-                                    </button>
-                                    <button
-                                        onClick={() => handleFilterSelect('upcoming')}
-                                        className="flex items-center gap-3 w-full px-4 py-3 text-sm hover:bg-blue-50 text-blue-700 transition-colors"
-                                    >
-                                        <FaRegClock className="w-4 h-4" />
-                                        Upcoming
-                                        <span className="ml-auto bg-blue-100 text-blue-600 text-xs px-2 py-1 rounded-full">{upcomingCount}</span>
-                                    </button>
-                                    <button
-                                        onClick={() => handleFilterSelect('cancelled')}
-                                        className="flex items-center gap-3 w-full px-4 py-3 text-sm hover:bg-red-50 text-red-700 transition-colors"
-                                    >
-                                        <SlHome className="w-4 h-4" />
-                                        Cancelled
-                                        <span className="ml-auto bg-red-100 text-red-600 text-xs px-2 py-1 rounded-full">{cancelledCount}</span>
-                                    </button>
-                                </div>
-                            )}
-                        </div>
+                        {/* Search & Filters */}
+                        <div className="flex gap-3 flex-wrap lg:flex-nowrap">
+                            {/* Search */}
+                            <div className="relative flex-1 lg:w-64">
+                                <input
+                                    type="text"
+                                    placeholder="Search..."
+                                    value={searchTerm}
+                                    onChange={handleSearch}
+                                    className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#16202E]/10 focus:border-[#16202E] text-sm bg-gray-50/30 transition-all"
+                                />
+                                <MdOutlineSearch className="absolute left-3.5 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                            </div>
 
-                        {/* Sort Dropdown */}
-                        <div className="relative" ref={sortDropdownRef}>
-                            <button
-                                onClick={() => {
-                                    setShowSortDropdown(!showSortDropdown);
-                                    setShowFilterDropdown(false);
-                                }}
-                                className={`flex items-center gap-2 px-4 py-3 rounded-lg border font-medium transition-all duration-200 ${sortField
-                                    ? 'bg-[#16202E] text-white border-[#16202E] shadow-sm'
-                                    : 'bg-white border-gray-200 text-[#16202E] hover:bg-gray-50 hover:border-[#16202E]/30'
-                                    }`}
-                            >
-                                <MdSort className="w-5 h-5" />
-                                Sort
-                                {sortField && (
-                                    <span className="bg-white/20 text-white text-xs px-2 py-1 rounded-full">
-                                        {sortField === 'service' ? 'Service' :
-                                            sortField === 'provider' ? 'Provider' : 'Date'}
-                                        {sortDirection === 'asc' ? ' ↑' : ' ↓'}
-                                    </span>
+                            {/* Filter Button */}
+                            <div className="relative" ref={filterDropdownRef}>
+                                <button
+                                    onClick={() => {
+                                        setShowFilterDropdown(!showFilterDropdown);
+                                        setShowSortDropdown(false);
+                                    }}
+                                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all duration-200 ${selectedStatus !== 'all'
+                                        ? 'bg-[#16202E] text-white border-[#16202E]'
+                                        : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                                        }`}
+                                >
+                                    <MdFilterList className="w-4 h-4" />
+                                    Filter
+                                    {selectedStatus !== 'all' && (
+                                        <span className="bg-white/20 text-white text-xs px-1.5 py-0.5 rounded-full capitalize ml-1">
+                                            {selectedStatus}
+                                        </span>
+                                    )}
+                                </button>
+                                {showFilterDropdown && (
+                                    <div className="absolute top-full right-0 mt-2 bg-white border border-gray-100 rounded-xl shadow-xl z-30 min-w-[200px] overflow-hidden py-1">
+                                        <div className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Filter by Status</div>
+                                        {[
+                                            { id: 'all', label: 'All Statuses', count: allCount, icon: MdFilterList, color: 'text-gray-600' },
+                                            { id: 'pending', label: 'Pending', count: pendingCount, icon: FaHourglassHalf, color: 'text-yellow-600' },
+                                            { id: 'confirmed', label: 'Confirmed', count: confirmedCount, icon: MdCheckCircle, color: 'text-blue-600' },
+                                            { id: 'cancelled', label: 'Cancelled', count: cancelledCount, icon: MdCancel, color: 'text-red-600' },
+                                        ].map((option) => (
+                                            <button
+                                                key={option.id}
+                                                onClick={() => handleFilterSelect(option.id)}
+                                                className={`flex items-center gap-3 w-full px-4 py-2.5 text-sm hover:bg-gray-50 transition-colors ${selectedStatus === option.id ? 'bg-gray-50 font-medium' : 'text-gray-600'}`}
+                                            >
+                                                <option.icon className={`w-4 h-4 ${option.color}`} />
+                                                {option.label}
+                                                <span className="ml-auto text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">{option.count}</span>
+                                            </button>
+                                        ))}
+                                    </div>
                                 )}
-                            </button>
-                            {showSortDropdown && (
-                                <div className="absolute top-full right-0 mt-2 bg-white border border-gray-200 rounded-xl shadow-lg z-20 min-w-[200px] overflow-hidden">
-                                    <button
-                                        onClick={() => handleSortSelect('service')}
-                                        className="flex items-center gap-3 w-full px-4 py-3 text-sm hover:bg-gray-50 text-gray-700 transition-colors"
-                                    >
-                                        Service Name
-                                        {sortField === 'service' && (
-                                            sortDirection === 'asc' ?
-                                                <MdArrowUpward className="w-4 h-4 ml-auto text-[#16202E]" /> :
-                                                <MdArrowDownward className="w-4 h-4 ml-auto text-[#16202E]" />
-                                        )}
-                                    </button>
-                                    <button
-                                        onClick={() => handleSortSelect('provider')}
-                                        className="flex items-center gap-3 w-full px-4 py-3 text-sm hover:bg-gray-50 text-gray-700 transition-colors"
-                                    >
-                                        Provider Name
-                                        {sortField === 'provider' && (
-                                            sortDirection === 'asc' ?
-                                                <MdArrowUpward className="w-4 h-4 ml-auto text-[#16202E]" /> :
-                                                <MdArrowDownward className="w-4 h-4 ml-auto text-[#16202E]" />
-                                        )}
-                                    </button>
-                                    <button
-                                        onClick={() => handleSortSelect('date')}
-                                        className="flex items-center gap-3 w-full px-4 py-3 text-sm hover:bg-gray-50 text-gray-700 transition-colors"
-                                    >
-                                        Date & Time
-                                        {sortField === 'date' && (
-                                            sortDirection === 'asc' ?
-                                                <MdArrowUpward className="w-4 h-4 ml-auto text-[#16202E]" /> :
-                                                <MdArrowDownward className="w-4 h-4 ml-auto text-[#16202E]" />
-                                        )}
-                                    </button>
-                                </div>
+                            </div>
+
+                            {/* Sort Button */}
+                            <div className="relative" ref={sortDropdownRef}>
+                                <button
+                                    onClick={() => {
+                                        setShowSortDropdown(!showSortDropdown);
+                                        setShowFilterDropdown(false);
+                                    }}
+                                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-medium transition-all duration-200 ${sortField
+                                        ? 'bg-white border-gray-200 text-[#16202E] hover:bg-gray-50'
+                                        : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                                        }`}
+                                >
+                                    <MdSort className="w-4 h-4" />
+                                    Sort
+                                </button>
+                                {showSortDropdown && (
+                                    <div className="absolute top-full right-0 mt-2 bg-white border border-gray-100 rounded-xl shadow-xl z-30 min-w-[180px] overflow-hidden py-1">
+                                        <div className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Sort by</div>
+                                        {[
+                                            { id: 'paidAt', label: 'Paid At' },
+                                            { id: 'date', label: 'Date' },
+                                            { id: 'service', label: 'Service' },
+                                            { id: 'provider', label: 'Provider' },
+                                        ].map((option) => (
+                                            <button
+                                                key={option.id}
+                                                onClick={() => handleSortSelect(option.id)}
+                                                className="flex items-center justify-between w-full px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
+                                            >
+                                                <span>{option.label}</span>
+                                                {sortField === option.id && (
+                                                    sortDirection === 'asc' ? <MdArrowUpward className="w-3.5 h-3.5 text-[#16202E]" /> : <MdArrowDownward className="w-3.5 h-3.5 text-[#16202E]" />
+                                                )}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Clear All Filters Button - Show when filters are active */}
+                            {hasActiveFilters && (
+                                <button
+                                    onClick={handleClearAllFilters}
+                                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 hover:border-red-200 hover:text-red-600 text-sm font-medium transition-all duration-200"
+                                    title="Clear all filters"
+                                >
+                                    <MdClear className="w-4 h-4" />
+                                    Clear All
+                                </button>
                             )}
                         </div>
                     </div>
-
-                    {/* Active Filters Display */}
-                    {(searchTerm || selectedStatus !== 'all' || sortField) && (
-                        <div className="mt-4 pt-4 border-t border-gray-100">
-                            <div className="flex items-center gap-2 flex-wrap">
-                                <span className="text-sm text-gray-600 font-medium">Active filters:</span>
-                                {searchTerm && (
-                                    <span className="bg-[#16202E]/10 text-[#16202E] text-xs px-3 py-1 rounded-full font-medium">
-                                        Search: "{searchTerm}"
-                                    </span>
-                                )}
-                                {selectedStatus !== 'all' && (
-                                    <span className="bg-green-100 text-green-700 text-xs px-3 py-1 rounded-full font-medium">
-                                        Status: {selectedStatus}
-                                    </span>
-                                )}
-                                {sortField && (
-                                    <span className="bg-purple-100 text-purple-700 text-xs px-3 py-1 rounded-full font-medium">
-                                        Sort: {sortField} ({sortDirection})
-                                    </span>
-                                )}
-                                <button
-                                    onClick={() => {
-                                        setSearchTerm('');
-                                        setSelectedStatus('all');
-                                        setSortField('');
-                                        setCurrentPage(1);
-                                    }}
-                                    className="text-xs text-red-600 hover:text-red-800 underline font-medium"
-                                >
-                                    Clear all
-                                </button>
-                            </div>
-                        </div>
-                    )}
                 </div>
 
                 {/* Table Section */}
-                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                    {/* Table Header */}
-                    <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50">
-                        <div className="flex items-center justify-between">
-                            <h2 className="text-lg font-semibold text-[#16202E]">
-                                {selectedStatus === 'all' ? 'All Visits' :
-                                    selectedStatus === 'completed' ? 'Completed Visits' :
-                                        selectedStatus === 'upcoming' ? 'Upcoming Visits' : 'Cancelled Visits'}
-                                <span className="ml-2 text-sm text-gray-500 font-normal">({filteredAppointments.length} appointments)</span>
-                            </h2>
-                            <div className="flex items-center gap-3">
-                                {isFetching && (
-                                    <div className="flex items-center gap-2 text-sm text-gray-500">
-                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-[#16202E]"></div>
-                                        <span>Updating...</span>
-                                    </div>
-                                )}
-                                <button
-                                    onClick={() => refetch()}
-                                    className="p-2 text-gray-400 hover:text-[#16202E] transition-colors"
-                                    title="Refresh appointments"
-                                >
-                                    <MdRefresh className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
-                                </button>
-                            </div>
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    {/* Table Header Info */}
+                    <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/30 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <span className="font-semibold text-gray-900">
+                                {activeTab === 'all' ? 'All Appointments' :
+                                    activeTab === 'upcoming' ? 'Upcoming Appointments' :
+                                        activeTab === 'today' ? "Today's Appointments" : 'Past Appointments'}
+                            </span>
+                            <span className="text-sm text-gray-500 font-normal">({filteredAppointments.length})</span>
                         </div>
+                        <button
+                            onClick={() => refetch()}
+                            className="p-2 text-gray-400 hover:text-[#16202E] transition-colors rounded-lg hover:bg-gray-100"
+                            title="Refresh"
+                        >
+                            <MdRefresh className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
+                        </button>
                     </div>
 
-                    {/* Table */}
                     <div className="overflow-x-auto">
                         <table className="w-full">
-                            <thead className="bg-gray-50 text-xs">
+                            <thead className="bg-gray-50/50 text-xs uppercase tracking-wider text-gray-500 font-medium">
                                 <tr>
-                                    <th className="text-left p-4 text-gray-600 font-semibold">SN</th>
-                                    <th className="text-left p-4 text-gray-600 font-semibold">
-                                        <button
-                                            onClick={() => handleSort('service')}
-                                            className="flex items-center gap-1 hover:text-[#16202E] transition-colors"
-                                        >
-                                            Service
-                                            {sortField === 'service' && (
-                                                sortDirection === 'asc' ?
-                                                    <MdArrowUpward className="w-4 h-4" /> :
-                                                    <MdArrowDownward className="w-4 h-4" />
-                                            )}
-                                        </button>
-                                    </th>
-                                    <th className="text-left p-4 text-gray-600 font-semibold">
-                                        <button
-                                            onClick={() => handleSort('provider')}
-                                            className="flex items-center gap-1 hover:text-[#16202E] transition-colors"
-                                        >
-                                            Provider
-                                            {sortField === 'provider' && (
-                                                sortDirection === 'asc' ?
-                                                    <MdArrowUpward className="w-4 h-4" /> :
-                                                    <MdArrowDownward className="w-4 h-4" />
-                                            )}
-                                        </button>
-                                    </th>
-                                    <th className="text-left p-4 text-gray-600 font-semibold">
-                                        <button
-                                            onClick={() => handleSort('date')}
-                                            className="flex items-center gap-1 hover:text-[#16202E] transition-colors"
-                                        >
-                                            Date and Time
-                                            {sortField === 'date' && (
-                                                sortDirection === 'asc' ?
-                                                    <MdArrowUpward className="w-4 h-4" /> :
-                                                    <MdArrowDownward className="w-4 h-4" />
-                                            )}
-                                        </button>
-                                    </th>
-                                    <th className="text-left p-4 text-gray-600 font-semibold">Contact</th>
-                                    <th className="text-left p-4 text-gray-600 font-semibold">Booking For</th>
-                                    <th className="text-left p-4 text-gray-600 font-semibold">Status</th>
+                                    <th className="text-left p-4 pl-6">Service</th>
+                                    <th className="text-left p-4">Provider</th>
+                                    <th className="text-left p-4">Date & Time</th>
+                                    <th className="text-left p-4">Contact</th>
+                                    <th className="text-left p-4">Booking For</th>
+                                    <th className="text-left p-4">Status</th>
+                                    <th className="text-left p-4 pr-6">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody className='text-sm'>
+                            <tbody className="divide-y divide-gray-50">
                                 {paginatedAppointments.length === 0 ? (
                                     <tr>
-                                        <td colSpan={7} className="p-12 text-center text-gray-500">
-                                            <div className="flex flex-col items-center gap-3">
-                                                <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
-                                                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                                                    </svg>
+                                        <td colSpan={7} className="p-16 text-center">
+                                            <div className="flex flex-col items-center gap-4">
+                                                <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center">
+                                                    <MdEvent className="w-10 h-10 text-gray-300" />
                                                 </div>
                                                 <div>
-                                                    <p className="text-lg font-medium text-gray-900">
-                                                        {(appointments?.length || 0) === 0 ? "No appointments found" : "No appointments match your search"}
-                                                    </p>
+                                                    <p className="text-lg font-medium text-gray-900">No appointments found</p>
                                                     <p className="text-sm text-gray-500 mt-1">
-                                                        {(appointments?.length || 0) === 0 ? "You haven't booked any appointments yet." : "Try adjusting your search or filter criteria."}
+                                                        {searchTerm || selectedStatus !== 'all'
+                                                            ? "Try adjusting your filters or search terms."
+                                                            : "You don't have any appointments in this category."}
                                                     </p>
                                                 </div>
+                                                {hasActiveFilters && (
+                                                    <button
+                                                        onClick={handleClearAllFilters}
+                                                        className="px-4 py-2 text-sm text-white bg-[#16202E] hover:bg-[#0F1C26] font-medium rounded-lg transition-colors"
+                                                    >
+                                                        Clear All Filters
+                                                    </button>
+                                                )}
                                             </div>
                                         </td>
                                     </tr>
                                 ) : (
-                                    paginatedAppointments.map((appointment, index) => (
-                                        <tr key={appointment.id} className="border-t border-gray-100 hover:bg-gray-50/50 transition-colors">
-                                            <td className="p-4">
-                                                <div className="font-medium text-gray-600">{startIndex + index + 1}</div>
-                                            </td>
-                                            <td className="p-4">
-                                                <div className="font-medium text-[#16202E]">{appointment.service?.name || 'No service'}</div>
-                                            </td>
-                                            <td className="p-4">
-                                                <div className="font-medium text-gray-900">{appointment.provider_name}</div>
-                                            </td>
-                                            <td className="p-4">
-                                                <div className="font-medium text-gray-900">{new Date(appointment.date).toLocaleDateString()}</div>
-                                                <div className="text-gray-500 text-xs mt-1">{appointment.start_time} - {appointment.end_time}</div>
-                                            </td>
-                                            <td className="p-4">
-                                                <div className="font-medium text-gray-900">{appointment.contact?.name || 'N/A'}</div>
-                                                <div className="text-gray-500 text-xs mt-1">{appointment.contact?.phone || 'N/A'}</div>
-                                                <div className="text-gray-500 text-xs">{appointment.contact?.email || 'N/A'}</div>
-                                            </td>
-                                            <td className="p-4">
-                                                <div className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${appointment.bookingType === 'Self'
-                                                    ? 'bg-green-100 text-green-800'
-                                                    : 'bg-indigo-100 text-indigo-800'
-                                                    }`}>
-                                                    {appointment.bookingType === 'Self' ? 'Myself' : 'Someone else'}
-                                                </div>
-                                            </td>
-                                            <td className="p-4">
-                                                <div className="flex items-center gap-2 relative">
-                                                    <span
-                                                        onClick={(e) => toggleStatusDropdown(index, e)}
-                                                        className={`px-3 py-1 rounded-full text-xs font-medium cursor-pointer border ${getStatusColor(appointment.status)}`}
-                                                    >
-                                                        {appointment.status}
-                                                    </span>
-                                                    {openStatusDropdownIndex === index && (
-                                                        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 min-w-[180px]">
-                                                            <button
-                                                                onClick={() => handleStatusSelect(index, 'pending')}
-                                                                className="flex items-center gap-2 w-full px-4 py-3 text-sm hover:bg-gray-50 text-yellow-800"
-                                                            >
-                                                                <FaRegClock className="w-4 h-4" />
-                                                                Pending
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleStatusSelect(index, 'confirmed')}
-                                                                className="flex items-center gap-2 w-full px-4 py-3 text-sm hover:bg-gray-50 text-blue-800"
-                                                            >
-                                                                <IoCheckmarkDone className="w-4 h-4" />
-                                                                Confirmed
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleStatusSelect(index, 'completed')}
-                                                                className="flex items-center gap-2 w-full px-4 py-3 text-sm hover:bg-gray-50 text-green-800"
-                                                            >
-                                                                <IoCheckmarkDone className="w-4 h-4" />
-                                                                Completed
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleStatusSelect(index, 'cancelled')}
-                                                                className="flex items-center gap-2 w-full px-4 py-3 text-sm hover:bg-gray-50 text-red-800"
-                                                            >
-                                                                <LiaTimesCircle className="w-4 h-4" />
-                                                                Cancelled
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleStatusSelect(index, 'rejected')}
-                                                                className="flex items-center gap-2 w-full px-4 py-3 text-sm hover:bg-gray-50 text-red-800"
-                                                            >
-                                                                <LiaTimesCircle className="w-4 h-4" />
-                                                                Rejected
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleStatusSelect(index, 'no-show')}
-                                                                className="flex items-center gap-2 w-full px-4 py-3 text-sm hover:bg-gray-50 text-orange-800"
-                                                            >
-                                                                <LiaTimesCircle className="w-4 h-4" />
-                                                                No Show
-                                                            </button>
+                                    paginatedAppointments.map((appointment, index) => {
+                                        const appointmentIsToday = isToday(appointment.date);
+                                        return (
+                                            <tr
+                                                key={appointment.id}
+                                                className={`group transition-colors hover:bg-gray-50/80 ${appointmentIsToday ? 'bg-blue-50/30' : ''}`}
+                                            >
+                                                <td className="p-4 pl-6">
+                                                    <div>
+                                                        <div className="font-semibold text-gray-900">{appointment.service?.name || 'Unknown Service'}</div>
+                                                        <div className="text-xs text-gray-500 mt-0.5">{appointment.service?.category}</div>
+                                                    </div>
+                                                </td>
+                                                <td className="p-4">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-600">
+                                                            {appointment.provider_name?.charAt(0) || '?'}
                                                         </div>
-                                                    )}
-                                                    <button
-                                                        onClick={() => toggleDropdown(index)}
-                                                        className="relative z-10 p-1 hover:bg-gray-100 rounded transition-colors"
-                                                    >
-                                                        <BsThreeDotsVertical className="w-4 h-4 text-gray-400" />
-                                                    </button>
-                                                    {openDropdownIndex === index && (
-                                                        <div className="absolute top-full right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-20 min-w-[160px]">
-                                                            <button
-                                                                onClick={() => handleViewDetails(appointment)}
-                                                                className="flex items-center gap-2 w-full px-4 py-3 text-sm hover:bg-gray-50 text-gray-700"
-                                                            >
-                                                                <FiEye className="w-4 h-4" />
-                                                                View details
-                                                            </button>
+                                                        <div className="font-medium text-gray-700">{appointment.provider_name}</div>
+                                                    </div>
+                                                </td>
+                                                <td className="p-4">
+                                                    <div className="flex flex-col">
+                                                        <span className={`font-medium text-sm ${appointmentIsToday ? 'text-blue-700' : 'text-gray-900'}`}>
+                                                            {formatDate(appointment.date)}
+                                                        </span>
+                                                        <span className="text-xs text-gray-500 mt-0.5">
+                                                            {appointment.start_time} - {appointment.end_time}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td className="p-4">
+                                                    <div className="text-sm text-gray-900">{appointment.contact?.name}</div>
+                                                    <div className="text-xs text-gray-500">{appointment.contact?.phone}</div>
+                                                </td>
+                                                <td className="p-4">
+                                                    <div className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${appointment.bookingType === 'Self'
+                                                        ? 'bg-green-100 text-green-700'
+                                                        : 'bg-indigo-100 text-indigo-700'
+                                                        }`}>
+                                                        {appointment.bookingType === 'Self' ? 'Myself' : 'Someone else'}
+                                                    </div>
+                                                </td>
+                                                <td className="p-4">
+                                                    <div className="relative">
+                                                        <button
+                                                            onClick={(e) => toggleStatusDropdown(index, e)}
+                                                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all hover:shadow-sm ${getStatusColor(appointment.status)}`}
+                                                        >
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60"></span>
+                                                            {appointment.status}
+                                                        </button>
 
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    ))
+                                                        {openStatusDropdownIndex === index && (
+                                                            <div className="absolute top-full left-0 mt-2 bg-white border border-gray-100 rounded-xl shadow-xl z-20 min-w-[160px] overflow-hidden py-1">
+                                                                {['pending', 'confirmed', 'completed', 'cancelled', 'no-show'].map((status) => (
+                                                                    <button
+                                                                        key={status}
+                                                                        onClick={() => handleStatusSelect(index, status)}
+                                                                        className="flex items-center gap-2 w-full px-4 py-2.5 text-sm hover:bg-gray-50 text-gray-700 capitalize"
+                                                                    >
+                                                                        {status}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="p-4 pr-6">
+                                                    <div className="flex items-center gap-2">
+                                                        <button
+                                                            onClick={() => handleViewDetails(appointment)}
+                                                            className="p-2 text-gray-400 hover:text-[#16202E] hover:bg-gray-100 rounded-lg transition-all"
+                                                            title="View Details"
+                                                        >
+                                                            <FiEye className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => {
+                                                                setSelectedAppointment(appointment);
+                                                                confirmDelete();
+                                                            }}
+                                                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                                                            title="Delete"
+                                                        >
+                                                            <RiDeleteBinLine className="w-4 h-4" />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })
                                 )}
                             </tbody>
                         </table>
                     </div>
-                </div>
 
-                {/* Pagination */}
-                {filteredAppointments.length > itemsPerPage && (
-                    <div className="mt-6">
-                        <Pagination
-                            currentPage={currentPage}
-                            totalPages={totalPages}
-                            onPageChange={handlePageChange}
-                        />
-                    </div>
-                )}
+                    {/* Pagination */}
+                    {filteredAppointments.length > itemsPerPage && (
+                        <div className="border-t border-gray-100 p-4 bg-gray-50/30">
+                            <Pagination
+                                currentPage={currentPage}
+                                totalPages={totalPages}
+                                onPageChange={handlePageChange}
+                            />
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* Appointment Details Modal */}
             {showDetailsModal && selectedAppointment && (
                 <div
-                    className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+                    className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4"
                     onClick={closeDetailsModal}
                 >
                     <div
-                        className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+                        className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        {/* Modal Header */}
-                        <div className="flex items-center justify-between p-6 border-b border-gray-200">
+                        <div className="flex items-center justify-between p-6 border-b border-gray-100">
                             <h2 className="text-xl font-bold text-[#16202E]">Appointment Details</h2>
-                            <button
-                                onClick={closeDetailsModal}
-                                className="text-gray-400 hover:text-gray-600 transition-colors"
-                            >
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
+                            <button onClick={closeDetailsModal} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                                <LiaTimesCircle className="w-6 h-6 text-gray-500" />
                             </button>
                         </div>
 
-                        {/* Modal Content */}
                         <div className="p-6 space-y-6">
-                            {/* Service & Provider Information */}
-                            <div className="bg-gray-50 rounded-lg p-4">
-                                <h3 className="text-lg font-semibold text-[#16202E] mb-3">Service & Provider</h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-600">Service Name</label>
-                                        <p className="text-gray-900 font-medium">{selectedAppointment.service?.name || 'N/A'}</p>
-                                    </div>
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-600">Category</label>
-                                        <p className="text-gray-900">{selectedAppointment.service?.category || 'N/A'}</p>
-                                    </div>
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-600">Provider Name</label>
-                                        <p className="text-gray-900 font-medium">{selectedAppointment.provider_name}</p>
-                                    </div>
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-600">Price</label>
-                                        <p className="text-gray-900 font-medium text-lg">₦{selectedAppointment.service?.price?.toLocaleString() || 'N/A'}</p>
-                                    </div>
+                            {/* Service Info */}
+                            <div className="flex items-start gap-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                                <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center shadow-sm text-xl">
+                                    🏥
                                 </div>
-                            </div>
-
-                            {/* Appointment Details */}
-                            <div className="bg-green-50 rounded-lg p-4">
-                                <h3 className="text-lg font-semibold text-[#16202E] mb-3">Appointment Details</h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-600">Date</label>
-                                        <p className="text-gray-900 font-medium">{new Date(selectedAppointment.date).toLocaleDateString('en-US', {
-                                            weekday: 'long',
-                                            year: 'numeric',
-                                            month: 'long',
-                                            day: 'numeric'
-                                        })}</p>
-                                    </div>
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-600">Time</label>
-                                        <p className="text-gray-900 font-medium">{selectedAppointment.start_time} - {selectedAppointment.end_time}</p>
-                                    </div>
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-600">Status</label>
-                                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium border ${getStatusColor(selectedAppointment.status)}`}>
-                                            {selectedAppointment.status}
+                                <div>
+                                    <h3 className="font-semibold text-gray-900 text-lg">{selectedAppointment.service?.name}</h3>
+                                    <p className="text-gray-500">{selectedAppointment.provider_name}</p>
+                                    <div className="flex items-center gap-3 mt-2">
+                                        <span className="text-sm bg-white px-2 py-1 rounded border border-gray-200 text-gray-600">
+                                            {selectedAppointment.service?.category}
+                                        </span>
+                                        <span className="text-sm font-medium text-[#16202E]">
+                                            ₦{selectedAppointment.service?.price?.toLocaleString()}
                                         </span>
                                     </div>
                                 </div>
-                                {selectedAppointment.notes && (
-                                    <div className="mt-4">
-                                        <label className="text-sm font-medium text-gray-600">Notes</label>
-                                        <p className="text-gray-900 mt-1 p-3 bg-white rounded border">{selectedAppointment.notes}</p>
-                                    </div>
-                                )}
                             </div>
 
-                            {/* Contact Information */}
-                            <div className="bg-purple-50 rounded-lg p-4">
-                                <h3 className="text-lg font-semibold text-[#16202E] mb-3">Contact Information</h3>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-600">Name</label>
-                                        <p className="text-gray-900 font-medium">{selectedAppointment.contact?.name || 'N/A'}</p>
-                                    </div>
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-600">Phone</label>
-                                        <p className="text-gray-900">{selectedAppointment.contact?.phone || 'N/A'}</p>
-                                    </div>
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-600">Email</label>
-                                        <p className="text-gray-900">{selectedAppointment.contact?.email || 'N/A'}</p>
-                                    </div>
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-600">Gender</label>
-                                        <p className="text-gray-900">{selectedAppointment.contact?.gender || 'N/A'}</p>
-                                    </div>
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-600">Date of Birth</label>
-                                        <p className="text-gray-900">{selectedAppointment.contact?.dob || 'N/A'}</p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {/* Time & Date */}
+                                <div className="space-y-4">
+                                    <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Time & Date</h4>
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
+                                            <MdEvent className="w-5 h-5" />
+                                        </div>
+                                        <div>
+                                            <p className="font-medium text-gray-900">{new Date(selectedAppointment.date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                                            <p className="text-sm text-gray-500">{selectedAppointment.start_time} - {selectedAppointment.end_time}</p>
+                                        </div>
                                     </div>
                                 </div>
-                                {selectedAppointment.contact?.address && (
-                                    <div className="mt-4">
-                                        <label className="text-sm font-medium text-gray-600">Address</label>
-                                        <p className="text-gray-900 mt-1">{selectedAppointment.contact.address}</p>
+
+                                {/* Status */}
+                                <div className="space-y-4">
+                                    <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Status</h4>
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getStatusColor(selectedAppointment.status).replace('text-', 'bg-').replace('bg-', 'text-').split(' ')[0]} bg-opacity-10`}>
+                                            <IoCheckmarkDone className={`w-5 h-5 ${getStatusColor(selectedAppointment.status).split(' ')[1]}`} />
+                                        </div>
+                                        <div>
+                                            <p className="font-medium text-gray-900 capitalize">{selectedAppointment.status}</p>
+                                            <p className="text-sm text-gray-500">Current status</p>
+                                        </div>
                                     </div>
-                                )}
+                                </div>
+                            </div>
+
+                            <div className="border-t border-gray-100 pt-6">
+                                <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Contact Information</h4>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
+                                        <span className="text-xs text-gray-500 block mb-1">Name</span>
+                                        <span className="font-medium text-gray-900">{selectedAppointment.contact?.name || 'N/A'}</span>
+                                    </div>
+                                    <div className="p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
+                                        <span className="text-xs text-gray-500 block mb-1">Phone</span>
+                                        <span className="font-medium text-gray-900">{selectedAppointment.contact?.phone || 'N/A'}</span>
+                                    </div>
+                                    <div className="p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors md:col-span-2">
+                                        <span className="text-xs text-gray-500 block mb-1">Email</span>
+                                        <span className="font-medium text-gray-900">{selectedAppointment.contact?.email || 'N/A'}</span>
+                                    </div>
+                                    <div className="p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
+                                        <span className="text-xs text-gray-500 block mb-1">Gender</span>
+                                        <span className="font-medium text-gray-900">{selectedAppointment.contact?.gender || 'N/A'}</span>
+                                    </div>
+                                    <div className="p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
+                                        <span className="text-xs text-gray-500 block mb-1">Date of Birth</span>
+                                        <span className="font-medium text-gray-900">{selectedAppointment.contact?.dob || 'N/A'}</span>
+                                    </div>
+                                    {selectedAppointment.contact?.address && (
+                                        <div className="p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors md:col-span-2">
+                                            <span className="text-xs text-gray-500 block mb-1">Address</span>
+                                            <span className="font-medium text-gray-900">{selectedAppointment.contact.address}</span>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             {/* Booking Information */}
-                            <div className="bg-blue-50 rounded-lg p-4">
-                                <h3 className="text-lg font-semibold text-[#16202E] mb-3">Booking Information</h3>
+                            <div className="border-t border-gray-100 pt-6">
+                                <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Booking Information</h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-600">Booking Type</label>
-                                        <div className={`inline-block px-3 py-1 rounded-full text-xs font-medium mt-1 ${selectedAppointment.bookingType === 'Self'
+                                    <div className="p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
+                                        <span className="text-xs text-gray-500 block mb-1">Booking Type</span>
+                                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium mt-1 ${selectedAppointment.bookingType === 'Self'
                                             ? 'bg-green-100 text-green-800'
                                             : 'bg-indigo-100 text-indigo-800'
                                             }`}>
                                             {selectedAppointment.bookingType === 'Self' ? 'Myself' : 'Someone else'}
-                                        </div>
+                                        </span>
                                     </div>
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-600">Communication Preference</label>
-                                        <p className="text-gray-900">{selectedAppointment.communicationPreference || 'N/A'}</p>
+                                    <div className="p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
+                                        <span className="text-xs text-gray-500 block mb-1">Communication Preference</span>
+                                        <span className="font-medium text-gray-900">{selectedAppointment.communicationPreference || 'N/A'}</span>
                                     </div>
                                 </div>
                             </div>
 
                             {/* Payment Information */}
-                            <div className="bg-yellow-50 rounded-lg p-4">
-                                <h3 className="text-lg font-semibold text-[#16202E] mb-3">Payment Information</h3>
+                            <div className="border-t border-gray-100 pt-6">
+                                <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Payment Information</h4>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-600">Amount</label>
-                                        <p className="text-gray-900 font-medium text-lg">₦{selectedAppointment.payment?.amount?.toLocaleString() || 'N/A'}</p>
+                                    <div className="p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
+                                        <span className="text-xs text-gray-500 block mb-1">Amount</span>
+                                        <span className="font-medium text-gray-900 text-lg">₦{selectedAppointment.payment?.amount?.toLocaleString() || 'N/A'}</span>
                                     </div>
-                                    <div>
-                                        <label className="text-sm font-medium text-gray-600">Payment Status</label>
-                                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${selectedAppointment.payment?.amount ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                    <div className="p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
+                                        <span className="text-xs text-gray-500 block mb-1">Payment Status</span>
+                                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium mt-1 ${selectedAppointment.payment?.amount ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
                                             {selectedAppointment.payment?.amount ? 'Paid' : 'Unpaid'}
                                         </span>
                                     </div>
                                     {selectedAppointment.payment?.paidAt && (
-                                        <div>
-                                            <label className="text-sm font-medium text-gray-600">Paid At</label>
-                                            <p className="text-gray-900">{new Date(selectedAppointment.payment.paidAt).toLocaleString()}</p>
+                                        <div className="p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
+                                            <span className="text-xs text-gray-500 block mb-1">Paid At</span>
+                                            <span className="font-medium text-gray-900">{new Date(selectedAppointment.payment.paidAt).toLocaleString()}</span>
                                         </div>
                                     )}
                                     {selectedAppointment.payment?.paystackReference && (
-                                        <div>
-                                            <label className="text-sm font-medium text-gray-600">Reference</label>
-                                            <p className="text-gray-900 font-mono text-sm">{selectedAppointment.payment.paystackReference}</p>
+                                        <div className="p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
+                                            <span className="text-xs text-gray-500 block mb-1">Reference</span>
+                                            <span className="font-medium text-gray-900 font-mono text-xs">{selectedAppointment.payment.paystackReference}</span>
                                         </div>
                                     )}
                                 </div>
                             </div>
-
                         </div>
 
-                        {/* Modal Footer */}
-                        <div className="flex justify-between items-center p-6 border-t border-gray-200 bg-gray-50">
-
+                        <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-3 rounded-b-2xl">
                             <button
                                 onClick={closeDetailsModal}
-                                className="px-6 py-2 text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                                className="px-5 py-2.5 text-gray-600 font-medium hover:bg-gray-100 rounded-xl transition-colors"
                             >
                                 Close
                             </button>
@@ -1088,62 +965,28 @@ export default function BookingHistoryPage() {
 
             {/* Delete Confirmation Modal */}
             {showDeleteConfirm && selectedAppointment && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-xl shadow-2xl max-w-md w-full">
-                        {/* Modal Header */}
-                        <div className="p-6 border-b border-gray-200">
-                            <div className="flex items-center gap-3">
-                                <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
-                                    <RiDeleteBinLine className="w-5 h-5 text-red-600" />
-                                </div>
-                                <div>
-                                    <h2 className="text-lg font-bold text-[#16202E]">Delete Appointment</h2>
-                                    <p className="text-sm text-gray-600">This action cannot be undone</p>
-                                </div>
-                            </div>
+                <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+                    <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center">
+                        <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <RiDeleteBinLine className="w-8 h-8 text-red-500" />
                         </div>
-
-                        {/* Modal Content */}
-                        <div className="p-6">
-                            <div className="bg-red-50 rounded-lg p-4 mb-4">
-                                <h3 className="font-medium text-red-800 mb-2">Appointment Details:</h3>
-                                <p className="text-sm text-red-700">
-                                    <strong>Service:</strong> {selectedAppointment.service?.name || 'N/A'}<br />
-                                    <strong>Provider:</strong> {selectedAppointment.provider_name}<br />
-                                    <strong>Date:</strong> {new Date(selectedAppointment.date).toLocaleDateString()}<br />
-                                    <strong>Time:</strong> {selectedAppointment.start_time} - {selectedAppointment.end_time}<br />
-                                    <strong>Booking For:</strong> {selectedAppointment.bookingType === 'Self' ? 'Myself' : 'Someone else'}
-                                </p>
-                            </div>
-                            <p className="text-gray-600 text-sm">
-                                Are you sure you want to delete this appointment? This action cannot be undone and will permanently remove the appointment from your history.
-                            </p>
-                        </div>
-
-                        {/* Modal Footer */}
-                        <div className="flex justify-end gap-3 p-6 border-t border-gray-200 bg-gray-50">
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">Delete Appointment?</h3>
+                        <p className="text-gray-500 mb-6">
+                            Are you sure you want to delete this appointment with <span className="font-medium text-gray-900">{selectedAppointment.provider_name}</span>? This action cannot be undone.
+                        </p>
+                        <div className="flex gap-3">
                             <button
                                 onClick={cancelDelete}
-                                className="px-6 py-2 text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                                className="flex-1 px-4 py-2.5 text-gray-700 bg-gray-100 hover:bg-gray-200 font-medium rounded-xl transition-colors"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleDeleteAppointment}
                                 disabled={deleteAppointmentMutation.isPending}
-                                className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="flex-1 px-4 py-2.5 text-white bg-red-600 hover:bg-red-700 font-medium rounded-xl transition-colors flex items-center justify-center gap-2"
                             >
-                                {deleteAppointmentMutation.isPending ? (
-                                    <>
-                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                        Deleting...
-                                    </>
-                                ) : (
-                                    <>
-                                        <RiDeleteBinLine className="w-4 h-4" />
-                                        Delete Appointment
-                                    </>
-                                )}
+                                {deleteAppointmentMutation.isPending ? 'Deleting...' : 'Delete'}
                             </button>
                         </div>
                     </div>

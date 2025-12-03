@@ -369,11 +369,12 @@ export const usePatientAppointments = () => {
         queryKey: ['patientAppointments'],
         queryFn: getPatientAppointments,
         enabled: isAuthenticated, // Only run query if user is authenticated
-        staleTime: 30 * 1000, // 30 seconds - data is considered fresh for 30 seconds
-        gcTime: 5 * 60 * 1000, // 5 minutes - keep in cache for 5 minutes
-        refetchOnWindowFocus: isAuthenticated, // Only refetch when authenticated
-        refetchInterval: isAuthenticated ? 30 * 1000 : false, // Auto-refetch only when authenticated
-        refetchIntervalInBackground: isAuthenticated, // Continue refetching only when authenticated
+        staleTime: Infinity, // Data never becomes stale automatically - only refetch manually or on page reload
+        gcTime: 10 * 60 * 1000, // 10 minutes - keep in cache for 10 minutes
+        refetchOnWindowFocus: false, // Don't refetch on window focus
+        refetchOnMount: false, // Don't refetch on component mount if data exists
+        refetchOnReconnect: false, // Don't refetch on reconnect
+        refetchInterval: false, // Disable automatic polling
         retry: (failureCount, error) => {
             // Don't retry on authentication errors
             if (error instanceof AxiosError && error.response?.status === 401) {

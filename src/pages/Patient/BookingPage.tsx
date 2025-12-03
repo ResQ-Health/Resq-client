@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useBookAppointment, useInitializePayment, useAllProviders } from '../../services/providerService';
 import { usePatientProfile } from '../../services/userService';
 import toast from 'react-hot-toast';
@@ -8,6 +9,7 @@ const BookingPage = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const location = useLocation();
+    const queryClient = useQueryClient();
     const bookAppointmentMutation = useBookAppointment();
     const initializePaymentMutation = useInitializePayment();
     const [providerData, setProviderData] = useState<any>(null);
@@ -1003,6 +1005,8 @@ const BookingPage = () => {
                                                                         appointment,
                                                                     }));
                                                                 } catch { }
+                                                                // Invalidate appointments query to refresh booking history
+                                                                queryClient.invalidateQueries({ queryKey: ['patientAppointments'] });
                                                                 if (res?.message) toast.success(res.message);
                                                                 setCurrentStep('payment');
                                                             },
@@ -1297,6 +1301,8 @@ const BookingPage = () => {
                                                                         appointment,
                                                                     }));
                                                                 } catch { }
+                                                                // Invalidate appointments query to refresh booking history
+                                                                queryClient.invalidateQueries({ queryKey: ['patientAppointments'] });
                                                                 if (res?.message) toast.success(res.message);
                                                                 setCurrentStep('payment');
                                                             },
