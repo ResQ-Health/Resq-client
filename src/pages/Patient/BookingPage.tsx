@@ -35,14 +35,14 @@ const validatePhoneNumber = (phone: string): boolean => {
 };
 
 const validateDateOfBirth = (dob: string): boolean => {
-    // Accepts DD/MM/YYYY format
-    const dateRegex = /^(\d{2})\/(\d{2})\/(\d{4})$/;
+    // Accepts YYYY-MM-DD format
+    const dateRegex = /^(\d{4})-(\d{2})-(\d{2})$/;
     if (!dateRegex.test(dob.trim())) return false;
     
-    const [, day, month, year] = dob.trim().match(dateRegex) || [];
-    const d = parseInt(day, 10);
-    const m = parseInt(month, 10);
+    const [, year, month, day] = dob.trim().match(dateRegex) || [];
     const y = parseInt(year, 10);
+    const m = parseInt(month, 10);
+    const d = parseInt(day, 10);
     
     // Basic validation
     if (d < 1 || d > 31 || m < 1 || m > 12 || y < 1900 || y > new Date().getFullYear()) {
@@ -55,9 +55,8 @@ const validateDateOfBirth = (dob: string): boolean => {
 };
 
 const validateFullName = (name: string): boolean => {
-    // At least 2 characters, allows letters, spaces, hyphens, apostrophes
-    const nameRegex = /^[a-zA-Z\s'-]{2,}$/;
-    return nameRegex.test(name.trim());
+    // At least 3 characters, no character restrictions
+    return name.trim().length >= 3;
 };
 
 const BookingPage = () => {
@@ -964,18 +963,11 @@ const BookingPage = () => {
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-2">Date of birth</label>
                                                 <input
-                                                    type="text"
+                                                    type="date"
                                                     value={dateOfBirth}
-                                                    onChange={(e) => {
-                                                        // Auto-format date as user types
-                                                        let value = e.target.value.replace(/\D/g, '');
-                                                        if (value.length >= 2) value = value.slice(0, 2) + '/' + value.slice(2);
-                                                        if (value.length >= 5) value = value.slice(0, 5) + '/' + value.slice(5, 9);
-                                                        setDateOfBirth(value);
-                                                    }}
-                                                    placeholder="DD/MM/YYYY (e.g. 15/03/1990)"
+                                                    onChange={(e) => setDateOfBirth(e.target.value)}
+                                                    placeholder="YYYY-MM-DD (e.g. 1990-03-15)"
                                                     disabled={isLoggedIn}
-                                                    maxLength={10}
                                                     className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                                                 />
                                             </div>
@@ -1004,7 +996,7 @@ const BookingPage = () => {
                                                         if (!fullName?.trim()) {
                                                             validationErrors.push('Full Name is required');
                                                         } else if (!validateFullName(fullName)) {
-                                                            validationErrors.push('Full Name must be at least 2 characters and contain only letters, spaces, hyphens, or apostrophes');
+                                                            validationErrors.push('Full Name must be at least 3 characters');
                                                         }
                                                         
                                                         if (!email?.trim()) {
@@ -1026,7 +1018,7 @@ const BookingPage = () => {
                                                         if (!dateOfBirth?.trim()) {
                                                             validationErrors.push('Date of Birth is required');
                                                         } else if (!validateDateOfBirth(dateOfBirth)) {
-                                                            validationErrors.push('Please enter a valid date in DD/MM/YYYY format (e.g. 15/03/1990)');
+                                                            validationErrors.push('Please enter a valid date in YYYY-MM-DD format (e.g. 1990-03-15)');
                                                         }
                                                         
                                                         if (validationErrors.length > 0) {
@@ -1289,17 +1281,10 @@ const BookingPage = () => {
                                                     <div>
                                                         <label className="block text-sm font-medium text-gray-700 mb-2">Date of birth</label>
                                                         <input
-                                                            type="text"
+                                                            type="date"
                                                             value={patientDateOfBirth}
-                                                            onChange={(e) => {
-                                                                // Auto-format date as user types
-                                                                let value = e.target.value.replace(/\D/g, '');
-                                                                if (value.length >= 2) value = value.slice(0, 2) + '/' + value.slice(2);
-                                                                if (value.length >= 5) value = value.slice(0, 5) + '/' + value.slice(5, 9);
-                                                                setPatientDateOfBirth(value);
-                                                            }}
-                                                            placeholder="DD/MM/YYYY (e.g. 15/03/1990)"
-                                                            maxLength={10}
+                                                            onChange={(e) => setPatientDateOfBirth(e.target.value)}
+                                                            placeholder="YYYY-MM-DD (e.g. 1990-03-15)"
                                                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                                         />
                                                     </div>
@@ -1357,7 +1342,7 @@ const BookingPage = () => {
                                                         if (!fullName?.trim()) {
                                                             validationErrors.push('Your Full Name is required');
                                                         } else if (!validateFullName(fullName)) {
-                                                            validationErrors.push('Your Full Name must be at least 2 characters and contain only letters, spaces, hyphens, or apostrophes');
+                                                            validationErrors.push('Your Full Name must be at least 3 characters');
                                                         }
                                                         
                                                         if (!email?.trim()) {
@@ -1376,7 +1361,7 @@ const BookingPage = () => {
                                                         if (!patientFullName?.trim()) {
                                                             validationErrors.push('Patient Full Name is required');
                                                         } else if (!validateFullName(patientFullName)) {
-                                                            validationErrors.push('Patient Full Name must be at least 2 characters and contain only letters, spaces, hyphens, or apostrophes');
+                                                            validationErrors.push('Patient Full Name must be at least 3 characters');
                                                         }
                                                         
                                                         if (!patientEmail?.trim()) {
@@ -1398,7 +1383,7 @@ const BookingPage = () => {
                                                         if (!patientDateOfBirth?.trim()) {
                                                             validationErrors.push('Patient Date of Birth is required');
                                                         } else if (!validateDateOfBirth(patientDateOfBirth)) {
-                                                            validationErrors.push('Please enter a valid date of birth for the patient in DD/MM/YYYY format (e.g. 15/03/1990)');
+                                                            validationErrors.push('Please enter a valid date of birth for the patient in YYYY-MM-DD format (e.g. 1990-03-15)');
                                                         }
                                                         
                                                         if (validationErrors.length > 0) {

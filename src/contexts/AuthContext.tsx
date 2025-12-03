@@ -19,6 +19,7 @@ interface AuthContextType {
     token: string | null;
     login: (token: string, user: User) => void;
     logout: () => void;
+    updateUser: (userData: Partial<User>) => void;
     isAuthenticated: boolean;
     loading: boolean;
 }
@@ -61,6 +62,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setLoading(false);
     }, []);
 
+    // Listen for user update events from profile updates
+    useEffect(() => {
+        const handleUserUpdate = (event: CustomEvent) => {
+            const updatedUser = event.detail;
+            setUser(updatedUser);
+        };
+
+        window.addEventListener('userUpdated', handleUserUpdate as EventListener);
+        return () => {
+            window.removeEventListener('userUpdated', handleUserUpdate as EventListener);
+        };
+    }, []);
+
     const login = (newToken: string, userData: User) => {
         setToken(newToken);
         setUser(userData);
@@ -75,11 +89,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         localStorage.removeItem('user');
     };
 
+    const updateUser = (userData: Partial<User>) => {
+        if (user) {
+            const updatedUser = { ...user, ...userData };
+            setUser(updatedUser);
+            localStorage.setItem('user', JSON.stringify(updatedUser));
+        }
+    };
+
     const value = {
         user,
         token,
         login,
         logout,
+        updateUser,
         isAuthenticated: !!token && !!user,
         loading,
     };

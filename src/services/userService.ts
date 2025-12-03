@@ -291,9 +291,34 @@ export const useUpdatePatientProfile = () => {
             // Return a context object with the snapshotted value
             return { previousProfile };
         },
-        onSuccess: () => {
+        onSuccess: (data) => {
+            // Update AuthContext and localStorage with new user data
+            const storedUser = localStorage.getItem('user');
+            if (storedUser) {
+                try {
+                    const currentUser = JSON.parse(storedUser);
+                    const updatedUser = {
+                        ...currentUser,
+                        full_name: data.data?.personal_details 
+                            ? `${data.data.personal_details.first_name || ''} ${data.data.personal_details.last_name || ''}`.trim()
+                            : currentUser.full_name,
+                        phone_number: data.data?.contact_details?.phone_number || currentUser.phone_number,
+                        email: data.data?.contact_details?.email_address || currentUser.email,
+                        profile_picture: data.data?.profile_picture || currentUser.profile_picture,
+                    };
+                    localStorage.setItem('user', JSON.stringify(updatedUser));
+                    
+                    // Dispatch a custom event to notify AuthContext to update
+                    window.dispatchEvent(new CustomEvent('userUpdated', { detail: updatedUser }));
+                } catch (error) {
+                    console.error('Error updating user in localStorage:', error);
+                }
+            }
+
+            // Invalidate queries to ensure fresh data everywhere
+            queryClient.invalidateQueries({ queryKey: ['patientProfile'] });
+            
             // Keep the optimistic update, just show success message
-            // The optimistic update already shows the user's changes
             toast.success('Profile updated successfully!');
         },
         onError: (error: any, _newProfileData, context) => {

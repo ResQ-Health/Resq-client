@@ -1,0 +1,90 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user is the owner
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Profile pictures - users can only upload/update their own profile picture
+    match /profile_pictures/{userId}/{fileName} {
+      // Users can read any profile picture (for displaying)
+      allow read: if isAuthenticated();
+      
+      // Users can only upload/update their own profile picture
+      allow write: if isOwner(userId) && 
+                      fileName.matches('.*\\.(jpg|jpeg|png|gif|webp)$') &&
+                      request.resource.size < 5 * 1024 * 1024 && // 5MB limit
+                      request.resource.contentType.matches('image/.*');
+      
+      // Users can delete their own profile picture
+      allow delete: if isOwner(userId);
+    }
+    
+    // Patient documents (medical records, prescriptions, etc.)
+    match /patient_documents/{patientId}/{documentId} {
+      // Patients can read their own documents
+      allow read: if isOwner(patientId);
+      
+      // Patients can upload their own documents
+      allow write: if isOwner(patientId) && 
+                      request.resource.size < 10 * 1024 * 1024; // 10MB limit
+      
+      // Providers can read patient documents (if authorized)
+      allow read: if isAuthenticated(); // Add additional authorization check in your backend
+      
+      // Patients can delete their own documents
+      allow delete: if isOwner(patientId);
+    }
+    
+    // Provider documents (certificates, licenses, etc.)
+    match /provider_documents/{providerId}/{documentId} {
+      // Providers can read their own documents
+      allow read: if isOwner(providerId);
+      
+      // Anyone authenticated can read provider documents (for verification)
+      allow read: if isAuthenticated();
+      
+      // Providers can upload their own documents
+      allow write: if isOwner(providerId) && 
+                      request.resource.size < 10 * 1024 * 1024; // 10MB limit
+      
+      // Providers can delete their own documents
+      allow delete: if isOwner(providerId);
+    }
+    
+    // Appointment attachments
+    match /appointment_attachments/{appointmentId}/{fileName} {
+      // Patients and providers involved in the appointment can read
+      allow read: if isAuthenticated(); // Add appointment ownership check in your backend
+      
+      // Patients and providers can upload attachments for their appointments
+      allow write: if isAuthenticated() && 
+                      request.resource.size < 5 * 1024 * 1024; // 5MB limit
+      
+      // Patients and providers can delete attachments from their appointments
+      allow delete: if isAuthenticated(); // Add appointment ownership check in your backend
+    }
+    
+    // Public assets (logos, banners, etc.)
+    match /public/{allPaths=**} {
+      // Anyone can read public assets
+      allow read: if true;
+      
+      // Only authenticated users can write (add admin check in your backend)
+      allow write: if isAuthenticated();
+    }
+    
+    // Default deny all other paths
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

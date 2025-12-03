@@ -144,7 +144,7 @@ const favoriteHospitals = [
 ];
 
 export default function Myaccount() {
-  const { user } = useAuth();
+  const { user, updateUser } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(0);
   const [profileImage, setProfileImage] = useState<string | null>(null);
@@ -418,7 +418,20 @@ export default function Myaccount() {
     };
 
     updateProfileMutation.mutate(profileData, {
-      onSuccess: () => {
+      onSuccess: (responseData) => {
+        // Update AuthContext with new user data
+        if (responseData?.data && user) {
+          const updatedUserData: Partial<typeof user> = {
+            full_name: responseData.data.personal_details 
+              ? `${responseData.data.personal_details.first_name || ''} ${responseData.data.personal_details.last_name || ''}`.trim()
+              : user.full_name,
+            phone_number: responseData.data.contact_details?.phone_number || user.phone_number,
+            email: responseData.data.contact_details?.email_address || user.email,
+            profile_picture: responseData.data.profile_picture || user.profile_picture,
+          };
+          updateUser(updatedUserData);
+        }
+        
         // Invalidate and refetch profile data to update onboarding status
         queryClient.invalidateQueries({ queryKey: ['patientProfile'] });
         

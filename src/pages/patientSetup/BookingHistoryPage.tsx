@@ -30,7 +30,6 @@ export default function BookingHistoryPage() {
 
     const deleteAppointmentMutation = useDeleteAppointment();
     const [openDropdownIndex, setOpenDropdownIndex] = useState<number | null>(null);
-    const [openStatusDropdownIndex, setOpenStatusDropdownIndex] = useState<number | null>(null);
 
     // State for search, filter, sort, and pagination
     const [activeTab, setActiveTab] = useState<'all' | 'upcoming' | 'past' | 'today'>('all');
@@ -291,33 +290,6 @@ export default function BookingHistoryPage() {
 
     const toggleDropdown = (index: number) => {
         setOpenDropdownIndex(openDropdownIndex === index ? null : index);
-        if (openStatusDropdownIndex !== null) setOpenStatusDropdownIndex(null);
-    };
-
-    const toggleStatusDropdown = (index: number, e: React.MouseEvent) => {
-        e.stopPropagation();
-        setOpenStatusDropdownIndex(openStatusDropdownIndex === index ? null : index);
-        if (openDropdownIndex !== null) setOpenDropdownIndex(null);
-    };
-
-    const handleStatusSelect = (index: number, status: string) => {
-        const appointment = appointments?.[index];
-        if (!appointment || !appointments) return;
-
-        const updatedAppointments = appointments.map((apt) =>
-            apt.id === appointment.id ? { ...apt, status: status as any } : apt
-        );
-
-        queryClient.setQueryData(['patientAppointments'], (oldData: any) => ({
-            ...oldData,
-            data: updatedAppointments
-        }));
-
-        setTimeout(() => {
-            console.log('Status updated successfully');
-        }, 1000);
-
-        setOpenStatusDropdownIndex(null);
     };
 
     const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -743,28 +715,9 @@ export default function BookingHistoryPage() {
                                                     </div>
                                                 </td>
                                                 <td className="p-4">
-                                                    <div className="relative">
-                                                        <button
-                                                            onClick={(e) => toggleStatusDropdown(index, e)}
-                                                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-all hover:shadow-sm ${getStatusColor(appointment.status)}`}
-                                                        >
-                                                            <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60"></span>
-                                                            {appointment.status}
-                                                        </button>
-
-                                                        {openStatusDropdownIndex === index && (
-                                                            <div className="absolute top-full left-0 mt-2 bg-white border border-gray-100 rounded-xl shadow-xl z-20 min-w-[160px] overflow-hidden py-1">
-                                                                {['pending', 'confirmed', 'completed', 'cancelled', 'no-show'].map((status) => (
-                                                                    <button
-                                                                        key={status}
-                                                                        onClick={() => handleStatusSelect(index, status)}
-                                                                        className="flex items-center gap-2 w-full px-4 py-2.5 text-sm hover:bg-gray-50 text-gray-700 capitalize"
-                                                                    >
-                                                                        {status}
-                                                                    </button>
-                                                                ))}
-                                                            </div>
-                                                        )}
+                                                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${getStatusColor(appointment.status)}`}>
+                                                        <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60"></span>
+                                                        {appointment.status}
                                                     </div>
                                                 </td>
                                                 <td className="p-4 pr-6">

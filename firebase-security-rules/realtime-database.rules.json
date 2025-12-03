@@ -1,0 +1,55 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    
+    "users": {
+      "$uid": {
+        ".read": "$uid === auth.uid",
+        ".write": "$uid === auth.uid",
+        ".validate": "newData.hasChildren(['email', 'user_type']) && newData.child('user_type').val().matches(/^(Patient|Provider)$/)"
+      }
+    },
+    
+    "presence": {
+      "$uid": {
+        ".read": "auth != null",
+        ".write": "$uid === auth.uid",
+        ".validate": "newData.hasChildren(['status', 'lastSeen'])"
+      }
+    },
+    
+    "notifications": {
+      "$uid": {
+        ".read": "$uid === auth.uid",
+        ".write": "$uid === auth.uid",
+        "$notificationId": {
+          ".validate": "newData.hasChildren(['title', 'message', 'timestamp', 'read']) && newData.child('read').val() === false"
+        }
+      }
+    },
+    
+    "appointments": {
+      "$appointmentId": {
+        ".read": "auth != null && (data.child('patient_id').val() === auth.uid || data.child('provider_id').val() === auth.uid)",
+        ".write": "auth != null && (data.child('patient_id').val() === auth.uid || data.child('provider_id').val() === auth.uid)",
+        ".validate": "newData.hasChildren(['patient_id', 'provider_id', 'date', 'status'])"
+      }
+    },
+    
+    "chat": {
+      "$conversationId": {
+        ".read": "auth != null && (data.child('participants').child(auth.uid).exists() || newData.child('participants').child(auth.uid).exists())",
+        ".write": "auth != null && (data.child('participants').child(auth.uid).exists() || newData.child('participants').child(auth.uid).exists())",
+        "messages": {
+          "$messageId": {
+            ".read": "auth != null",
+            ".write": "auth != null && newData.child('sender_id').val() === auth.uid",
+            ".validate": "newData.hasChildren(['sender_id', 'message', 'timestamp'])"
+          }
+        }
+      }
+    }
+  }
+}
+

@@ -208,12 +208,12 @@ function OnboardingPage() {
     <div className="min-h-screen pb-[155px] mx-auto flex flex-col justify-center max-w-[480px] px-4 items-center">
       {/* Header Section */}
       <div className="w-full mb-8 text-center">
-        <h1
-          style={{ fontFamily: 'Plus Jakarta Sans', letterSpacing: '0px' }}
+      <h1
+        style={{ fontFamily: 'Plus Jakarta Sans', letterSpacing: '0px' }}
           className="text-3xl font-bold leading-tight mb-3 text-[#06202E]"
-        >
+      >
           Create Your Account
-        </h1>
+      </h1>
         <p className="text-gray-600 text-base">
           Book appointments, manage your healthcare, and connect with hospitals.
         </p>
@@ -329,7 +329,7 @@ function OnboardingPage() {
           agreed && !registerMutation.isPending
             ? 'bg-[#06202E] text-white hover:bg-[#051a26] shadow-md hover:shadow-lg'
             : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-        }`}
+          }`}
       >
         {registerMutation.isPending ? (
           <span className="flex items-center gap-2">
