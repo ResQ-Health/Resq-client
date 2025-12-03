@@ -1,4 +1,57 @@
-# React + TypeScript + Vite
+# RESQ Frontend Application
+
+A React + TypeScript + Vite application for the RESQ healthcare platform.
+
+## Environment Setup
+
+This application requires environment variables for Firebase configuration. Create a `.env` file in the root directory with the following variables:
+
+```env
+# Firebase Configuration
+VITE_FIREBASE_API_KEY=your_firebase_api_key_here
+VITE_FIREBASE_AUTH_DOMAIN=your_project_id.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=your_project_id
+VITE_FIREBASE_STORAGE_BUCKET=your_project_id.firebasestorage.app
+VITE_FIREBASE_MESSAGING_SENDER_ID=your_messaging_sender_id
+VITE_FIREBASE_APP_ID=your_app_id
+VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id
+```
+
+**Important Security Notes:**
+- Never commit `.env` files to version control
+- The `.env` file is already included in `.gitignore`
+- Get your Firebase credentials from [Firebase Console](https://console.firebase.google.com/)
+- All environment variables must be prefixed with `VITE_` to be accessible in the frontend
+
+## Getting Started
+
+1. Install dependencies:
+```bash
+npm install
+```
+
+2. Create a `.env` file with your Firebase credentials (see above)
+
+3. Start the development server:
+```bash
+npm run dev
+```
+
+4. Build for production:
+```bash
+npm run build
+```
+
+## Security
+
+- All API keys and sensitive configuration are stored in environment variables
+- Authentication tokens are stored in localStorage (standard practice for JWT tokens)
+- Console logging is disabled in production builds
+- No hardcoded credentials are present in the codebase
+
+---
+
+## React + TypeScript + Vite
 
 This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
 
