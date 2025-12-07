@@ -8,6 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider } from '../../config/firebase';
 import toast from 'react-hot-toast';
+import { LoadingSpinner } from '../../components/LoadingSpinner';
 
 // Validation helper functions
 const validateEmail = (email: string): boolean => {
@@ -48,14 +49,30 @@ const validateDateOfBirth = (dob: string): boolean => {
     const m = parseInt(month, 10);
     const d = parseInt(day, 10);
 
+    const now = new Date();
+    const currentYear = now.getFullYear();
+
     // Basic validation
-    if (d < 1 || d > 31 || m < 1 || m > 12 || y < 1900 || y > new Date().getFullYear()) {
+    if (d < 1 || d > 31 || m < 1 || m > 12 || y < 1900 || y > currentYear) {
         return false;
     }
 
     // Check if date is valid
     const date = new Date(y, m - 1, d);
-    return date.getDate() === d && date.getMonth() === m - 1 && date.getFullYear() === y;
+    if (!(date.getDate() === d && date.getMonth() === m - 1 && date.getFullYear() === y)) {
+        return false;
+    }
+
+    // Check age >= 2 years
+    let age = now.getFullYear() - date.getFullYear();
+    const monthDiff = now.getMonth() - date.getMonth();
+
+    // If current month is before birth month, or if same month but current day is before birth day
+    if (monthDiff < 0 || (monthDiff === 0 && now.getDate() < date.getDate())) {
+        age--;
+    }
+
+    return age >= 2;
 };
 
 const validateFullName = (name: string): boolean => {
@@ -96,7 +113,6 @@ const BookingPage = () => {
     const [fullName, setFullName] = useState('');
     const [email, setEmail] = useState('');
     const [mobileNumber, setMobileNumber] = useState('');
-    const [homeAddress, setHomeAddress] = useState('');
     const [gender, setGender] = useState('');
     const [dateOfBirth, setDateOfBirth] = useState('');
 
@@ -104,10 +120,27 @@ const BookingPage = () => {
     const [patientFullName, setPatientFullName] = useState('');
     const [patientEmail, setPatientEmail] = useState('');
     const [patientMobileNumber, setPatientMobileNumber] = useState('');
-    const [patientHomeAddress, setPatientHomeAddress] = useState('');
     const [patientGender, setPatientGender] = useState('');
     const [patientDateOfBirth, setPatientDateOfBirth] = useState('');
     const [communicationPreference, setCommunicationPreference] = useState('Both');
+
+    // Error states for form validation
+    const [errors, setErrors] = useState<{
+        fullName?: string;
+        email?: string;
+        mobileNumber?: string;
+        gender?: string;
+        dateOfBirth?: string;
+        identificationNumber?: string;
+        patientFullName?: string;
+        patientEmail?: string;
+        patientMobileNumber?: string;
+        patientGender?: string;
+        patientDateOfBirth?: string;
+        service?: string;
+        date?: string;
+        time?: string;
+    }>({});
 
     // Emergency modal state
     const [showEmergencyModal, setShowEmergencyModal] = useState(false);
@@ -123,6 +156,10 @@ const BookingPage = () => {
         return `${y}-${m}-${day}`;
     });
     const [editSelectedTime, setEditSelectedTime] = useState('');
+    const [editModalErrors, setEditModalErrors] = useState<{
+        date?: string;
+        time?: string;
+    }>({});
     const today = useMemo(() => new Date(), []);
     const [calendarMonth, setCalendarMonth] = useState<number>(today.getMonth());
     const [calendarYear, setCalendarYear] = useState<number>(today.getFullYear());
@@ -247,14 +284,12 @@ const BookingPage = () => {
         const name = p.full_name || `${p.personal_details?.first_name || ''} ${p.personal_details?.last_name || ''}`.trim();
         const emailAddr = p.contact_details?.email_address || p.email || '';
         const phone = p.contact_details?.phone_number || p.phone_number || '';
-        const addr = p.location_details?.address || '';
         const gen = p.personal_details?.gender || '';
         const dob = p.personal_details?.date_of_birth || '';
 
         setFullName(name);
         setEmail(emailAddr);
         setMobileNumber(phone);
-        setHomeAddress(addr);
         setGender(gen ? gen.charAt(0).toUpperCase() + gen.slice(1).toLowerCase() : '');
         setDateOfBirth(dob);
     }, [appointmentFor, profileData]);
@@ -290,38 +325,66 @@ const BookingPage = () => {
     // Get provider data
     useEffect(() => {
         const state = (location.state || {}) as any;
-        if (state?.provider) {
-            setProviderData(state.provider);
-        }
-        if (state?.service) setSelectedService(state.service);
-        if (state?.date) setSelectedDate(state.date);
-        if (state?.time) setSelectedTime(state.time);
+        console.log('BookingPage: location.state:', state);
+
+        let initialProvider = state?.provider;
+        let initialService = state?.service;
+        let initialDate = state?.date;
+        let initialTime = state?.time;
 
         // Fallback to localStorage draft for rich service/provider details
         try {
             const draftRaw = localStorage.getItem('bookingDraft');
+            console.log('BookingPage: localStorage draft:', draftRaw);
+
             if (draftRaw) {
                 const draft = JSON.parse(draftRaw || '{}');
-                if (!state?.provider && draft?.provider) setProviderData(draft.provider);
-                if (!state?.service && draft?.service) {
-                    const draftSvc = draft.service;
-                    if (typeof draftSvc === 'string') {
-                        setSelectedService(draftSvc);
-                    } else if (draftSvc && typeof draftSvc === 'object') {
-                        setSelectedService(draftSvc.name || draftSvc);
-                    }
+
+                // Check if draft belongs to current provider
+                const draftProviderId = draft.provider?.id || draft.provider?._id;
+                if (draftProviderId === id) {
+                    if (!initialProvider) initialProvider = draft.provider;
+                    if (!initialService) initialService = draft.service;
+                    if (!initialDate) initialDate = draft.date;
+                    if (!initialTime) initialTime = draft.time;
                 }
-                if (!state?.date && draft?.date) setSelectedDate(draft.date);
-                if (!state?.time && draft?.time) setSelectedTime(draft.time);
             }
-        } catch { }
+        } catch (e) {
+            console.error('BookingPage: Error parsing draft:', e);
+        }
+
+        if (initialProvider) {
+            setProviderData(initialProvider);
+        } else if (providerFromApi) {
+            // If no state/draft, use API data
+            setProviderData({
+                id: providerFromApi.id || providerFromApi._id,
+                name: providerFromApi.provider_name,
+                address: [providerFromApi.address?.street, providerFromApi.address?.city, providerFromApi.address?.state].filter(Boolean).join(', '),
+                image: providerFromApi.banner_image_url || providerFromApi.logo,
+                services: providerFromApi.services
+            });
+        }
+
+        if (initialService) {
+            if (typeof initialService === 'string') {
+                setSelectedService(initialService);
+            } else {
+                // If object, use it directly or extract name?
+                // The state seems to handle objects later in render: (selectedService as any).name
+                setSelectedService(initialService);
+            }
+        }
+
+        if (initialDate) setSelectedDate(initialDate);
+        if (initialTime) setSelectedTime(initialTime);
 
         setLoading(false);
-    }, [location.state]);
+    }, [location.state, id, providerFromApi]);
 
-    // Auto-select first service if there's only one service and no service is selected
+    // Auto-select first service if no service is selected
     useEffect(() => {
-        if (providerData && providerData.services && providerData.services.length === 1) {
+        if (providerData && providerData.services && providerData.services.length > 0) {
             // Check if we already have a service selected
             let hasService = false;
             if (selectedService) {
@@ -398,148 +461,88 @@ const BookingPage = () => {
         } catch { }
     }, [providerData, selectedService, selectedDate, selectedTime]);
 
+    // Ref to track if edit modal has been initialized
+    const hasInitializedEditModal = useRef(false);
+
+    // Reset initialization flag when modal closes
+    useEffect(() => {
+        if (!showEditBookingModal) {
+            hasInitializedEditModal.current = false;
+        }
+    }, [showEditBookingModal]);
+
     // Initialize edit modal state when opening
     useEffect(() => {
-        if (showEditBookingModal && providerData) {
+        if (showEditBookingModal && providerData && !hasInitializedEditModal.current) {
             console.log('=== EDIT BOOKING MODAL INITIALIZATION ===');
-            console.log('1. providerData:', providerData);
-            console.log('2. providerData.services:', providerData?.services);
-            console.log('2b. providerFromApi:', providerFromApi);
-            console.log('2c. providerFromApi.services:', providerFromApi?.services);
 
-            // Ensure providerData has services - use API data if available
-            let servicesToUse = providerData?.services || [];
-            if ((!servicesToUse || servicesToUse.length === 0) && providerFromApi?.services) {
-                // Extract service names from API services array
-                servicesToUse = (providerFromApi.services || []).map((s: any) => {
-                    if (typeof s === 'string') {
-                        return s;
-                    } else if (s && typeof s === 'object') {
-                        return s.name || s.serviceName || String(s);
-                    }
-                    return String(s);
-                });
-                console.log('2d. Using services from providerFromApi:', servicesToUse);
-
-                // Update providerData with services for consistency
-                setProviderData((prev: any) => ({
-                    ...prev,
-                    services: servicesToUse
-                }));
-            }
-
+            // Prioritize state if available (user might have changed it on the page), otherwise fallback to drafts
             const dateToUse = selectedDate || editSelectedDate;
             setEditSelectedDate(dateToUse);
             setEditSelectedTime(selectedTime || editSelectedTime);
 
-            console.log('3. selectedDate:', selectedDate);
-            console.log('4. selectedTime:', selectedTime);
-            console.log('5. selectedService state:', selectedService);
-
             // Set calendar to the month of the selected date
             if (dateToUse) {
-                const dateObj = new Date(dateToUse);
-                setCalendarMonth(dateObj.getMonth());
-                setCalendarYear(dateObj.getFullYear());
+                try {
+                    // Handle YYYY-MM-DD string manually to avoid UTC shift
+                    let dateObj;
+                    if (typeof dateToUse === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateToUse)) {
+                        const [y, m, d] = dateToUse.split('-').map(Number);
+                        dateObj = new Date(y, m - 1, d);
+                    } else {
+                        dateObj = new Date(dateToUse);
+                    }
+
+                    if (!isNaN(dateObj.getTime())) {
+                        setCalendarMonth(dateObj.getMonth());
+                        setCalendarYear(dateObj.getFullYear());
+                    }
+                } catch (e) {
+                    console.error('Error setting calendar month:', e);
+                }
             }
 
-            // Extract service name - prioritize localStorage draft as source of truth
+            // Extract service name - prioritize selectedService state if available
             let serviceName = '';
 
-            // First, check localStorage draft (most reliable source)
-            try {
-                const draftRaw = localStorage.getItem('bookingDraft');
-                console.log('6. localStorage bookingDraft (raw):', draftRaw);
-
-                if (draftRaw) {
-                    const draft = JSON.parse(draftRaw);
-                    console.log('7. localStorage bookingDraft (parsed):', draft);
-                    const draftService = draft?.service;
-                    console.log('8. draft.service:', draftService);
-                    console.log('9. draft.service type:', typeof draftService);
-
-                    if (draftService) {
-                        if (typeof draftService === 'string') {
-                            serviceName = draftService;
-                            console.log('10. Service name from localStorage (string):', serviceName);
-                        } else if (typeof draftService === 'object' && draftService !== null) {
-                            // Extract name from service object - check multiple possible property names
-                            serviceName = draftService.name || draftService.serviceName || draftService.title || '';
-                            console.log('11. Service name from localStorage (object):', serviceName);
-                            console.log('11b. Service object properties:', Object.keys(draftService));
-                            console.log('11c. draftService.name:', draftService.name);
-                            console.log('11d. draftService.serviceName:', draftService.serviceName);
-                        }
-                    }
-                }
-            } catch (err) {
-                console.error('Error parsing booking draft:', err);
-            }
-
-            // If not found in localStorage, try selectedService state
-            if (!serviceName && selectedService) {
-                console.log('12. Checking selectedService state (serviceName is empty)');
+            // 1. Check selectedService state (most immediate source)
+            if (selectedService) {
                 if (typeof selectedService === 'string') {
                     serviceName = selectedService;
-                    console.log('13. Service name from state (string):', serviceName);
                 } else if (typeof selectedService === 'object' && selectedService !== null) {
                     serviceName = (selectedService as any).name || (selectedService as any).serviceName || '';
-                    console.log('14. Service name from state (object):', serviceName);
-                    console.log('14b. selectedService object properties:', Object.keys(selectedService));
                 }
             }
 
-            // Get available services - use the services we prepared earlier
-            const availableServices = servicesToUse.length > 0 ? servicesToUse : (providerData?.services || []);
-            console.log('15. Available services array:', availableServices);
-            console.log('16. Available services count:', availableServices.length);
+            // 2. Fallback to localStorage draft if state is empty
+            if (!serviceName) {
+                try {
+                    const draftRaw = localStorage.getItem('bookingDraft');
+                    if (draftRaw) {
+                        const draft = JSON.parse(draftRaw);
+                        const draftService = draft?.service;
 
-            // Log each service in the array
-            availableServices.forEach((s: any, idx: number) => {
-                const sName = typeof s === 'string' ? s : (s?.name || s?.serviceName || String(s));
-                console.log(`17. Service ${idx}:`, s, '-> name:', sName);
-            });
-
-            // If we found a service name, verify it exists in available services
-            if (serviceName && serviceName.trim() !== '' && availableServices.length > 0) {
-                console.log('18. Checking if serviceName exists in available services:', serviceName);
-                // Check if the service name exists in the services array (handle both string and object)
-                const serviceExists = availableServices.some((s: any) => {
-                    const sName = typeof s === 'string' ? s : (s?.name || s?.serviceName || String(s));
-                    // Case-insensitive comparison for better matching
-                    const matches = sName?.toLowerCase().trim() === serviceName.toLowerCase().trim();
-                    if (matches) {
-                        console.log('19. Found matching service:', sName);
+                        if (draftService) {
+                            if (typeof draftService === 'string') {
+                                serviceName = draftService;
+                            } else if (typeof draftService === 'object' && draftService !== null) {
+                                serviceName = draftService.name || draftService.serviceName || draftService.title || '';
+                            }
+                        }
                     }
-                    return matches;
-                });
-                console.log('20. Service exists in available services:', serviceExists);
-
-                if (!serviceExists) {
-                    // Service not found, use first available
-                    const firstService = availableServices[0];
-                    serviceName = typeof firstService === 'string' ? firstService : (firstService?.name || firstService?.serviceName || String(firstService));
-                    console.log('21. Service not found, using first available:', serviceName);
-                } else {
-                    console.log('22. Keeping existing service name:', serviceName);
+                } catch (err) {
+                    console.error('Error parsing booking draft:', err);
                 }
-            } else if (availableServices.length > 0) {
-                // No service found, use first available
-                const firstService = availableServices[0];
-                serviceName = typeof firstService === 'string' ? firstService : (firstService?.name || firstService?.serviceName || String(firstService));
-                console.log('23. No service name found, using first available:', serviceName);
-            } else {
-                console.log('24. No available services found');
             }
-
-            console.log('25. FINAL serviceName to set:', serviceName);
-            console.log('26. editBookingSelectedService will be set to:', serviceName || '');
-            console.log('=== END EDIT BOOKING MODAL INITIALIZATION ===\n');
 
             // Always set the service name (even if empty, the dropdown will handle it)
             setEditBookingSelectedService(serviceName || '');
+
+            // Mark as initialized to prevent resets
+            hasInitializedEditModal.current = true;
+            console.log('=== END EDIT BOOKING MODAL INITIALIZATION ===');
         }
-    }, [showEditBookingModal, selectedDate, selectedTime, selectedService, providerData, providerFromApi]);
+    }, [showEditBookingModal, selectedDate, selectedTime, selectedService, providerData]); // Removed editSelectedDate and editSelectedTime to prevent infinite loops
 
     // Parse YYYY-MM-DD as a local date to avoid UTC day shifts
     const parseLocalDate = (iso: string) => {
@@ -677,11 +680,7 @@ const BookingPage = () => {
     }, [calendarMonth, calendarYear]);
 
     if (loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="text-lg">Loading...</div>
-            </div>
-        );
+        return <LoadingSpinner />;
     }
 
     if (!providerData) {
@@ -713,7 +712,22 @@ const BookingPage = () => {
                             <p className="text-sm text-black underline">{providerData.address}</p>
 
                             {/* Date and Time */}
-                            <p className="text-sm text-gray-600">{new Date(selectedDate).toDateString()} at {selectedTime}</p>
+                            <p className="text-sm text-gray-600">
+                                {(() => {
+                                    if (!selectedDate) return 'Select Date';
+                                    try {
+                                        // Handle YYYY-MM-DD string to avoid UTC timezone shifts
+                                        if (typeof selectedDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
+                                            const [year, month, day] = selectedDate.split('-').map(Number);
+                                            const date = new Date(year, month - 1, day);
+                                            return date.toDateString();
+                                        }
+                                        return new Date(selectedDate).toDateString();
+                                    } catch (e) {
+                                        return 'Invalid Date';
+                                    }
+                                })()} at {selectedTime || 'Select Time'}
+                            </p>
 
                             {/* Service and Price */}
                             <div className="flex justify-between items-center">
@@ -721,7 +735,7 @@ const BookingPage = () => {
                                     {(() => {
                                         if (!selectedService) return 'Service';
                                         if (typeof selectedService === 'string') return selectedService;
-                                        return (selectedService as any).name || 'Service';
+                                        return (selectedService as any).name || (selectedService as any).serviceName || (selectedService as any).title || 'Service';
                                     })()}
                                 </span>
                                 <span className="text-sm text-black">
@@ -823,7 +837,7 @@ const BookingPage = () => {
 
                         {/* Multi-step Form Content */}
                         {currentStep === 'appointment' && (
-                            <div className="mb-8">
+                            <div className="mb-8" data-step="appointment-details">
                                 <h2 className="text-2xl font-bold text-black mb-6">Appointment Details</h2>
 
                                 <form className="space-y-6 w-[480px]">
@@ -872,22 +886,24 @@ const BookingPage = () => {
                                             <div className="relative">
                                                 <input
                                                     type="text"
+                                                    id="identificationNumber"
+                                                    data-field="identificationNumber"
                                                     value={identificationNumber}
-                                                    onChange={(e) => setIdentificationNumber(e.target.value)}
-                                                    placeholder="Enter identification number"
-                                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-12"
+                                                    onChange={(e) => {
+                                                        setIdentificationNumber(e.target.value);
+                                                        if (errors.identificationNumber) {
+                                                            setErrors(prev => ({ ...prev, identificationNumber: undefined }));
+                                                        }
+                                                    }}
+                                                    placeholder="Enter identification number (Optional)"
+                                                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-12 ${errors.identificationNumber ? 'border-red-500' : 'border-gray-300'
+                                                        }`}
                                                 />
-                                                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex space-x-1">
-                                                    <div className="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center">
-                                                        <span className="text-white text-xs font-bold">E</span>
-                                                    </div>
-                                                    <div className="w-6 h-6 bg-gray-800 rounded-full flex items-center justify-center">
-                                                        <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                                            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                        </svg>
-                                                    </div>
-                                                </div>
+
                                             </div>
+                                            {errors.identificationNumber && (
+                                                <p className="mt-1 text-sm text-red-600 block">{errors.identificationNumber}</p>
+                                            )}
                                         </div>
                                     ) : null}
 
@@ -940,12 +956,20 @@ const BookingPage = () => {
                                                 <div className="relative">
                                                     <input
                                                         type="text"
+                                                        id="fullName"
+                                                        data-field="fullName"
                                                         value={fullName}
-                                                        onChange={(e) => setFullName(e.target.value)}
+                                                        onChange={(e) => {
+                                                            setFullName(e.target.value);
+                                                            if (errors.fullName) {
+                                                                setErrors(prev => ({ ...prev, fullName: undefined }));
+                                                            }
+                                                        }}
                                                         placeholder="e.g. John Doe"
                                                         disabled={isLoggedIn}
                                                         maxLength={100}
-                                                        className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''
+                                                            } ${errors.fullName ? 'border-red-500' : 'border-gray-300'}`}
                                                     />
                                                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                                                         <div className="w-6 h-6 bg-gray-500 rounded-full flex items-center justify-center">
@@ -955,6 +979,9 @@ const BookingPage = () => {
                                                         </div>
                                                     </div>
                                                 </div>
+                                                {errors.fullName && (
+                                                    <p className="mt-1 text-sm text-red-600 block">{errors.fullName}</p>
+                                                )}
                                             </div>
 
                                             {/* Email */}
@@ -963,12 +990,20 @@ const BookingPage = () => {
                                                 <div className="relative">
                                                     <input
                                                         type="email"
+                                                        id="email"
+                                                        data-field="email"
                                                         value={email}
-                                                        onChange={(e) => setEmail(e.target.value)}
+                                                        onChange={(e) => {
+                                                            setEmail(e.target.value);
+                                                            if (errors.email) {
+                                                                setErrors(prev => ({ ...prev, email: undefined }));
+                                                            }
+                                                        }}
                                                         placeholder="e.g. john.doe@example.com"
                                                         disabled={isLoggedIn}
                                                         maxLength={100}
-                                                        className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''
+                                                            } ${errors.email ? 'border-red-500' : 'border-gray-300'}`}
                                                     />
                                                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                                                         <div className="w-6 h-6 bg-gray-500 rounded-full flex items-center justify-center">
@@ -978,6 +1013,9 @@ const BookingPage = () => {
                                                         </div>
                                                     </div>
                                                 </div>
+                                                {errors.email && (
+                                                    <p className="mt-1 text-sm text-red-600 block">{errors.email}</p>
+                                                )}
                                             </div>
 
                                             {/* Mobile Number */}
@@ -986,12 +1024,20 @@ const BookingPage = () => {
                                                 <div className="relative">
                                                     <input
                                                         type="tel"
+                                                        id="mobileNumber"
+                                                        data-field="mobileNumber"
                                                         value={mobileNumber}
-                                                        onChange={(e) => setMobileNumber(e.target.value)}
-                                                        placeholder="e.g. 08012345678 or +2348012345678"
+                                                        onChange={(e) => {
+                                                            setMobileNumber(e.target.value);
+                                                            if (errors.mobileNumber) {
+                                                                setErrors(prev => ({ ...prev, mobileNumber: undefined }));
+                                                            }
+                                                        }}
+                                                        placeholder="e.g. 08012345678"
                                                         disabled={isLoggedIn}
                                                         maxLength={15}
-                                                        className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''
+                                                            } ${errors.mobileNumber ? 'border-red-500' : 'border-gray-300'}`}
                                                     />
                                                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                                                         <div className="w-6 h-6 bg-gray-500 rounded-full flex items-center justify-center">
@@ -1001,36 +1047,33 @@ const BookingPage = () => {
                                                         </div>
                                                     </div>
                                                 </div>
+                                                {errors.mobileNumber && (
+                                                    <p className="mt-1 text-sm text-red-600 block">{errors.mobileNumber}</p>
+                                                )}
                                             </div>
 
-                                            {/* Home Address */}
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-2">Home address</label>
-                                                <input
-                                                    type="text"
-                                                    value={homeAddress}
-                                                    onChange={(e) => setHomeAddress(e.target.value)}
-                                                    placeholder="e.g. 123 Main Street, Lagos"
-                                                    disabled={isLoggedIn}
-                                                    maxLength={200}
-                                                    className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-                                                />
-                                            </div>
 
                                             {/* Gender */}
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
                                                 <div className="relative">
                                                     <select
+                                                        id="gender"
+                                                        data-field="gender"
                                                         value={gender}
-                                                        onChange={(e) => setGender(e.target.value)}
+                                                        onChange={(e) => {
+                                                            setGender(e.target.value);
+                                                            if (errors.gender) {
+                                                                setErrors(prev => ({ ...prev, gender: undefined }));
+                                                            }
+                                                        }}
                                                         disabled={isLoggedIn}
-                                                        className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''
+                                                            } ${errors.gender ? 'border-red-500' : 'border-gray-300'}`}
                                                     >
                                                         <option value="">Select Gender</option>
                                                         <option value="Male">Male</option>
                                                         <option value="Female">Female</option>
-                                                        <option value="Other">Other</option>
                                                     </select>
                                                     <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                                                         <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1038,6 +1081,9 @@ const BookingPage = () => {
                                                         </svg>
                                                     </div>
                                                 </div>
+                                                {errors.gender && (
+                                                    <p className="mt-1 text-sm text-red-600 block">{errors.gender}</p>
+                                                )}
                                             </div>
 
                                             {/* Date of Birth */}
@@ -1045,16 +1091,38 @@ const BookingPage = () => {
                                                 <label className="block text-sm font-medium text-gray-700 mb-2">Date of birth</label>
                                                 <input
                                                     type="date"
+                                                    id="dateOfBirth"
+                                                    data-field="dateOfBirth"
                                                     value={dateOfBirth}
-                                                    onChange={(e) => setDateOfBirth(e.target.value)}
+                                                    onChange={(e) => {
+                                                        setDateOfBirth(e.target.value);
+                                                        if (errors.dateOfBirth) {
+                                                            setErrors(prev => ({ ...prev, dateOfBirth: undefined }));
+                                                        }
+                                                    }}
                                                     placeholder="YYYY-MM-DD (e.g. 1990-03-15)"
                                                     disabled={isLoggedIn}
-                                                    className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''
+                                                        } ${errors.dateOfBirth ? 'border-red-500' : 'border-gray-300'}`}
                                                 />
+                                                {errors.dateOfBirth && (
+                                                    <p className="mt-1 text-sm text-red-600 block">{errors.dateOfBirth}</p>
+                                                )}
                                             </div>
 
                                             {/* Continue button */}
                                             <div className="pt-6 relative">
+                                                {/* Service/Date/Time Error Display */}
+                                                {(errors.service || errors.date || errors.time) && (
+                                                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                                                        <p className="text-sm text-red-600 font-medium mb-1">Please fix the following:</p>
+                                                        <ul className="list-disc list-inside text-sm text-red-600 space-y-1">
+                                                            {errors.service && <li>{errors.service}</li>}
+                                                            {errors.date && <li>{errors.date}</li>}
+                                                            {errors.time && <li>{errors.time}</li>}
+                                                        </ul>
+                                                    </div>
+                                                )}
                                                 <button
                                                     type="button"
                                                     onClick={() => {
@@ -1063,47 +1131,97 @@ const BookingPage = () => {
                                                         const serviceId = svc?.id || svc?.serviceId || '';
                                                         const forWhom = appointmentFor === 'Myself' ? 'Self' : 'Other';
                                                         const visited = visitedBefore === 'Yes';
-                                                        if (!id || !serviceId || !selectedDate || !selectedTime) {
-                                                            toast.error("Please select a service, date and time to proceed.");
+
+                                                        // Clear previous errors
+                                                        setErrors({});
+
+                                                        // Validate service, date, and time
+                                                        const newErrors: typeof errors = {};
+                                                        if (!id || !serviceId) {
+                                                            newErrors.service = "Please select a service to proceed.";
+                                                        }
+                                                        if (!selectedDate) {
+                                                            newErrors.date = "Please select a date to proceed.";
+                                                        }
+                                                        if (!selectedTime) {
+                                                            newErrors.time = "Please select a time to proceed.";
+                                                        }
+
+                                                        if (Object.keys(newErrors).length > 0) {
+                                                            setErrors(newErrors);
+                                                            // Scroll to first error - prioritize date/time fields
+                                                            setTimeout(() => {
+                                                                let errorElement: HTMLElement | null = null;
+                                                                if (newErrors.date) {
+                                                                    // Scroll to date selection area
+                                                                    errorElement = document.querySelector('[data-step="appointment-details"]') as HTMLElement;
+                                                                } else if (newErrors.time) {
+                                                                    // Scroll to time selection area
+                                                                    errorElement = document.querySelector('[data-step="appointment-details"]') as HTMLElement;
+                                                                } else if (newErrors.service) {
+                                                                    // Scroll to service selection
+                                                                    errorElement = document.querySelector('[data-step="appointment-details"]') as HTMLElement;
+                                                                }
+                                                                if (errorElement) {
+                                                                    errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                                } else {
+                                                                    // Fallback to error message area
+                                                                    const fallback = document.querySelector('.pt-6.relative');
+                                                                    if (fallback) {
+                                                                        fallback.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                                    }
+                                                                }
+                                                            }, 100);
                                                             return;
                                                         }
-                                                        if (visited && !identificationNumber.trim()) {
-                                                            toast.error("Please enter your identification number.");
-                                                            return;
-                                                        }
+
+
                                                         // Validate required fields with proper format checks
-                                                        const validationErrors = [];
+                                                        const fieldValidationErrors: typeof errors = {};
 
                                                         if (!fullName?.trim()) {
-                                                            validationErrors.push('Full Name is required');
+                                                            fieldValidationErrors.fullName = 'Full Name is required';
                                                         } else if (!validateFullName(fullName)) {
-                                                            validationErrors.push('Full Name must be at least 3 characters');
+                                                            fieldValidationErrors.fullName = 'Full Name must be at least 3 characters';
                                                         }
 
                                                         if (!email?.trim()) {
-                                                            validationErrors.push('Email is required');
+                                                            fieldValidationErrors.email = 'Email is required';
                                                         } else if (!validateEmail(email)) {
-                                                            validationErrors.push('Please enter a valid email address (e.g. john.doe@example.com)');
+                                                            fieldValidationErrors.email = 'Please enter a valid email address (e.g. john.doe@example.com)';
                                                         }
 
                                                         if (!mobileNumber?.trim()) {
-                                                            validationErrors.push('Mobile Number is required');
+                                                            fieldValidationErrors.mobileNumber = 'Mobile Number is required';
                                                         } else if (!validatePhoneNumber(mobileNumber)) {
-                                                            validationErrors.push('Please enter a valid phone number (e.g. 08012345678 or +2348012345678)');
+                                                            fieldValidationErrors.mobileNumber = 'Please enter a valid phone number (e.g. 08012345678)';
                                                         }
 
                                                         if (!gender?.trim()) {
-                                                            validationErrors.push('Gender is required');
+                                                            fieldValidationErrors.gender = 'Gender is required';
                                                         }
 
                                                         if (!dateOfBirth?.trim()) {
-                                                            validationErrors.push('Date of Birth is required');
+                                                            fieldValidationErrors.dateOfBirth = 'Date of Birth is required';
                                                         } else if (!validateDateOfBirth(dateOfBirth)) {
-                                                            validationErrors.push('Please enter a valid date in YYYY-MM-DD format (e.g. 1990-03-15)');
+                                                            fieldValidationErrors.dateOfBirth = 'Please enter a valid date (Patient must be at least 2 years old)';
                                                         }
 
-                                                        if (validationErrors.length > 0) {
-                                                            toast.error(validationErrors[0]);
+                                                        if (Object.keys(fieldValidationErrors).length > 0) {
+                                                            setErrors(fieldValidationErrors);
+                                                            // Scroll to first error field
+                                                            const firstErrorField = Object.keys(fieldValidationErrors)[0];
+                                                            setTimeout(() => {
+                                                                const errorElement = document.getElementById(firstErrorField) ||
+                                                                    document.querySelector(`[data-field="${firstErrorField}"]`);
+                                                                if (errorElement) {
+                                                                    errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                                    // Focus the field for better UX
+                                                                    if (errorElement instanceof HTMLElement && !errorElement.hasAttribute('disabled')) {
+                                                                        (errorElement as HTMLElement).focus();
+                                                                    }
+                                                                }
+                                                            }, 100);
                                                             return;
                                                         }
                                                         const toMinutes = (t: string) => {
@@ -1147,14 +1265,13 @@ const BookingPage = () => {
                                                             patientName: fullName,
                                                             patientEmail: email,
                                                             patientPhone: mobileNumber,
-                                                            patientAddress: homeAddress,
                                                             patientGender: gender,
                                                             patientDOB: dateOfBirth,
                                                         };
 
                                                         bookAppointmentMutation.mutate({
-                                                            providerId: id,
-                                                            serviceId,
+                                                            providerId: id || '',
+                                                            serviceId: serviceId || '',
                                                             date: selectedDate,
                                                             start_time: selectedTime,
                                                             end_time: endTime,
@@ -1215,12 +1332,20 @@ const BookingPage = () => {
                                                         <div className="relative">
                                                             <input
                                                                 type="text"
+                                                                id="fullName-other"
+                                                                data-field="fullName"
                                                                 value={fullName}
-                                                                onChange={(e) => setFullName(e.target.value)}
+                                                                onChange={(e) => {
+                                                                    setFullName(e.target.value);
+                                                                    if (errors.fullName) {
+                                                                        setErrors(prev => ({ ...prev, fullName: undefined }));
+                                                                    }
+                                                                }}
                                                                 placeholder="e.g. John Doe"
                                                                 disabled={isLoggedIn}
                                                                 maxLength={100}
-                                                                className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                                                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''
+                                                                    } ${errors.fullName ? 'border-red-500' : 'border-gray-300'}`}
                                                             />
                                                             <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                                                                 <div className="w-6 h-6 bg-gray-500 rounded-full flex items-center justify-center">
@@ -1230,6 +1355,9 @@ const BookingPage = () => {
                                                                 </div>
                                                             </div>
                                                         </div>
+                                                        {errors.fullName && (
+                                                            <p className="mt-1 text-sm text-red-600 block">{errors.fullName}</p>
+                                                        )}
                                                     </div>
 
                                                     {/* Email */}
@@ -1238,12 +1366,20 @@ const BookingPage = () => {
                                                         <div className="relative">
                                                             <input
                                                                 type="email"
+                                                                id="email-other"
+                                                                data-field="email"
                                                                 value={email}
-                                                                onChange={(e) => setEmail(e.target.value)}
+                                                                onChange={(e) => {
+                                                                    setEmail(e.target.value);
+                                                                    if (errors.email) {
+                                                                        setErrors(prev => ({ ...prev, email: undefined }));
+                                                                    }
+                                                                }}
                                                                 placeholder="e.g. john.doe@example.com"
                                                                 disabled={isLoggedIn}
                                                                 maxLength={100}
-                                                                className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                                                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''
+                                                                    } ${errors.email ? 'border-red-500' : 'border-gray-300'}`}
                                                             />
                                                             <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                                                                 <div className="w-6 h-6 bg-gray-500 rounded-full flex items-center justify-center">
@@ -1253,6 +1389,9 @@ const BookingPage = () => {
                                                                 </div>
                                                             </div>
                                                         </div>
+                                                        {errors.email && (
+                                                            <p className="mt-1 text-sm text-red-600 block">{errors.email}</p>
+                                                        )}
                                                     </div>
 
                                                     {/* Mobile Number */}
@@ -1261,12 +1400,20 @@ const BookingPage = () => {
                                                         <div className="relative">
                                                             <input
                                                                 type="tel"
+                                                                id="mobileNumber-other"
+                                                                data-field="mobileNumber"
                                                                 value={mobileNumber}
-                                                                onChange={(e) => setMobileNumber(e.target.value)}
-                                                                placeholder="e.g. 08012345678 or +2348012345678"
+                                                                onChange={(e) => {
+                                                                    setMobileNumber(e.target.value);
+                                                                    if (errors.mobileNumber) {
+                                                                        setErrors(prev => ({ ...prev, mobileNumber: undefined }));
+                                                                    }
+                                                                }}
+                                                                placeholder="e.g. 08012345678"
                                                                 disabled={isLoggedIn}
                                                                 maxLength={15}
-                                                                className={`w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                                                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''
+                                                                    } ${errors.mobileNumber ? 'border-red-500' : 'border-gray-300'}`}
                                                             />
                                                             <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
                                                                 <div className="w-6 h-6 bg-gray-500 rounded-full flex items-center justify-center">
@@ -1276,6 +1423,9 @@ const BookingPage = () => {
                                                                 </div>
                                                             </div>
                                                         </div>
+                                                        {errors.mobileNumber && (
+                                                            <p className="mt-1 text-sm text-red-600 block">{errors.mobileNumber}</p>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
@@ -1289,12 +1439,23 @@ const BookingPage = () => {
                                                         <label className="block text-sm font-medium text-gray-700 mb-2">Fullname</label>
                                                         <input
                                                             type="text"
+                                                            id="patientFullName"
+                                                            data-field="patientFullName"
                                                             value={patientFullName}
-                                                            onChange={(e) => setPatientFullName(e.target.value)}
+                                                            onChange={(e) => {
+                                                                setPatientFullName(e.target.value);
+                                                                if (errors.patientFullName) {
+                                                                    setErrors(prev => ({ ...prev, patientFullName: undefined }));
+                                                                }
+                                                            }}
                                                             placeholder="e.g. Jane Doe"
                                                             maxLength={100}
-                                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.patientFullName ? 'border-red-500' : 'border-gray-300'
+                                                                }`}
                                                         />
+                                                        {errors.patientFullName && (
+                                                            <p className="mt-1 text-sm text-red-600 block">{errors.patientFullName}</p>
+                                                        )}
                                                     </div>
 
                                                     {/* Patient Email */}
@@ -1302,12 +1463,23 @@ const BookingPage = () => {
                                                         <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
                                                         <input
                                                             type="email"
+                                                            id="patientEmail"
+                                                            data-field="patientEmail"
                                                             value={patientEmail}
-                                                            onChange={(e) => setPatientEmail(e.target.value)}
+                                                            onChange={(e) => {
+                                                                setPatientEmail(e.target.value);
+                                                                if (errors.patientEmail) {
+                                                                    setErrors(prev => ({ ...prev, patientEmail: undefined }));
+                                                                }
+                                                            }}
                                                             placeholder="e.g. jane.doe@example.com"
                                                             maxLength={100}
-                                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.patientEmail ? 'border-red-500' : 'border-gray-300'
+                                                                }`}
                                                         />
+                                                        {errors.patientEmail && (
+                                                            <p className="mt-1 text-sm text-red-600 block">{errors.patientEmail}</p>
+                                                        )}
                                                     </div>
 
                                                     {/* Patient Mobile Number */}
@@ -1315,40 +1487,46 @@ const BookingPage = () => {
                                                         <label className="block text-sm font-medium text-gray-700 mb-2">Mobile number</label>
                                                         <input
                                                             type="tel"
+                                                            id="patientMobileNumber"
+                                                            data-field="patientMobileNumber"
                                                             value={patientMobileNumber}
-                                                            onChange={(e) => setPatientMobileNumber(e.target.value)}
-                                                            placeholder="e.g. 08012345678 or +2348012345678"
+                                                            onChange={(e) => {
+                                                                setPatientMobileNumber(e.target.value);
+                                                                if (errors.patientMobileNumber) {
+                                                                    setErrors(prev => ({ ...prev, patientMobileNumber: undefined }));
+                                                                }
+                                                            }}
+                                                            placeholder="e.g. 08012345678"
                                                             maxLength={15}
-                                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.patientMobileNumber ? 'border-red-500' : 'border-gray-300'
+                                                                }`}
                                                         />
+                                                        {errors.patientMobileNumber && (
+                                                            <p className="mt-1 text-sm text-red-600 block">{errors.patientMobileNumber}</p>
+                                                        )}
                                                     </div>
 
-                                                    {/* Patient Home Address */}
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-gray-700 mb-2">Home address</label>
-                                                        <input
-                                                            type="text"
-                                                            value={patientHomeAddress}
-                                                            onChange={(e) => setPatientHomeAddress(e.target.value)}
-                                                            placeholder="e.g. 123 Main Street, Lagos"
-                                                            maxLength={200}
-                                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                        />
-                                                    </div>
 
                                                     {/* Patient Gender */}
                                                     <div>
                                                         <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
                                                         <div className="relative">
                                                             <select
+                                                                id="patientGender"
+                                                                data-field="patientGender"
                                                                 value={patientGender}
-                                                                onChange={(e) => setPatientGender(e.target.value)}
-                                                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
+                                                                onChange={(e) => {
+                                                                    setPatientGender(e.target.value);
+                                                                    if (errors.patientGender) {
+                                                                        setErrors(prev => ({ ...prev, patientGender: undefined }));
+                                                                    }
+                                                                }}
+                                                                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none ${errors.patientGender ? 'border-red-500' : 'border-gray-300'
+                                                                    }`}
                                                             >
                                                                 <option value="">Select Gender</option>
                                                                 <option value="Male">Male</option>
                                                                 <option value="Female">Female</option>
-                                                                <option value="Other">Other</option>
                                                             </select>
                                                             <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                                                                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1356,6 +1534,9 @@ const BookingPage = () => {
                                                                 </svg>
                                                             </div>
                                                         </div>
+                                                        {errors.patientGender && (
+                                                            <p className="mt-1 text-sm text-red-600 block">{errors.patientGender}</p>
+                                                        )}
                                                     </div>
 
                                                     {/* Patient Date of Birth */}
@@ -1364,10 +1545,19 @@ const BookingPage = () => {
                                                         <input
                                                             type="date"
                                                             value={patientDateOfBirth}
-                                                            onChange={(e) => setPatientDateOfBirth(e.target.value)}
+                                                            onChange={(e) => {
+                                                                setPatientDateOfBirth(e.target.value);
+                                                                if (errors.patientDateOfBirth) {
+                                                                    setErrors(prev => ({ ...prev, patientDateOfBirth: undefined }));
+                                                                }
+                                                            }}
                                                             placeholder="YYYY-MM-DD (e.g. 1990-03-15)"
-                                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.patientDateOfBirth ? 'border-red-500' : 'border-gray-300'
+                                                                }`}
                                                         />
+                                                        {errors.patientDateOfBirth && (
+                                                            <p className="mt-1 text-sm text-red-600 block">{errors.patientDateOfBirth}</p>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
@@ -1400,6 +1590,17 @@ const BookingPage = () => {
 
                                             {/* Continue button */}
                                             <div className="pt-6 relative">
+                                                {/* Service/Date/Time Error Display */}
+                                                {(errors.service || errors.date || errors.time) && (
+                                                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                                                        <p className="text-sm text-red-600 font-medium mb-1">Please fix the following:</p>
+                                                        <ul className="list-disc list-inside text-sm text-red-600 space-y-1">
+                                                            {errors.service && <li>{errors.service}</li>}
+                                                            {errors.date && <li>{errors.date}</li>}
+                                                            {errors.time && <li>{errors.time}</li>}
+                                                        </ul>
+                                                    </div>
+                                                )}
                                                 <button
                                                     type="button"
                                                     onClick={() => {
@@ -1408,67 +1609,119 @@ const BookingPage = () => {
                                                         const serviceId = svc?.id || svc?.serviceId || '';
                                                         const forWhom = 'Other';
                                                         const visited = visitedBefore === 'Yes';
-                                                        if (!id || !serviceId || !selectedDate || !selectedTime) {
-                                                            toast.error("Please select a service, date and time to proceed.");
+
+                                                        // Clear previous errors
+                                                        setErrors({});
+
+                                                        // Validate service, date, and time
+                                                        const serviceDateTimeErrors: typeof errors = {};
+                                                        if (!id || !serviceId) {
+                                                            serviceDateTimeErrors.service = "Please select a service to proceed.";
+                                                        }
+                                                        if (!selectedDate) {
+                                                            serviceDateTimeErrors.date = "Please select a date to proceed.";
+                                                        }
+                                                        if (!selectedTime) {
+                                                            serviceDateTimeErrors.time = "Please select a time to proceed.";
+                                                        }
+
+                                                        if (Object.keys(serviceDateTimeErrors).length > 0) {
+                                                            setErrors(serviceDateTimeErrors);
+                                                            // Scroll to first error - prioritize date/time fields
+                                                            setTimeout(() => {
+                                                                let errorElement: HTMLElement | null = null;
+                                                                if (serviceDateTimeErrors.date) {
+                                                                    // Scroll to date selection area
+                                                                    errorElement = document.querySelector('[data-step="appointment-details"]') as HTMLElement;
+                                                                } else if (serviceDateTimeErrors.time) {
+                                                                    // Scroll to time selection area
+                                                                    errorElement = document.querySelector('[data-step="appointment-details"]') as HTMLElement;
+                                                                } else if (serviceDateTimeErrors.service) {
+                                                                    // Scroll to service selection
+                                                                    errorElement = document.querySelector('[data-step="appointment-details"]') as HTMLElement;
+                                                                }
+                                                                if (errorElement) {
+                                                                    errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                                } else {
+                                                                    // Fallback to error message area
+                                                                    const fallback = document.querySelector('.pt-6.relative');
+                                                                    if (fallback) {
+                                                                        fallback.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                                    }
+                                                                }
+                                                            }, 100);
                                                             return;
                                                         }
-                                                        if (visited && !identificationNumber.trim()) {
-                                                            toast.error("Please enter your identification number.");
-                                                            return;
-                                                        }
+
+
                                                         // Validate required fields with proper format checks
-                                                        const validationErrors = [];
+                                                        const fieldValidationErrorsOther: typeof errors = {};
 
                                                         // Validate "About You" section
                                                         if (!fullName?.trim()) {
-                                                            validationErrors.push('Your Full Name is required');
+                                                            fieldValidationErrorsOther.fullName = 'Your Full Name is required';
                                                         } else if (!validateFullName(fullName)) {
-                                                            validationErrors.push('Your Full Name must be at least 3 characters');
+                                                            fieldValidationErrorsOther.fullName = 'Your Full Name must be at least 3 characters';
                                                         }
 
                                                         if (!email?.trim()) {
-                                                            validationErrors.push('Your Email is required');
+                                                            fieldValidationErrorsOther.email = 'Your Email is required';
                                                         } else if (!validateEmail(email)) {
-                                                            validationErrors.push('Please enter a valid email address for yourself (e.g. john.doe@example.com)');
+                                                            fieldValidationErrorsOther.email = 'Please enter a valid email address for yourself (e.g. john.doe@example.com)';
                                                         }
 
                                                         if (!mobileNumber?.trim()) {
-                                                            validationErrors.push('Your Mobile Number is required');
+                                                            fieldValidationErrorsOther.mobileNumber = 'Your Mobile Number is required';
                                                         } else if (!validatePhoneNumber(mobileNumber)) {
-                                                            validationErrors.push('Please enter a valid phone number for yourself (e.g. 08012345678 or +2348012345678)');
+                                                            fieldValidationErrorsOther.mobileNumber = 'Please enter a valid phone number for yourself (e.g. 08012345678)';
                                                         }
 
                                                         // Validate "About Patient" section
                                                         if (!patientFullName?.trim()) {
-                                                            validationErrors.push('Patient Full Name is required');
+                                                            fieldValidationErrorsOther.patientFullName = 'Patient Full Name is required';
                                                         } else if (!validateFullName(patientFullName)) {
-                                                            validationErrors.push('Patient Full Name must be at least 3 characters');
+                                                            fieldValidationErrorsOther.patientFullName = 'Patient Full Name must be at least 3 characters';
                                                         }
 
                                                         if (!patientEmail?.trim()) {
-                                                            validationErrors.push('Patient Email is required');
+                                                            fieldValidationErrorsOther.patientEmail = 'Patient Email is required';
                                                         } else if (!validateEmail(patientEmail)) {
-                                                            validationErrors.push('Please enter a valid email address for the patient (e.g. jane.doe@example.com)');
+                                                            fieldValidationErrorsOther.patientEmail = 'Please enter a valid email address for the patient (e.g. jane.doe@example.com)';
                                                         }
 
                                                         if (!patientMobileNumber?.trim()) {
-                                                            validationErrors.push('Patient Mobile Number is required');
+                                                            fieldValidationErrorsOther.patientMobileNumber = 'Patient Mobile Number is required';
                                                         } else if (!validatePhoneNumber(patientMobileNumber)) {
-                                                            validationErrors.push('Please enter a valid phone number for the patient (e.g. 08012345678 or +2348012345678)');
+                                                            fieldValidationErrorsOther.patientMobileNumber = 'Please enter a valid phone number for the patient (e.g. 08012345678)';
                                                         }
 
                                                         if (!patientGender?.trim()) {
-                                                            validationErrors.push('Patient Gender is required');
+                                                            fieldValidationErrorsOther.patientGender = 'Patient Gender is required';
                                                         }
 
                                                         if (!patientDateOfBirth?.trim()) {
-                                                            validationErrors.push('Patient Date of Birth is required');
+                                                            fieldValidationErrorsOther.patientDateOfBirth = 'Patient Date of Birth is required';
                                                         } else if (!validateDateOfBirth(patientDateOfBirth)) {
-                                                            validationErrors.push('Please enter a valid date of birth for the patient in YYYY-MM-DD format (e.g. 1990-03-15)');
+                                                            fieldValidationErrorsOther.patientDateOfBirth = 'Please enter a valid date (Patient must be at least 2 years old)';
                                                         }
 
-                                                        if (validationErrors.length > 0) {
-                                                            toast.error(validationErrors[0]);
+                                                        if (Object.keys(fieldValidationErrorsOther).length > 0) {
+                                                            setErrors(fieldValidationErrorsOther);
+                                                            // Scroll to first error field
+                                                            const firstErrorField = Object.keys(fieldValidationErrorsOther)[0];
+                                                            setTimeout(() => {
+                                                                // Try to find field by ID first, then by data-field attribute
+                                                                const errorElement = document.getElementById(firstErrorField) ||
+                                                                    document.getElementById(`${firstErrorField}-other`) ||
+                                                                    document.querySelector(`[data-field="${firstErrorField}"]`);
+                                                                if (errorElement) {
+                                                                    errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                                    // Focus the field for better UX
+                                                                    if (errorElement instanceof HTMLElement && !errorElement.hasAttribute('disabled')) {
+                                                                        (errorElement as HTMLElement).focus();
+                                                                    }
+                                                                }
+                                                            }, 100);
                                                             return;
                                                         }
                                                         const toMinutes = (t: string) => {
@@ -1511,14 +1764,13 @@ const BookingPage = () => {
                                                             patientName: patientFullName,
                                                             patientEmail: patientEmail,
                                                             patientPhone: patientMobileNumber,
-                                                            patientAddress: patientHomeAddress,
                                                             patientGender: patientGender,
                                                             patientDOB: patientDateOfBirth,
                                                         };
 
                                                         bookAppointmentMutation.mutate({
-                                                            providerId: id,
-                                                            serviceId,
+                                                            providerId: id || '',
+                                                            serviceId: serviceId || '',
                                                             date: selectedDate,
                                                             start_time: selectedTime,
                                                             end_time: endTime,
@@ -1614,7 +1866,7 @@ const BookingPage = () => {
 
                                     {/* Continue as Guest */}
                                     <button
-                                        onClick={() => setCurrentStep('payment')}
+                                        onClick={() => setCurrentStep('patient-details')}
                                         className="w-full border border-gray-300 rounded-lg py-3 px-4 flex items-center justify-center space-x-3 hover:bg-gray-50 transition-colors"
                                     >
                                         <svg className="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
@@ -1966,16 +2218,17 @@ const BookingPage = () => {
                                             const isWeekdayAvailable = !!wh?.isAvailable;
                                             const baseClasses = 'p-2 text-sm rounded-md transition-colors';
                                             let stateClasses = '';
+                                            // Determine state classes with correct priority
                                             if (!isCurrentMonth) {
                                                 stateClasses = 'text-gray-400';
                                             } else if (isPastDay && !isToday) {
                                                 stateClasses = 'text-gray-300 bg-gray-50 cursor-not-allowed';
-                                            } else if (isToday) {
-                                                stateClasses = 'bg-blue-100 text-blue-900 font-semibold';
                                             } else if (!isWeekdayAvailable) {
                                                 stateClasses = 'text-gray-300 bg-gray-50 cursor-not-allowed';
                                             } else if (isSelected) {
-                                                stateClasses = 'bg-gray-900 text-white';
+                                                stateClasses = 'bg-gray-900 text-white hover:bg-gray-800';
+                                            } else if (isToday) {
+                                                stateClasses = 'bg-blue-100 text-blue-900 font-semibold hover:bg-blue-200';
                                             } else {
                                                 stateClasses = 'text-gray-900 hover:bg-gray-100';
                                             }
@@ -1986,6 +2239,9 @@ const BookingPage = () => {
                                                         if ((!isPastDay || isToday) && isWeekdayAvailable) {
                                                             setEditSelectedDate(iso);
                                                             setEditSelectedTime(''); // Reset time when date changes
+                                                            if (editModalErrors.date) {
+                                                                setEditModalErrors(prev => ({ ...prev, date: undefined }));
+                                                            }
                                                         }
                                                     }}
                                                     disabled={(isPastDay && !isToday) || !isWeekdayAvailable}
@@ -2011,6 +2267,7 @@ const BookingPage = () => {
                                             }}
                                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                                         >
+                                            <option value="">Select a service</option>
                                             {(() => {
                                                 // Get services from providerData or providerFromApi
                                                 let services = providerData?.services || [];
@@ -2055,7 +2312,7 @@ const BookingPage = () => {
                                             <div className="grid grid-cols-2 gap-2">
                                                 {slotsForDate(editSelectedDate).map((time, i) => {
                                                     const disabled = isPastForToday(editSelectedDate, time);
-                                                    const isSelected = editSelectedTime === time && editSelectedDate === editSelectedDate;
+                                                    const isSelected = (editSelectedTime || '').toLowerCase() === time.toLowerCase();
                                                     return (
                                                         <button
                                                             key={`${time}-${i}`}
@@ -2092,7 +2349,7 @@ const BookingPage = () => {
                                                 <div className="grid grid-cols-2 gap-2">
                                                     {slotsForDate(nextAvailableISO).length > 0 ? (
                                                         slotsForDate(nextAvailableISO).map((time, i) => {
-                                                            const isSelected = editSelectedTime === time && editSelectedDate === nextAvailableISO;
+                                                            const isSelected = (editSelectedTime || '').toLowerCase() === time.toLowerCase() && editSelectedDate === nextAvailableISO;
                                                             return (
                                                                 <button
                                                                     key={`${time}-${i}`}
@@ -2120,68 +2377,100 @@ const BookingPage = () => {
                             </div>
 
                             {/* Action Buttons */}
-                            <div className="flex justify-end space-x-3 pt-6 mt-auto border-t border-gray-200">
-                                <button
-                                    onClick={() => setShowEditBookingModal(false)}
-                                    className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        if (!editSelectedDate || !editSelectedTime) {
-                                            toast.error('Please select a date and time');
-                                            return;
-                                        }
+                            <div className="flex flex-col space-y-3 pt-6 mt-auto border-t border-gray-200">
+                                {/* Error Message */}
+                                {(editModalErrors.date || editModalErrors.time) && (
+                                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md text-sm">
+                                        <div className="flex items-center space-x-2 mb-1">
+                                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                            </svg>
+                                            <span className="font-medium">Please fix the following:</span>
+                                        </div>
+                                        <ul className="list-disc list-inside ml-7 space-y-1">
+                                            {editModalErrors.date && <li>{editModalErrors.date}</li>}
+                                            {editModalErrors.time && <li>{editModalErrors.time}</li>}
+                                        </ul>
+                                    </div>
+                                )}
+                                <div className="flex justify-end space-x-3">
+                                    <button
+                                        onClick={() => {
+                                            setShowEditBookingModal(false);
+                                            setEditModalErrors({});
+                                        }}
+                                        className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            // Clear previous errors
+                                            setEditModalErrors({});
 
-                                        // Find service object from API if available
-                                        try {
-                                            const svcFromApi = ((providerFromApi as any)?.services || []).find((s: any) => {
-                                                if (!s) return false;
-                                                const name = s?.name || String(s);
-                                                return name === editBookingSelectedService;
-                                            });
-
-                                            // Update local state
-                                            setSelectedDate(editSelectedDate);
-                                            setSelectedTime(editSelectedTime);
-
-                                            // Update service - preserve object structure if available
-                                            if (svcFromApi) {
-                                                setSelectedService(svcFromApi);
-                                            } else {
-                                                setSelectedService(editBookingSelectedService);
+                                            // Validate date and time
+                                            const newErrors: typeof editModalErrors = {};
+                                            if (!editSelectedDate) {
+                                                newErrors.date = 'Please select a date';
+                                            }
+                                            if (!editSelectedTime) {
+                                                newErrors.time = 'Please select a time';
                                             }
 
-                                            // Update draft in localStorage
-                                            const draft = {
-                                                provider: {
-                                                    id,
-                                                    name: providerData.name,
-                                                    address: providerData.address,
-                                                    image: providerData.image,
-                                                },
-                                                service: svcFromApi || { name: editBookingSelectedService },
-                                                date: editSelectedDate,
-                                                time: editSelectedTime,
-                                            };
-                                            localStorage.setItem('bookingDraft', JSON.stringify(draft));
+                                            if (Object.keys(newErrors).length > 0) {
+                                                setEditModalErrors(newErrors);
+                                                return;
+                                            }
 
-                                            toast.success('Booking details updated');
-                                            setShowEditBookingModal(false);
-                                        } catch (error) {
-                                            console.error('Error updating booking:', error);
-                                            toast.error('Failed to update booking details');
-                                        }
-                                    }}
-                                    disabled={!editSelectedDate || !editSelectedTime}
-                                    className={`px-4 py-2 rounded-md transition-colors font-medium ${!editSelectedDate || !editSelectedTime
-                                        ? 'bg-gray-400 text-white cursor-not-allowed'
-                                        : 'bg-gray-900 text-white hover:bg-gray-800'
-                                        }`}
-                                >
-                                    Update Booking
-                                </button>
+                                            // Find service object from API if available
+                                            try {
+                                                const svcFromApi = ((providerFromApi as any)?.services || []).find((s: any) => {
+                                                    if (!s) return false;
+                                                    const name = s?.name || String(s);
+                                                    return name === editBookingSelectedService;
+                                                });
+
+                                                // Update local state
+                                                setSelectedDate(editSelectedDate);
+                                                setSelectedTime(editSelectedTime);
+
+                                                // Update service - preserve object structure if available
+                                                if (svcFromApi) {
+                                                    setSelectedService(svcFromApi);
+                                                } else {
+                                                    setSelectedService(editBookingSelectedService);
+                                                }
+
+                                                // Update draft in localStorage
+                                                const draft = {
+                                                    provider: {
+                                                        id,
+                                                        name: providerData.name,
+                                                        address: providerData.address,
+                                                        image: providerData.image,
+                                                    },
+                                                    service: svcFromApi || { name: editBookingSelectedService },
+                                                    date: editSelectedDate,
+                                                    time: editSelectedTime,
+                                                };
+                                                localStorage.setItem('bookingDraft', JSON.stringify(draft));
+
+                                                toast.success('Booking details updated');
+                                                setShowEditBookingModal(false);
+                                            } catch (error) {
+                                                console.error('Error updating booking:', error);
+                                                toast.error('Failed to update booking details');
+                                            }
+                                        }}
+                                        disabled={!editSelectedDate || !editSelectedTime}
+                                        className={`px-4 py-2 rounded-md transition-colors font-medium ${!editSelectedDate || !editSelectedTime
+                                            ? 'bg-gray-400 text-white cursor-not-allowed'
+                                            : 'bg-gray-900 text-white hover:bg-gray-800'
+                                            }`}
+                                    >
+                                        Update Booking
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>

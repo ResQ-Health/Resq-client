@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { LoadingSpinner } from './LoadingSpinner';
 
 interface ProtectedRouteProps {
     children: React.ReactNode;
@@ -18,11 +19,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
     // Show loading spinner while checking authentication
     if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-screen">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            </div>
-        );
+        return <LoadingSpinner />;
     }
 
     // If authentication is required and user is not authenticated

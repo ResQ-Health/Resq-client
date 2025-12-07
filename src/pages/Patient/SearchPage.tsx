@@ -8,6 +8,7 @@ import TimeDropdown from '../../components/TimeDropdown'
 import RatingDropdown from '../../components/RatingDropdown'
 import { useAllProviders } from '../../services/providerService'
 import type { Hospital } from '../../data/hospitals'
+import { LoadingSpinner } from '../../components/LoadingSpinner'
 
 const SearchPage = () => {
     const { filters, removeFilter, clearAllFilters, addFilter } = useFilters();
@@ -331,7 +332,7 @@ const SearchPage = () => {
 
                 {/* Loading / Error */}
                 {isLoading && (
-                    <div className="py-20 text-center text-gray-600">Loading providers...</div>
+                    <LoadingSpinner fullScreen={false} className="mx-auto my-20" />
                 )}
                 {isError && !isLoading && (
                     <div className="py-20 text-center text-red-600">Failed to load providers.</div>

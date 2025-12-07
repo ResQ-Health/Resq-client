@@ -6,6 +6,7 @@ import logo from '/icons/Logomark (1).png';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import toast from 'react-hot-toast';
+import { LoadingSpinner } from '../../components/LoadingSpinner';
 
 const BookingSuccessPage = () => {
     const navigate = useNavigate();
@@ -17,6 +18,13 @@ const BookingSuccessPage = () => {
     const [receiptSent, setReceiptSent] = useState(false);
     const [isSendingReceipt, setIsSendingReceipt] = useState(false);
     const sendingRef = useRef(false); // Use ref to prevent multiple simultaneous sends
+
+    // Clear booking draft on successful load
+    useEffect(() => {
+        if (receiptData?.success) {
+            localStorage.removeItem('bookingDraft');
+        }
+    }, [receiptData]);
 
     // Generate PDF from receipt template - shared function for download and email
     const generateReceiptPDF = async (): Promise<Blob | null> => {
@@ -181,14 +189,7 @@ const BookingSuccessPage = () => {
     };
 
     if (isLoading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
-                    <p className="text-gray-600">Loading appointment details...</p>
-                </div>
-            </div>
-        );
+        return <LoadingSpinner />;
     }
 
     if (error || !receiptData?.success) {
@@ -209,7 +210,8 @@ const BookingSuccessPage = () => {
     }
 
     const { patient, appointment, payment_summary } = receiptData.data;
-    const userAddress = patient.address || (appointment.location ? `${appointment.location.street}, ${appointment.location.city}, ${appointment.location.state} ${appointment.location.postal_code}, ${appointment.location.country}` : '');
+    const appointmentAddress = appointment.location ? `${appointment.location.street}, ${appointment.location.city}, ${appointment.location.state} ${appointment.location.postal_code}, ${appointment.location.country}` : '';
+    const userAddress = patient.address || '';
 
     return (
         <div className="min-h-screen bg-white w-full">
@@ -266,10 +268,7 @@ const BookingSuccessPage = () => {
                                 <div className="flex justify-between">
                                     <span className="text-sm text-gray-600">Location</span>
                                     <span className="text-sm font-medium text-black">
-                                        {appointment.location ?
-                                            `${appointment.location.street}, ${appointment.location.city}, ${appointment.location.state} ${appointment.location.postal_code}, ${appointment.location.country}`
-                                            : 'N/A'
-                                        }
+                                        {appointmentAddress || 'N/A'}
                                     </span>
                                 </div>
                                 <div className="flex justify-between">
@@ -424,7 +423,7 @@ const BookingSuccessPage = () => {
                                 <p><span className="font-medium">Service:</span> {appointment.type}</p>
                                 <p><span className="font-medium">Date:</span> {appointment.date ? formatDate(appointment.date) : 'N/A'}</p>
                                 <p><span className="font-medium">Time:</span> {appointment.time ? formatTime(appointment.time) : 'N/A'}</p>
-                                <p><span className="font-medium">Location:</span> {userAddress}</p>
+                                <p><span className="font-medium">Location:</span> {appointmentAddress}</p>
                             </div>
                         </div>
                     </div>
@@ -465,4 +464,5 @@ const BookingSuccessPage = () => {
     );
 };
 
-export default BookingSuccessPage; 
+export default BookingSuccessPage;
+

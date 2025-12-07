@@ -1,6 +1,7 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { LoadingSpinner } from './LoadingSpinner';
 
 interface PublicRouteProps {
     children: React.ReactNode;
@@ -16,14 +17,7 @@ export const PublicRoute: React.FC<PublicRouteProps> = ({
 
     // Show loading spinner while checking authentication
     if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-screen">
-                <div
-                    className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"
-                    data-testid="loading-spinner"
-                ></div>
-            </div>
-        );
+        return <LoadingSpinner />;
     }
 
     // If user is authenticated, redirect to the specified route

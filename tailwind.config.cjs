@@ -9,7 +9,12 @@ module.exports = {
       fontFamily: {
         sans: ['Plus Jakarta Sans', 'sans-serif'],
       },
+      colors: {
+        primary: '#06202E',
+        'primary-foreground': '#FFFFFF',
+        background: '#F6F8FA',
+      },
     },
   },
   plugins: [],
-}; 
+};

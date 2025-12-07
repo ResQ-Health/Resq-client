@@ -1,0 +1,21 @@
+# Project Rules & Preferences
+
+## Design System
+- **Primary Color**: `#06202E` (Main Brand Color)
+- **Backgrounds**:
+  - White: `#FFFFFF`
+  - Light Gray: `#F6F8FA`
+- **Text**:
+  - Primary: `#000000`
+
+## Coding Standards
+- **React**: Use functional components with hooks.
+- **TypeScript**: Strict typing, avoid `any`.
+- **Styling**: Tailwind CSS is preferred. Use the defined primary colors in Tailwind config if possible or arbitrary values if needed but consistent with `#06202E`.
+- **State Management**: React Query for server state, Context/Local State for UI state.
+
+## Project Patterns
+- **API**: Use the defined Service Layer pattern in `src/services`.
+- **Testing**: Maintain high test coverage with Vitest.
+- **Memory Bank**: Always check memory bank files before starting tasks.
+

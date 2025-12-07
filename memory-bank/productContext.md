@@ -33,6 +33,14 @@ RESQ is a healthcare platform designed to bridge the gap between patients and he
 - Practice management features
 - Service offering management
 
+## Design System & Branding
+**Primary Colors**:
+- **Main Primary**: `#06202E` (Deep Blue/Black) - Used for primary actions, headers, and branding.
+- **Secondary/Backgrounds**:
+  - `#FFFFFF` (White) - Primary background, cards, inputs.
+  - `#F6F8FA` (Light Gray) - Secondary background, page backgrounds.
+  - `#000000` (Black) - Primary text.
+
 ## User Experience Goals
 
 ### 1. Seamless Onboarding
@@ -145,4 +153,4 @@ RESQ is a healthcare platform designed to bridge the gap between patients and he
 - **User Management**: Authentication and authorization
 - **Notification System**: Real-time alerts and updates
 - **Analytics**: Usage tracking and insights
-- **Support System**: Customer service integration 
+- **Support System**: Customer service integration

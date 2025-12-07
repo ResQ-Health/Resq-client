@@ -10,6 +10,8 @@ import { signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider } from '../../config/firebase';
 import toast from 'react-hot-toast';
 
+import { LoadingSpinner } from '../../components/LoadingSpinner';
+
 // Module-level flag to prevent multiple auth checks across component instances
 let globalAuthCheckInProgress = false;
 
@@ -194,14 +196,7 @@ function OnboardingPage() {
 
   // Show loading state while checking authentication
   if (checkingAuth) {
-    return (
-      <div className="min-h-screen mx-auto flex flex-col justify-center max-w-[480px] px-4 items-center">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-[#06202E] mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
-        </div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   return (

@@ -12,6 +12,7 @@ import { useNavigate } from 'react-router-dom';
 import { usePatientAppointments, useDeleteAppointment, Appointment } from '../../services/userService';
 import { useQueryClient } from '@tanstack/react-query';
 import Pagination from '../../components/Pagination';
+import { LoadingSpinner } from '../../components/LoadingSpinner';
 
 export default function BookingHistoryPage() {
     const navigate = useNavigate();
@@ -414,16 +415,7 @@ export default function BookingHistoryPage() {
     if (!isAuthenticated) return null;
 
     if (isLoading) {
-        return (
-            <div className="w-full min-h-screen bg-gray-50 flex items-center justify-center">
-                <div className="text-center">
-                    <div className="w-16 h-16 bg-[#16202E]/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#16202E]"></div>
-                    </div>
-                    <h2 className="text-xl font-semibold text-gray-800 mb-2">Loading Appointments</h2>
-                </div>
-            </div>
-        );
+        return <LoadingSpinner />;
     }
 
     if (error) {

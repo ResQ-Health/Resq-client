@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import HospitalCard from '../../components/HospitalCard';
 import { usePatientProfile } from '../../services/userService';
 import { Hospital } from '../../data/hospitals';
+import { LoadingSpinner } from '../../components/LoadingSpinner';
 
 export default function FavouritesPage() {
     const { data: profileData, isLoading, error } = usePatientProfile();
@@ -42,17 +43,7 @@ export default function FavouritesPage() {
     }, [profileData]);
 
     if (isLoading) {
-        return (
-            <div className="w-full min-h-screen bg-gray-50">
-                <div className="max-w-7xl mx-auto p-6">
-                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
-                        <div className="flex items-center justify-center py-12">
-                            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#16202E]"></div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        );
+        return <LoadingSpinner />;
     }
 
     if (error) {

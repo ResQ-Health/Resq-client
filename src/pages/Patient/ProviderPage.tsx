@@ -5,6 +5,7 @@ import { createReview, likeReview, saveReview } from '../../services/providerSer
 import { useToggleFavoriteProvider, useFavoriteStatus } from '../../services/userService';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
+import { LoadingSpinner } from '../../components/LoadingSpinner';
 
 // Provider data in JSON format - this will be replaced with dynamic data
 // removed dummy getProviderData; will map from API
@@ -12,12 +13,12 @@ import toast from 'react-hot-toast';
 const ProviderPage = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
-    const { user } = useAuth();
+    const { user, isAuthenticated } = useAuth();
     const { data, isLoading, isError } = useAllProviders();
     const toggleFavoriteMutation = useToggleFavoriteProvider();
     const { data: favoriteStatusData } = useFavoriteStatus(id);
     const [providerData, setProviderData] = useState<any>(null);
-    const [selectedService, setSelectedService] = useState('CT Scan');
+    const [selectedService, setSelectedService] = useState('');
     const [selectedTimeSlot, setSelectedTimeSlot] = useState('');
     const [showFullDescription, setShowFullDescription] = useState(false);
     const [isFavorite, setIsFavorite] = useState(false);
@@ -31,6 +32,7 @@ const ProviderPage = () => {
     const [showAllServices, setShowAllServices] = useState(false);
     const [showReviewsModal, setShowReviewsModal] = useState(false);
     const [showAddReviewModal, setShowAddReviewModal] = useState(false);
+    const [showSignInModal, setShowSignInModal] = useState(false);
     const [isSubmittingReview, setIsSubmittingReview] = useState(false);
     const [selectedRating, setSelectedRating] = useState(5);
     const [reviewText, setReviewText] = useState('');
@@ -247,11 +249,92 @@ const ProviderPage = () => {
         };
 
         setProviderData(mapped);
-        // Initialize booking selected service to first available
-        const firstService = (mapped.services || [])[0] || '';
-        setBookingSelectedService(firstService);
+
+        // Initialize booking selected service to first available from the API response
+        let initialService = '';
+        if (mapped.services && mapped.services.length > 0) {
+            const firstSvc = mapped.services[0];
+            // Extract name if object, otherwise use string directly
+            initialService = typeof firstSvc === 'string' ? firstSvc : (firstSvc.name || firstSvc.serviceName || firstSvc.title || String(firstSvc));
+        }
+
+        setBookingSelectedService(initialService);
+        setSelectedService(initialService);
         setLoading(false);
     }, [isLoading, isError, providerFromApi, user?.id]); // Add user?.id as dependency to update isLiked/isSaved when user changes
+
+    // Restore data from draft AFTER provider data is loaded (in a separate effect to not override default immediately if undesired)
+    useEffect(() => {
+        if (providerData && !loading) {
+            // Re-calculate the default initial service to fallback to if draft has no service
+            let initialService = '';
+            if (providerData.services && providerData.services.length > 0) {
+                const firstSvc = providerData.services[0];
+                initialService = typeof firstSvc === 'string' ? firstSvc : (firstSvc.name || firstSvc.serviceName || firstSvc.title || String(firstSvc));
+            }
+
+            // Restore from localStorage if available and matches this provider
+            try {
+                const draftRaw = localStorage.getItem('bookingDraft');
+                if (draftRaw) {
+                    const draft = JSON.parse(draftRaw);
+                    // Check if draft belongs to current provider
+                    const draftProviderId = draft.provider?.id || draft.provider?._id;
+                    if (draftProviderId === id) {
+                        // Restore service
+                        if (draft.service) {
+                            const draftSvc = draft.service;
+                            let serviceToSet = '';
+                            if (typeof draftSvc === 'string') {
+                                serviceToSet = draftSvc;
+                            } else if (draftSvc && typeof draftSvc === 'object') {
+                                serviceToSet = draftSvc.name || draftSvc.serviceName || draftSvc.title || draftSvc;
+                            }
+
+                            if (serviceToSet) {
+                                setBookingSelectedService(serviceToSet);
+                                setSelectedService(serviceToSet);
+                            }
+                        } else {
+                            // Draft exists but no service set? fallback to default
+                            setBookingSelectedService(initialService);
+                            setSelectedService(initialService);
+                        }
+
+                        // Restore date
+                        if (draft.date) {
+                            setSelectedDate(draft.date);
+                            // Update calendar view to match selected date
+                            // Explicitly handle YYYY-MM-DD format to avoid timezone shifts
+                            let dateObj;
+                            if (typeof draft.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(draft.date)) {
+                                const [y, m, d] = draft.date.split('-').map(Number);
+                                dateObj = new Date(y, m - 1, d);
+                            } else {
+                                dateObj = new Date(draft.date);
+                            }
+
+                            if (!isNaN(dateObj.getTime())) {
+                                setCalendarMonth(dateObj.getMonth());
+                                setCalendarYear(dateObj.getFullYear());
+                            }
+                        }
+
+                        // Restore time
+                        if (draft.time) {
+                            setSelectedTime(draft.time);
+                        }
+                    } else {
+                        // Draft is for another provider, ensure we stick with the default first service for THIS provider
+                        setBookingSelectedService(initialService);
+                        setSelectedService(initialService);
+                    }
+                }
+            } catch (e) {
+                console.error('Error parsing draft:', e);
+            }
+        }
+    }, [providerData, loading, id]);
 
     // Set initial favorite state when favorite status data loads
     useEffect(() => {
@@ -806,6 +889,22 @@ const ProviderPage = () => {
         return null;
     }, [selectedDate, workingHoursMap]);
 
+    // Stable next available date relative to Tomorrow (for the Availability Card)
+    const nextAvailableFromTomorrowISO = useMemo(() => {
+        const start = new Date(tomorrowISO);
+        for (let i = 1; i <= 30; i++) {
+            const d = new Date(start);
+            d.setDate(start.getDate() + i);
+            const y = d.getFullYear();
+            const m = `${d.getMonth() + 1}`.padStart(2, '0');
+            const day = `${d.getDate()}`.padStart(2, '0');
+            const iso = `${y}-${m}-${day}`;
+            const wh = getWHForDate(iso);
+            if (wh?.isAvailable) return iso;
+        }
+        return null;
+    }, [tomorrowISO, workingHoursMap]);
+
     const timeStringToMinutes = (timeStr: string): number => {
         // Supports formats like "10:00 AM" or "10:00 am"
         const [time, merRaw] = timeStr.trim().split(/\s+/);
@@ -844,14 +943,7 @@ const ProviderPage = () => {
     }, [calendarMonth, calendarYear]);
 
     if (loading) {
-        return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                    <p className="text-gray-600">Loading provider information...</p>
-                </div>
-            </div>
-        );
+        return <LoadingSpinner />;
     }
 
     if (error || !providerData) {
@@ -905,39 +997,109 @@ const ProviderPage = () => {
                 {/* Overlapping Availability Card */}
                 <div className="absolute top-[350px] right-16 w-96">
                     <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
-                        <h3 className="text-xl font-semibold text-gray-900 mb-4">Availability</h3>
+                        <h3 className="text-xl font-semibold text-gray-900 mb-4 text-center">Availability</h3>
+                        <div className="border-b border-gray-200 mb-4"></div>
 
                         {/* Service Dropdown */}
                         <div className="mb-6">
-                            <label className="block text-sm font-medium text-gray-700 mb-2">
-                                Service
-                            </label>
-                            <select
-                                value={selectedService}
-                                onChange={(e) => setSelectedService(e.target.value)}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-[28px] focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                            >
-                                {providerData.services.map((service: string) => (
-                                    <option key={service} value={service}>
-                                        {service}
-                                    </option>
-                                ))}
-                            </select>
+                            <div className="relative">
+                                <select
+                                    value={selectedService}
+                                    onChange={(e) => setSelectedService(e.target.value)}
+                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-700"
+                                >
+                                    {providerData.services.map((service: string) => (
+                                        <option key={service} value={service}>
+                                            {service}
+                                        </option>
+                                    ))}
+                                </select>
+                                <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                                    <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
+                                </div>
+                            </div>
                         </div>
 
                         {/* Time Slots */}
-                        <div className="space-y-4">
-                            {Object.entries(providerData.timeSlots as Record<string, string[]>).map(([date, slots]) => (
-                                <div key={date}>
-                                    <h4 className="text-[20px] font-medium text-[#06202E] mb-2">{date}</h4>
-                                    <div className="grid grid-cols-2 gap-2">
-                                        {(slots as string[]).map((slot: string) => (
+                        <div className="space-y-6">
+                            {/* Today */}
+                            <div>
+                                <h4 className="text-base font-medium text-gray-900 mb-3">Today</h4>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {slotsForDate(todayISO).slice(0, 6).map((slot: string) => (
+                                        <button
+                                            key={`today-${slot}`}
+                                            onClick={() => {
+                                                setSelectedDate(todayISO);
+                                                handleTimeSlotSelect(slot);
+                                                setShowBookingModal(true);
+                                                setBookingSelectedService(selectedService);
+                                                setSelectedTime(slot);
+                                            }}
+                                            className={`px-2 py-2 rounded-full text-xs border transition-colors text-center ${selectedDate === todayISO && selectedTime && timeStringToMinutes(selectedTime) === timeStringToMinutes(slot)
+                                                ? 'bg-[#06202E] text-white border-[#06202E]'
+                                                : 'border-gray-200 text-gray-700 hover:border-blue-500 hover:text-blue-600'
+                                                }`}
+                                        >
+                                            {slot}
+                                        </button>
+                                    ))}
+                                    {slotsForDate(todayISO).length === 0 && (
+                                        <div className="col-span-3 text-sm text-gray-500 italic">No slots available</div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Tomorrow */}
+                            <div>
+                                <h4 className="text-base font-medium text-gray-900 mb-3">
+                                    {new Date(tomorrowISO).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'long' })}, Tomorrow
+                                </h4>
+                                <div className="grid grid-cols-3 gap-2">
+                                    {slotsForDate(tomorrowISO).slice(0, 6).map((slot: string) => (
+                                        <button
+                                            key={`tomorrow-${slot}`}
+                                            onClick={() => {
+                                                setSelectedDate(tomorrowISO);
+                                                handleTimeSlotSelect(slot);
+                                                setShowBookingModal(true);
+                                                setBookingSelectedService(selectedService);
+                                                setSelectedTime(slot);
+                                            }}
+                                            className={`px-2 py-2 rounded-full text-xs border transition-colors text-center ${selectedDate === tomorrowISO && selectedTime && timeStringToMinutes(selectedTime) === timeStringToMinutes(slot)
+                                                ? 'bg-[#06202E] text-white border-[#06202E]'
+                                                : 'border-gray-200 text-gray-700 hover:border-blue-500 hover:text-blue-600'
+                                                }`}
+                                        >
+                                            {slot}
+                                        </button>
+                                    ))}
+                                    {slotsForDate(tomorrowISO).length === 0 && (
+                                        <div className="col-span-3 text-sm text-gray-500 italic">No slots available</div>
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Next Available Day */}
+                            {nextAvailableFromTomorrowISO && (
+                                <div>
+                                    <h4 className="text-base font-medium text-gray-900 mb-3">
+                                        {new Date(nextAvailableFromTomorrowISO).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'long' })}
+                                    </h4>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {slotsForDate(nextAvailableFromTomorrowISO).slice(0, 6).map((slot: string) => (
                                             <button
-                                                key={slot}
-                                                onClick={() => handleTimeSlotSelect(slot)}
-                                                className={`px-3 py-2 rounded-[28px] text-sm  border transition-colors ${selectedTimeSlot === slot
-                                                    ? 'bg-[#06202E] text-white border-[#5b5c5c]'
-                                                    : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                                                key={`next-${slot}`}
+                                                onClick={() => {
+                                                    setSelectedDate(nextAvailableFromTomorrowISO);
+                                                    handleTimeSlotSelect(slot);
+                                                    setShowBookingModal(true);
+                                                    setBookingSelectedService(selectedService);
+                                                    setSelectedTime(slot);
+                                                }}
+                                                className={`px-2 py-2 rounded-full text-xs border transition-colors text-center ${selectedDate === nextAvailableFromTomorrowISO && selectedTime && timeStringToMinutes(selectedTime) === timeStringToMinutes(slot)
+                                                    ? 'bg-[#06202E] text-white border-[#06202E]'
+                                                    : 'border-gray-200 text-gray-700 hover:border-blue-500 hover:text-blue-600'
                                                     }`}
                                             >
                                                 {slot}
@@ -945,16 +1107,17 @@ const ProviderPage = () => {
                                         ))}
                                     </div>
                                 </div>
-                            ))}
+                            )}
                         </div>
 
                         {/* See all appointments button */}
                         <button
                             onClick={() => {
                                 setShowBookingModal(true);
+                                setBookingSelectedService(selectedService);
                                 setShowDateTimeError(false);
                             }}
-                            className="w-full mt-6 bg-[#06202E] text-white py-3 px-4 rounded-md hover:bg-[#06202E]/80 transition-colors font-medium"
+                            className="w-full mt-8 bg-[#06202E] text-white py-3 px-4 rounded-lg hover:bg-[#06202E]/90 transition-colors font-medium text-sm"
                         >
                             See all appointments
                         </button>
@@ -1319,7 +1482,13 @@ const ProviderPage = () => {
                                 <p className="text-gray-500 text-sm">Share insights about your experience with others</p>
                             </div>
                             <button
-                                onClick={() => setShowAddReviewModal(true)}
+                                onClick={() => {
+                                    if (!isAuthenticated) {
+                                        setShowSignInModal(true);
+                                    } else {
+                                        setShowAddReviewModal(true);
+                                    }
+                                }}
                                 className="bg-gray-900 text-white px-4 py-2 rounded-md hover:bg-gray-800 transition-colors text-sm font-medium"
                             >
                                 Write a review
@@ -1465,7 +1634,13 @@ const ProviderPage = () => {
                                     </div>
                                 </div>
                                 <button
-                                    onClick={() => setShowAddReviewModal(true)}
+                                    onClick={() => {
+                                        if (!isAuthenticated) {
+                                            setShowSignInModal(true);
+                                        } else {
+                                            setShowAddReviewModal(true);
+                                        }
+                                    }}
                                     className="bg-teal-700 text-white px-4 py-2 rounded-md hover:bg-teal-800 transition-colors text-sm font-medium"
                                 >
                                     Add a review
@@ -1771,6 +1946,67 @@ const ProviderPage = () => {
                 </div>
             )}
 
+            {/* Sign In Required Modal */}
+            {showSignInModal && (
+                <div
+                    className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4"
+                    onClick={(e) => {
+                        if (e.target === e.currentTarget) {
+                            setShowSignInModal(false);
+                        }
+                    }}
+                >
+                    <div className="bg-white rounded-lg w-full max-w-md shadow-xl">
+                        {/* Modal Header */}
+                        <div className="p-6 border-b border-gray-200 relative">
+                            <button
+                                onClick={() => setShowSignInModal(false)}
+                                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                            <h2 className="text-xl font-bold text-gray-900 pr-8">Sign In Required</h2>
+                            <p className="text-gray-600 text-sm mt-1">You need to sign in to add a review.</p>
+                        </div>
+
+                        {/* Modal Content */}
+                        <div className="p-6">
+                            <div className="flex items-center justify-center mb-6">
+                                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                                    <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                                    </svg>
+                                </div>
+                            </div>
+                            <p className="text-center text-gray-700 mb-6">
+                                Please sign in to your account to share your experience and add a review.
+                            </p>
+
+                            {/* Action Buttons */}
+                            <div className="flex space-x-3">
+                                <button
+                                    onClick={() => setShowSignInModal(false)}
+                                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors font-medium"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setShowSignInModal(false);
+                                        navigate('/sign-in-patient', { state: { from: window.location.pathname } });
+                                    }}
+                                    className="flex-1 px-4 py-2 bg-gray-900 text-white rounded-md hover:bg-gray-800 transition-colors font-medium"
+                                >
+                                    Sign In
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Booking Modal */}
             {showBookingModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -1930,10 +2166,10 @@ const ProviderPage = () => {
                                                     <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">TOMORROW</span>
                                                 )}
                                             </div>
-                                            <div className="grid grid-cols-2 gap-2">
+                                            <div className="grid grid-cols-3 gap-3">
                                                 {slotsForDate(selectedDate).map((time, i) => {
                                                     const disabled = isPastForToday(selectedDate, time);
-                                                    const isSelected = selectedTime === time && selectedDate === selectedDate;
+                                                    const isSelected = selectedTime && timeStringToMinutes(selectedTime) === timeStringToMinutes(time);
                                                     return (
                                                         <button
                                                             key={`${time}-${i}`}
@@ -1944,11 +2180,11 @@ const ProviderPage = () => {
                                                                 }
                                                             }}
                                                             disabled={disabled}
-                                                            className={`px-3 py-2 text-sm rounded-md border transition-colors ${disabled
-                                                                ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                                            className={`px-3 py-2 text-sm rounded-full border transition-colors ${disabled
+                                                                ? 'bg-gray-50 text-gray-300 border-gray-100 cursor-not-allowed'
                                                                 : isSelected
-                                                                    ? 'bg-gray-900 text-white border-gray-900'
-                                                                    : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
+                                                                    ? 'bg-[#06202E] text-white border-[#06202E]'
+                                                                    : 'bg-white text-gray-700 border-gray-200 hover:border-blue-500 hover:text-blue-600'
                                                                 }`}
                                                         >
                                                             {time}
@@ -1956,45 +2192,11 @@ const ProviderPage = () => {
                                                     );
                                                 })}
                                                 {slotsForDate(selectedDate).length === 0 && (
-                                                    <div className="col-span-2 text-sm text-gray-500">No slots for this day.</div>
+                                                    <div className="col-span-3 text-sm text-gray-500 italic">No slots for this day.</div>
                                                 )}
                                             </div>
                                         </div>
 
-                                        {/* Next Possible Day */}
-                                        {nextAvailableISO && (
-                                            <div>
-                                                <div className="flex items-center justify-between mb-3">
-                                                    <h4 className="text-sm font-medium text-gray-900">{new Date(nextAvailableISO).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</h4>
-                                                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">NEXT</span>
-                                                </div>
-                                                <div className="grid grid-cols-2 gap-2">
-                                                    {slotsForDate(nextAvailableISO).length > 0 ? (
-                                                        slotsForDate(nextAvailableISO).map((time, i) => {
-                                                            const isSelected = selectedTime === time && selectedDate === nextAvailableISO;
-                                                            return (
-                                                                <button
-                                                                    key={`${time}-${i}`}
-                                                                    onClick={() => {
-                                                                        setSelectedDate(nextAvailableISO);
-                                                                        setSelectedTime(time);
-                                                                        setShowDateTimeError(false);
-                                                                    }}
-                                                                    className={`px-3 py-2 text-sm rounded-md border transition-colors ${isSelected
-                                                                        ? 'bg-gray-900 text-white border-gray-900'
-                                                                        : 'bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100'
-                                                                        }`}
-                                                                >
-                                                                    {time}
-                                                                </button>
-                                                            );
-                                                        })
-                                                    ) : (
-                                                        <div className="col-span-2 text-sm text-gray-500">Not available for this day.</div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        )}
                                     </div>
                                 </div>
                             </div>

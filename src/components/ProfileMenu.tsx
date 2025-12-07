@@ -50,7 +50,7 @@ export const ProfileMenu: React.FC<ProfileMenuProps> = ({ isOpen, onClose }) => 
 
     const handleLogout = () => {
         logout();
-        navigate('/');
+        navigate('/sign-in-patient');
         onClose();
     };
 

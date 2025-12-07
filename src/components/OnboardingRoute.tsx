@@ -2,6 +2,7 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { usePatientProfile } from '../services/userService';
+import { LoadingSpinner } from './LoadingSpinner';
 
 interface OnboardingRouteProps {
     children: React.ReactNode;
@@ -18,11 +19,7 @@ export const OnboardingRoute: React.FC<OnboardingRouteProps> = ({ children }) =>
 
     // Show loading spinner while checking authentication and profile
     if (authLoading || profileLoading) {
-        return (
-            <div className="flex items-center justify-center min-h-screen">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            </div>
-        );
+        return <LoadingSpinner />;
     }
 
     // If not authenticated, redirect to login

@@ -17,6 +17,7 @@ import { usePatientProfile, useUpdatePatientProfile, useUploadProfilePicture, Pa
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
+import { LoadingSpinner } from '../../components/LoadingSpinner';
 
 const TABS = [
   { label: 'Basic details' },
@@ -559,11 +560,7 @@ export default function Myaccount() {
 
   // Loading state
   if (isLoading) {
-    return (
-      <div className="w-full min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   // Error state
