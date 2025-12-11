@@ -235,9 +235,8 @@ export interface InitializePaymentResponse {
 }
 
 export const initializePayment = async (payload: InitializePaymentRequest): Promise<InitializePaymentResponse> => {
-    // Prefer an explicit public URL if provided (e.g., for production),
-    // otherwise fall back to the current origin (works for Vite dev and prod).
-    const publicUrl = (import.meta as any)?.env?.VITE_PUBLIC_URL || window.location.origin;
+    // Use window.location.origin to ensure the callback returns to the current domain (e.g. production)
+    const publicUrl = window.location.origin;
     const base = String(publicUrl).replace(/\/$/, '');
     const res = await apiClient.post('/api/v1/payments/initialize', {
         ...payload,
