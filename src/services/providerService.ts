@@ -235,8 +235,10 @@ export interface InitializePaymentResponse {
 }
 
 export const initializePayment = async (payload: InitializePaymentRequest): Promise<InitializePaymentResponse> => {
-    // Use window.location.origin to ensure the callback returns to the current domain (e.g. production)
-    const publicUrl = window.location.origin;
+    // Use VITE_APP_URL from environment variables if defined (e.g. set in Vercel or .env),
+    // otherwise fallback to window.location.origin for local development or if not set.
+    const publicUrl = import.meta.env.VITE_APP_URL || window.location.origin;
+    // Ensure we don't have double slashes if env var has trailing slash
     const base = String(publicUrl).replace(/\/$/, '');
     const res = await apiClient.post('/api/v1/payments/initialize', {
         ...payload,
