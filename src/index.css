@@ -13,6 +13,7 @@ html, body, #root {
 body {
   background-color: #ffffff;
   font-family: 'Plus Jakarta Sans', sans-serif;
+  overflow-x: hidden;
 }
 
 * {

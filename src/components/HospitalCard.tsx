@@ -1,12 +1,16 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Hospital } from '../data/hospitals';
+import { MdFavorite } from 'react-icons/md';
+import { IoIosArrowForward } from 'react-icons/io';
 
 interface HospitalCardProps {
   hospital: Hospital;
+  variant?: 'default' | 'horizontal';
+  onRemove?: () => void;
 }
 
-const HospitalCard: React.FC<HospitalCardProps> = ({ hospital }) => {
+const HospitalCard: React.FC<HospitalCardProps> = ({ hospital, variant = 'default', onRemove }) => {
   const navigate = useNavigate();
 
   const renderStars = (score: number) => {
@@ -32,9 +36,87 @@ const HospitalCard: React.FC<HospitalCardProps> = ({ hospital }) => {
     navigate(`/search/provider/${hospital.id}`);
   };
 
+  const handleRemove = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (onRemove) {
+      onRemove();
+    }
+  };
+
+  if (variant === 'horizontal') {
+    return (
+      <div
+        className="bg-white w-full rounded-xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer flex h-[220px]"
+        onClick={handleCardClick}
+      >
+        {/* Left Side - Image (45%) */}
+        <div className="w-[45%] h-full relative bg-gray-50">
+          {hospital.image ? (
+            <img
+              src={hospital.image}
+              alt={hospital.name}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full bg-gray-100 flex items-center justify-center">
+              <div className="text-center p-4">
+                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                  <svg className="w-6 h-6 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right Side - Content */}
+        <div className="flex-1 p-5 flex flex-col h-full bg-white">
+          {/* Top - Remove Button */}
+          <div className="flex justify-start mb-3">
+            <button
+              onClick={handleRemove}
+              className="flex items-center gap-1.5 text-red-500 hover:text-red-400 transition-colors group"
+            >
+              <MdFavorite className="w-4 h-4" />
+              <span className="text-sm font-medium">Remove</span>
+            </button>
+          </div>
+
+          {/* Middle - Info */}
+          <div className="flex-1">
+            <h3 className="text-[#06202E] font-medium text-lg mb-1 line-clamp-1">{hospital.name}</h3>
+            <p className="text-[#06202E] text-sm mb-3 line-clamp-2 leading-relaxed opacity-80">{hospital.address}</p>
+
+            <div className="flex items-center gap-2">
+              <span className="text-[#06202E] font-medium text-sm">
+                {hospital.rating.score.toFixed(1)}
+              </span>
+              <div className="flex gap-0.5">
+                {renderStars(hospital.rating.score)}
+              </div>
+              <span className="text-gray-500 text-sm">
+                ({hospital.rating.reviews})
+              </span>
+            </div>
+          </div>
+
+          {/* Bottom - Book Now */}
+          <div className="mt-3">
+            <div className="flex items-center gap-1 text-[#06202E] font-medium text-sm group-hover:gap-2 transition-all cursor-pointer">
+              <span className="hover:underline">Book Now</span>
+              <IoIosArrowForward className="w-3.5 h-3.5" />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Default Vertical Card
   return (
     <div
-      className="bg-white w-[310px] p-[24px] rounded-lg overflow-hidden shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer"
+      className="bg-white w-full p-[24px] rounded-lg overflow-hidden shadow-sm border border-gray-200 hover:shadow-md transition-shadow cursor-pointer"
       onClick={handleCardClick}
     >
       {/* Hospital Image */}

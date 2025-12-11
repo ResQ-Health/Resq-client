@@ -693,891 +693,396 @@ const BookingPage = () => {
 
     return (
         <div className="min-h-screen w-full bg-white">
-            <div className=" mx-auto  ">
-                <div className="flex gap-8">
+            <div className="w-full h-full">
+                <div className="flex w-full min-h-screen relative">
                     {/* Left Panel - Appointment Summary */}
-                    <div className="w-[485px] min-h-[1167px] h-full flex flex-col justify-between  pl-[64px] pr-[126px] bg-[#F6F8FA] p-6">
-                        <div className="flex flex-col space-y-4">
+                    <div className="w-[35%] min-h-full flex flex-col justify-between bg-[#f9fafb] pr-3 py-10 border-r border-gray-100">
+                        <div className="flex flex-col space-y-6">
                             {/* Hospital Image */}
                             <img
                                 src={providerData.image || "/hospital.jpg"}
                                 alt={providerData.name}
-                                className="w-16 h-16 rounded-lg object-cover"
+                                className="w-20 h-20 rounded-xl object-cover shadow-sm"
                             />
 
-                            {/* Hospital Name */}
-                            <h3 className="text-xl font-bold text-black">{providerData.name}</h3>
+                            <div className="space-y-2">
+                                {/* Hospital Name */}
+                                <h3 className="text-2xl font-bold text-[#16202E]">{providerData.name}</h3>
 
-                            {/* Address */}
-                            <p className="text-sm text-black underline">{providerData.address}</p>
+                                {/* Address */}
+                                <p className="text-sm text-gray-600 underline">{providerData.address}</p>
+                            </div>
 
-                            {/* Date and Time */}
-                            <p className="text-sm text-gray-600">
-                                {(() => {
-                                    if (!selectedDate) return 'Select Date';
-                                    try {
-                                        // Handle YYYY-MM-DD string to avoid UTC timezone shifts
-                                        if (typeof selectedDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
-                                            const [year, month, day] = selectedDate.split('-').map(Number);
-                                            const date = new Date(year, month - 1, day);
-                                            return date.toDateString();
-                                        }
-                                        return new Date(selectedDate).toDateString();
-                                    } catch (e) {
-                                        return 'Invalid Date';
-                                    }
-                                })()} at {selectedTime || 'Select Time'}
-                            </p>
-
-                            {/* Service and Price */}
-                            <div className="flex justify-between items-center">
-                                <span className="text-sm text-black">
-                                    {(() => {
-                                        if (!selectedService) return 'Service';
-                                        if (typeof selectedService === 'string') return selectedService;
-                                        return (selectedService as any).name || (selectedService as any).serviceName || (selectedService as any).title || 'Service';
-                                    })()}
-                                </span>
-                                <span className="text-sm text-black">
-                                    {(() => {
-                                        // Try to get price from selectedService
-                                        let price = null;
-                                        if (selectedService && typeof selectedService === 'object') {
-                                            price = (selectedService as any).price || (selectedService as any).amount || (selectedService as any).cost;
-                                        }
-
-                                        // If not found, check localStorage draft
-                                        if (!price) {
+                            <div className="border-t border-gray-200 pt-6 space-y-4">
+                                {/* Date and Time */}
+                                <div>
+                                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Date & Time</p>
+                                    <p className="text-base font-medium text-[#16202E]">
+                                        {(() => {
+                                            if (!selectedDate) return 'Select Date';
                                             try {
-                                                const draftRaw = localStorage.getItem('bookingDraft');
-                                                if (draftRaw) {
-                                                    const draft = JSON.parse(draftRaw);
-                                                    const draftService = draft?.service;
-                                                    if (draftService && typeof draftService === 'object') {
-                                                        price = draftService.price || draftService.amount || draftService.cost;
-                                                    }
+                                                if (typeof selectedDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(selectedDate)) {
+                                                    const [year, month, day] = selectedDate.split('-').map(Number);
+                                                    const date = new Date(year, month - 1, day);
+                                                    return date.toDateString();
                                                 }
-                                            } catch { }
-                                        }
+                                                return new Date(selectedDate).toDateString();
+                                            } catch (e) {
+                                                return 'Invalid Date';
+                                            }
+                                        })()} at {selectedTime || 'Select Time'}
+                                    </p>
+                                </div>
 
-                                        return price ? `₦${price.toLocaleString()}` : '—';
-                                    })()}
-                                </span>
+                                {/* Service and Price */}
+                                <div>
+                                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Service</p>
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-base font-medium text-[#16202E]">
+                                            {(() => {
+                                                if (!selectedService) return 'Service';
+                                                if (typeof selectedService === 'string') return selectedService;
+                                                return (selectedService as any).name || (selectedService as any).serviceName || (selectedService as any).title || 'Service';
+                                            })()}
+                                        </span>
+                                        <span className="text-base font-bold text-[#16202E]">
+                                            {(() => {
+                                                let price = null;
+                                                if (selectedService && typeof selectedService === 'object') {
+                                                    price = (selectedService as any).price || (selectedService as any).amount || (selectedService as any).cost;
+                                                }
+                                                if (!price) {
+                                                    try {
+                                                        const draftRaw = localStorage.getItem('bookingDraft');
+                                                        if (draftRaw) {
+                                                            const draft = JSON.parse(draftRaw);
+                                                            const draftService = draft?.service;
+                                                            if (draftService && typeof draftService === 'object') {
+                                                                price = draftService.price || draftService.amount || draftService.cost;
+                                                            }
+                                                        }
+                                                    } catch { }
+                                                }
+                                                return price ? `₦${price.toLocaleString()}` : '—';
+                                            })()}
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
 
                             {/* Edit booking link */}
                             <button
                                 onClick={() => setShowEditBookingModal(true)}
-                                className="text-sm text-blue-600 underline text-left"
+                                className="text-sm font-medium text-blue-600 hover:text-blue-700 underline text-left w-fit"
                             >
-                                Edit booking
+                                Edit booking details
                             </button>
                         </div>
-                        <div>
-                            <p className='text-[16px] font-[400] text-black'>This site is protected by reCAPTCHA and the Google Privacy Policy and Terms of Service apply.</p>
+
+                        <div className="mt-8 pt-6 border-t border-gray-200">
+                            <p className='text-xs text-gray-500 leading-relaxed'>
+                                This site is protected by reCAPTCHA and the Google <a href="#" className="underline">Privacy Policy</a> and <a href="#" className="underline">Terms of Service</a> apply.
+                            </p>
                         </div>
                     </div>
 
                     {/* Right Panel - Patient Details Form */}
-                    <div className="flex-1 w-[480px] rounded-lg shadow-sm p-8">
-                        {/* Breadcrumb */}
-                        <div className="flex items-center border-b border-[#E1E3E6] pb-8 justify-between mb-8">
-                            <button
-                                onClick={() => {
-                                    if (currentStep === 'patient-details') {
-                                        setCurrentStep('appointment');
-                                    } else if (currentStep === 'login') {
-                                        setCurrentStep('patient-details');
-                                    } else if (currentStep === 'payment') {
-                                        if (isLoggedIn) {
+                    <div className="flex-1 min-h-screen p-12 lg:p-16">
+                        <div className="max-w-2xl mx-auto">
+                            {/* Breadcrumb */}
+                            <div className="flex items-center border-b border-[#E1E3E6] pb-8 justify-between mb-8">
+                                <button
+                                    onClick={() => {
+                                        if (currentStep === 'patient-details') {
+                                            setCurrentStep('appointment');
+                                        } else if (currentStep === 'login') {
                                             setCurrentStep('patient-details');
+                                        } else if (currentStep === 'payment') {
+                                            if (isLoggedIn) {
+                                                setCurrentStep('patient-details');
+                                            } else {
+                                                setCurrentStep('login');
+                                            }
                                         } else {
-                                            setCurrentStep('login');
+                                            navigate(-1);
                                         }
-                                    } else {
-                                        navigate(-1);
-                                    }
-                                }}
-                                className="hover:text-gray-900"
-                            >
-                                ← Back
-                            </button>
-                            <div className="flex items-center space-x-2 text-sm text-gray-600">
-                                <button
-                                    onClick={() => setCurrentStep('appointment')}
-                                    className={`hover:text-gray-900 ${currentStep === 'appointment' ? 'text-gray-900 font-medium' : ''}`}
+                                    }}
+                                    className="hover:text-gray-900"
                                 >
-                                    Appointment
+                                    ← Back
                                 </button>
-                                <span>/</span>
+                                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                                    <button
+                                        onClick={() => setCurrentStep('appointment')}
+                                        className={`hover:text-gray-900 ${currentStep === 'appointment' ? 'text-gray-900 font-medium' : ''}`}
+                                    >
+                                        Appointment
+                                    </button>
+                                    <span>/</span>
+                                    <button
+                                        onClick={() => setCurrentStep('patient-details')}
+                                        className={`hover:text-gray-900 ${currentStep === 'patient-details' ? 'text-gray-900 font-medium' : ''}`}
+                                    >
+                                        Patient details
+                                    </button>
+                                    <span>/</span>
+                                    <button
+                                        onClick={() => setCurrentStep('payment')}
+                                        className={`hover:text-gray-900 ${currentStep === 'payment' ? 'text-gray-900 font-medium' : ''}`}
+                                    >
+                                        Payment
+                                    </button>
+                                </div>
                                 <button
-                                    onClick={() => setCurrentStep('patient-details')}
-                                    className={`hover:text-gray-900 ${currentStep === 'patient-details' ? 'text-gray-900 font-medium' : ''}`}
+                                    onClick={() => setShowEmergencyModal(true)}
+                                    className="flex items-center space-x-2 text-red-600 hover:text-red-700 cursor-pointer"
                                 >
-                                    Patient details
-                                </button>
-                                <span>/</span>
-                                <button
-                                    onClick={() => setCurrentStep('payment')}
-                                    className={`hover:text-gray-900 ${currentStep === 'payment' ? 'text-gray-900 font-medium' : ''}`}
-                                >
-                                    Payment
+                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                                    </svg>
+                                    <span className="text-sm">Is this an emergency?</span>
                                 </button>
                             </div>
-                            <button
-                                onClick={() => setShowEmergencyModal(true)}
-                                className="flex items-center space-x-2 text-red-600 hover:text-red-700 cursor-pointer"
-                            >
-                                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                                </svg>
-                                <span className="text-sm">Is this an emergency?</span>
-                            </button>
-                        </div>
 
-                        {/* Multi-step Form Content */}
-                        {currentStep === 'appointment' && (
-                            <div className="mb-8" data-step="appointment-details">
-                                <h2 className="text-2xl font-bold text-black mb-6">Appointment Details</h2>
+                            {/* Multi-step Form Content */}
+                            {currentStep === 'appointment' && (
+                                <div className="mb-8" data-step="appointment-details">
+                                    <h2 className="text-2xl font-bold text-black mb-6">Appointment Details</h2>
 
-                                <form className="space-y-6 w-[480px]">
-                                    {/* Who is appointment for */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Who is appointment for?
-                                        </label>
-                                        <select
-                                            value={appointmentFor}
-                                            onChange={(e) => setAppointmentFor(e.target.value)}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                        >
-                                            <option value="Myself">Myself</option>
-                                            <option value="Someone else">Someone else</option>
-                                        </select>
-                                    </div>
-
-                                    {/* Have you visited before */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Have you visited {providerData.name} before?
-                                        </label>
-                                        <select
-                                            value={visitedBefore}
-                                            onChange={(e) => {
-                                                setVisitedBefore(e.target.value);
-                                                // Clear identification number if user selects "No"
-                                                if (e.target.value === 'No') {
-                                                    setIdentificationNumber('');
-                                                }
-                                            }}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                        >
-                                            <option value="Yes">Yes</option>
-                                            <option value="No">No</option>
-                                        </select>
-                                    </div>
-
-                                    {/* Identification number - only show if visited before is "Yes" */}
-                                    {visitedBefore === 'Yes' ? (
+                                    <form className="space-y-6 max-w-lg">
+                                        {/* Who is appointment for */}
                                         <div>
                                             <label className="block text-sm font-medium text-gray-700 mb-2">
-                                                Identification number
+                                                Who is appointment for?
                                             </label>
-                                            <div className="relative">
-                                                <input
-                                                    type="text"
-                                                    id="identificationNumber"
-                                                    data-field="identificationNumber"
-                                                    value={identificationNumber}
-                                                    onChange={(e) => {
-                                                        setIdentificationNumber(e.target.value);
-                                                        if (errors.identificationNumber) {
-                                                            setErrors(prev => ({ ...prev, identificationNumber: undefined }));
-                                                        }
-                                                    }}
-                                                    placeholder="Enter identification number (Optional)"
-                                                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-12 ${errors.identificationNumber ? 'border-red-500' : 'border-gray-300'
-                                                        }`}
-                                                />
-
-                                            </div>
-                                            {errors.identificationNumber && (
-                                                <p className="mt-1 text-sm text-red-600 block">{errors.identificationNumber}</p>
-                                            )}
+                                            <select
+                                                value={appointmentFor}
+                                                onChange={(e) => setAppointmentFor(e.target.value)}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            >
+                                                <option value="Myself">Myself</option>
+                                                <option value="Someone else">Someone else</option>
+                                            </select>
                                         </div>
-                                    ) : null}
 
-                                    {/* Comments */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Comments
-                                        </label>
-                                        <textarea
-                                            value={comments}
-                                            onChange={(e) => setComments(e.target.value)}
-                                            placeholder="Any additional notes or special requirements..."
-                                            rows={4}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                        />
-                                    </div>
+                                        {/* Have you visited before */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                Have you visited {providerData.name} before?
+                                            </label>
+                                            <select
+                                                value={visitedBefore}
+                                                onChange={(e) => {
+                                                    setVisitedBefore(e.target.value);
+                                                    // Clear identification number if user selects "No"
+                                                    if (e.target.value === 'No') {
+                                                        setIdentificationNumber('');
+                                                    }
+                                                }}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            >
+                                                <option value="Yes">Yes</option>
+                                                <option value="No">No</option>
+                                            </select>
+                                        </div>
 
-                                    {/* Continue button */}
-                                    <div className="pt-6">
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                // If user is not logged in, show login/guest options
-                                                if (!isLoggedIn) {
-                                                    setCurrentStep('login');
-                                                } else {
-                                                    setCurrentStep('patient-details');
-                                                }
-                                            }}
-                                            className="w-full py-3 px-6 rounded-md transition-colors font-medium bg-gray-900 text-white hover:bg-gray-800"
-                                        >
-                                            Continue
-                                        </button>
-                                    </div>
-                                </form>
-                            </div>
-                        )}
-
-                        {currentStep === 'patient-details' && (
-                            <div className="mb-8">
-                                {appointmentFor === 'Myself' ? (
-                                    // Form for booking for myself
-                                    <div>
-                                        <h2 className="text-2xl font-bold text-black mb-6">About</h2>
-
-                                        <form className="space-y-6 w-[480px]">
-                                            {/* Full Name */}
+                                        {/* Identification number - only show if visited before is "Yes" */}
+                                        {visitedBefore === 'Yes' ? (
                                             <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-2">Fullname</label>
+                                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                    Identification number
+                                                </label>
                                                 <div className="relative">
                                                     <input
                                                         type="text"
-                                                        id="fullName"
-                                                        data-field="fullName"
-                                                        value={fullName}
+                                                        id="identificationNumber"
+                                                        data-field="identificationNumber"
+                                                        value={identificationNumber}
                                                         onChange={(e) => {
-                                                            setFullName(e.target.value);
-                                                            if (errors.fullName) {
-                                                                setErrors(prev => ({ ...prev, fullName: undefined }));
+                                                            setIdentificationNumber(e.target.value);
+                                                            if (errors.identificationNumber) {
+                                                                setErrors(prev => ({ ...prev, identificationNumber: undefined }));
                                                             }
                                                         }}
-                                                        placeholder="e.g. John Doe"
-                                                        disabled={isLoggedIn}
-                                                        maxLength={100}
-                                                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''
-                                                            } ${errors.fullName ? 'border-red-500' : 'border-gray-300'}`}
+                                                        placeholder="Enter identification number (Optional)"
+                                                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-12 ${errors.identificationNumber ? 'border-red-500' : 'border-gray-300'
+                                                            }`}
                                                     />
-                                                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                                                        <div className="w-6 h-6 bg-gray-500 rounded-full flex items-center justify-center">
-                                                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                            </svg>
-                                                        </div>
-                                                    </div>
+
                                                 </div>
-                                                {errors.fullName && (
-                                                    <p className="mt-1 text-sm text-red-600 block">{errors.fullName}</p>
+                                                {errors.identificationNumber && (
+                                                    <p className="mt-1 text-sm text-red-600 block">{errors.identificationNumber}</p>
                                                 )}
                                             </div>
+                                        ) : null}
 
-                                            {/* Email */}
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                                                <div className="relative">
-                                                    <input
-                                                        type="email"
-                                                        id="email"
-                                                        data-field="email"
-                                                        value={email}
-                                                        onChange={(e) => {
-                                                            setEmail(e.target.value);
-                                                            if (errors.email) {
-                                                                setErrors(prev => ({ ...prev, email: undefined }));
-                                                            }
-                                                        }}
-                                                        placeholder="e.g. john.doe@example.com"
-                                                        disabled={isLoggedIn}
-                                                        maxLength={100}
-                                                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''
-                                                            } ${errors.email ? 'border-red-500' : 'border-gray-300'}`}
-                                                    />
-                                                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                                                        <div className="w-6 h-6 bg-gray-500 rounded-full flex items-center justify-center">
-                                                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                            </svg>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                {errors.email && (
-                                                    <p className="mt-1 text-sm text-red-600 block">{errors.email}</p>
-                                                )}
-                                            </div>
+                                        {/* Comments */}
+                                        <div>
+                                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                Comments
+                                            </label>
+                                            <textarea
+                                                value={comments}
+                                                onChange={(e) => setComments(e.target.value)}
+                                                placeholder="Any additional notes or special requirements..."
+                                                rows={4}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                            />
+                                        </div>
 
-                                            {/* Mobile Number */}
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-2">Mobile number</label>
-                                                <div className="relative">
-                                                    <input
-                                                        type="tel"
-                                                        id="mobileNumber"
-                                                        data-field="mobileNumber"
-                                                        value={mobileNumber}
-                                                        onChange={(e) => {
-                                                            setMobileNumber(e.target.value);
-                                                            if (errors.mobileNumber) {
-                                                                setErrors(prev => ({ ...prev, mobileNumber: undefined }));
-                                                            }
-                                                        }}
-                                                        placeholder="e.g. 08012345678"
-                                                        disabled={isLoggedIn}
-                                                        maxLength={15}
-                                                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''
-                                                            } ${errors.mobileNumber ? 'border-red-500' : 'border-gray-300'}`}
-                                                    />
-                                                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                                                        <div className="w-6 h-6 bg-gray-500 rounded-full flex items-center justify-center">
-                                                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                            </svg>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                                {errors.mobileNumber && (
-                                                    <p className="mt-1 text-sm text-red-600 block">{errors.mobileNumber}</p>
-                                                )}
-                                            </div>
+                                        {/* Continue button */}
+                                        <div className="pt-6">
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    // If user is not logged in, show login/guest options
+                                                    if (!isLoggedIn) {
+                                                        setCurrentStep('login');
+                                                    } else {
+                                                        setCurrentStep('patient-details');
+                                                    }
+                                                }}
+                                                className="w-full py-3 px-6 rounded-md transition-colors font-medium bg-gray-900 text-white hover:bg-gray-800"
+                                            >
+                                                Continue
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                            )}
 
+                            {currentStep === 'patient-details' && (
+                                <div className="mb-8">
+                                    {appointmentFor === 'Myself' ? (
+                                        // Form for booking for myself
+                                        <div>
+                                            <h2 className="text-2xl font-bold text-black mb-6">About</h2>
 
-                                            {/* Gender */}
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
-                                                <div className="relative">
-                                                    <select
-                                                        id="gender"
-                                                        data-field="gender"
-                                                        value={gender}
-                                                        onChange={(e) => {
-                                                            setGender(e.target.value);
-                                                            if (errors.gender) {
-                                                                setErrors(prev => ({ ...prev, gender: undefined }));
-                                                            }
-                                                        }}
-                                                        disabled={isLoggedIn}
-                                                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''
-                                                            } ${errors.gender ? 'border-red-500' : 'border-gray-300'}`}
-                                                    >
-                                                        <option value="">Select Gender</option>
-                                                        <option value="Male">Male</option>
-                                                        <option value="Female">Female</option>
-                                                    </select>
-                                                    <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                                                        <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                                        </svg>
-                                                    </div>
-                                                </div>
-                                                {errors.gender && (
-                                                    <p className="mt-1 text-sm text-red-600 block">{errors.gender}</p>
-                                                )}
-                                            </div>
-
-                                            {/* Date of Birth */}
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700 mb-2">Date of birth</label>
-                                                <input
-                                                    type="date"
-                                                    id="dateOfBirth"
-                                                    data-field="dateOfBirth"
-                                                    value={dateOfBirth}
-                                                    onChange={(e) => {
-                                                        setDateOfBirth(e.target.value);
-                                                        if (errors.dateOfBirth) {
-                                                            setErrors(prev => ({ ...prev, dateOfBirth: undefined }));
-                                                        }
-                                                    }}
-                                                    placeholder="YYYY-MM-DD (e.g. 1990-03-15)"
-                                                    disabled={isLoggedIn}
-                                                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''
-                                                        } ${errors.dateOfBirth ? 'border-red-500' : 'border-gray-300'}`}
-                                                />
-                                                {errors.dateOfBirth && (
-                                                    <p className="mt-1 text-sm text-red-600 block">{errors.dateOfBirth}</p>
-                                                )}
-                                            </div>
-
-                                            {/* Continue button */}
-                                            <div className="pt-6 relative">
-                                                {/* Service/Date/Time Error Display */}
-                                                {(errors.service || errors.date || errors.time) && (
-                                                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
-                                                        <p className="text-sm text-red-600 font-medium mb-1">Please fix the following:</p>
-                                                        <ul className="list-disc list-inside text-sm text-red-600 space-y-1">
-                                                            {errors.service && <li>{errors.service}</li>}
-                                                            {errors.date && <li>{errors.date}</li>}
-                                                            {errors.time && <li>{errors.time}</li>}
-                                                        </ul>
-                                                    </div>
-                                                )}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        const draft = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
-                                                        const svc = draft?.service || {};
-                                                        const serviceId = svc?.id || svc?.serviceId || '';
-                                                        const forWhom = appointmentFor === 'Myself' ? 'Self' : 'Other';
-                                                        const visited = visitedBefore === 'Yes';
-
-                                                        // Clear previous errors
-                                                        setErrors({});
-
-                                                        // Validate service, date, and time
-                                                        const newErrors: typeof errors = {};
-                                                        if (!id || !serviceId) {
-                                                            newErrors.service = "Please select a service to proceed.";
-                                                        }
-                                                        if (!selectedDate) {
-                                                            newErrors.date = "Please select a date to proceed.";
-                                                        }
-                                                        if (!selectedTime) {
-                                                            newErrors.time = "Please select a time to proceed.";
-                                                        }
-
-                                                        if (Object.keys(newErrors).length > 0) {
-                                                            setErrors(newErrors);
-                                                            // Scroll to first error - prioritize date/time fields
-                                                            setTimeout(() => {
-                                                                let errorElement: HTMLElement | null = null;
-                                                                if (newErrors.date) {
-                                                                    // Scroll to date selection area
-                                                                    errorElement = document.querySelector('[data-step="appointment-details"]') as HTMLElement;
-                                                                } else if (newErrors.time) {
-                                                                    // Scroll to time selection area
-                                                                    errorElement = document.querySelector('[data-step="appointment-details"]') as HTMLElement;
-                                                                } else if (newErrors.service) {
-                                                                    // Scroll to service selection
-                                                                    errorElement = document.querySelector('[data-step="appointment-details"]') as HTMLElement;
-                                                                }
-                                                                if (errorElement) {
-                                                                    errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                                                } else {
-                                                                    // Fallback to error message area
-                                                                    const fallback = document.querySelector('.pt-6.relative');
-                                                                    if (fallback) {
-                                                                        fallback.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                                                    }
-                                                                }
-                                                            }, 100);
-                                                            return;
-                                                        }
-
-
-                                                        // Validate required fields with proper format checks
-                                                        const fieldValidationErrors: typeof errors = {};
-
-                                                        if (!fullName?.trim()) {
-                                                            fieldValidationErrors.fullName = 'Full Name is required';
-                                                        } else if (!validateFullName(fullName)) {
-                                                            fieldValidationErrors.fullName = 'Full Name must be at least 3 characters';
-                                                        }
-
-                                                        if (!email?.trim()) {
-                                                            fieldValidationErrors.email = 'Email is required';
-                                                        } else if (!validateEmail(email)) {
-                                                            fieldValidationErrors.email = 'Please enter a valid email address (e.g. john.doe@example.com)';
-                                                        }
-
-                                                        if (!mobileNumber?.trim()) {
-                                                            fieldValidationErrors.mobileNumber = 'Mobile Number is required';
-                                                        } else if (!validatePhoneNumber(mobileNumber)) {
-                                                            fieldValidationErrors.mobileNumber = 'Please enter a valid phone number (e.g. 08012345678)';
-                                                        }
-
-                                                        if (!gender?.trim()) {
-                                                            fieldValidationErrors.gender = 'Gender is required';
-                                                        }
-
-                                                        if (!dateOfBirth?.trim()) {
-                                                            fieldValidationErrors.dateOfBirth = 'Date of Birth is required';
-                                                        } else if (!validateDateOfBirth(dateOfBirth)) {
-                                                            fieldValidationErrors.dateOfBirth = 'Please enter a valid date (Patient must be at least 2 years old)';
-                                                        }
-
-                                                        if (Object.keys(fieldValidationErrors).length > 0) {
-                                                            setErrors(fieldValidationErrors);
-                                                            // Scroll to first error field
-                                                            const firstErrorField = Object.keys(fieldValidationErrors)[0];
-                                                            setTimeout(() => {
-                                                                const errorElement = document.getElementById(firstErrorField) ||
-                                                                    document.querySelector(`[data-field="${firstErrorField}"]`);
-                                                                if (errorElement) {
-                                                                    errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                                                    // Focus the field for better UX
-                                                                    if (errorElement instanceof HTMLElement && !errorElement.hasAttribute('disabled')) {
-                                                                        (errorElement as HTMLElement).focus();
-                                                                    }
-                                                                }
-                                                            }, 100);
-                                                            return;
-                                                        }
-                                                        const toMinutes = (t: string) => {
-                                                            const [time, mer] = String(t).split(/\s+/);
-                                                            const [hh, mm] = (time || '').split(':').map((v) => parseInt(v || '0', 10));
-                                                            let h = (hh || 0) % 12; if ((mer || '').toLowerCase().startsWith('p')) h += 12;
-                                                            return h * 60 + (mm || 0);
-                                                        };
-                                                        const fmt = (m: number) => {
-                                                            const h24 = Math.floor(m / 60);
-                                                            const mm = m % 60;
-                                                            const mer = h24 >= 12 ? 'PM' : 'AM';
-                                                            let h = h24 % 12; if (h === 0) h = 12;
-                                                            const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
-                                                            return `${h}:${pad(mm)} ${mer}`;
-                                                        };
-                                                        const endTime = fmt(toMinutes(selectedTime) + 30);
-
-                                                        // Prevent duplicate booking submissions
-                                                        if (isBookingInProgressRef.current || bookAppointmentMutation.isPending) {
-                                                            return;
-                                                        }
-
-                                                        // Check if booking already exists
-                                                        const draftCheck = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
-                                                        if (draftCheck?.appointment?.id) {
-                                                            toast.error('A booking is already in progress. Please complete the payment first.');
-                                                            return;
-                                                        }
-
-                                                        isBookingInProgressRef.current = true;
-
-                                                        // Prepare formData based on booking type - include patient details for "Self" bookings
-                                                        const formData = {
-                                                            forWhom,
-                                                            visitedBefore: visited,
-                                                            identificationNumber,
-                                                            comments,
-                                                            communicationPreference: appointmentFor === 'Myself' ? 'Booker' : communicationPreference,
-                                                            // Include patient details for "Self" bookings (guest or logged-in user data)
-                                                            patientName: fullName,
-                                                            patientEmail: email,
-                                                            patientPhone: mobileNumber,
-                                                            patientGender: gender,
-                                                            patientDOB: dateOfBirth,
-                                                        };
-
-                                                        bookAppointmentMutation.mutate({
-                                                            providerId: id || '',
-                                                            serviceId: serviceId || '',
-                                                            date: selectedDate,
-                                                            start_time: selectedTime,
-                                                            end_time: endTime,
-                                                            formData,
-                                                            notes: comments || '',
-                                                        }, {
-                                                            onSuccess: (res) => {
-                                                                isBookingInProgressRef.current = false;
-                                                                if (!res?.success) {
-                                                                    const msg = res?.message || 'Unable to book this slot. Please choose another time.';
-                                                                    toast.error(msg);
-                                                                    return;
-                                                                }
-                                                                try {
-                                                                    const prev = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
-                                                                    const appointment = res?.data?.appointment || {};
-                                                                    localStorage.setItem('bookingDraft', JSON.stringify({
-                                                                        ...prev,
-                                                                        appointment,
-                                                                    }));
-                                                                } catch { }
-                                                                // Invalidate appointments query to refresh booking history
-                                                                queryClient.invalidateQueries({ queryKey: ['patientAppointments'] });
-                                                                if (res?.message) toast.success(res.message);
-                                                                setCurrentStep('payment');
-                                                            },
-                                                            onError: (error: any) => {
-                                                                isBookingInProgressRef.current = false;
-                                                                const apiMsg = error?.response?.data?.message;
-                                                                const mongoCode = error?.response?.data?.code || error?.code;
-                                                                const isDup = mongoCode === 11000 || /duplicate key/i.test(String(apiMsg || ''));
-                                                                const msg = isDup
-                                                                    ? 'This time slot is already booked. Please choose another time.'
-                                                                    : (apiMsg || 'Failed to book appointment. Please try another time.');
-                                                                toast.error(msg);
-                                                            }
-                                                        });
-                                                    }}
-                                                    disabled={isBookingInProgressRef.current || bookAppointmentMutation.isPending}
-                                                    className={`w-full py-3 px-6 rounded-md transition-colors font-medium relative ${(isBookingInProgressRef.current || bookAppointmentMutation.isPending) ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-gray-900 text-white hover:bg-gray-800'}`}
-                                                >
-                                                    {(isBookingInProgressRef.current || bookAppointmentMutation.isPending) ? 'Booking…' : 'Continue'}
-                                                </button>
-                                            </div>
-                                        </form>
-                                    </div>
-                                ) : (
-                                    // Form for booking for someone else
-                                    <div>
-                                        <form className="space-y-8 w-[480px]">
-                                            {/* About You Section */}
-                                            <div>
-                                                <h3 className="text-lg font-bold text-black mb-4">About You</h3>
-                                                <div className="space-y-4">
-                                                    {/* Full Name */}
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-gray-700 mb-2">Fullname</label>
-                                                        <div className="relative">
-                                                            <input
-                                                                type="text"
-                                                                id="fullName-other"
-                                                                data-field="fullName"
-                                                                value={fullName}
-                                                                onChange={(e) => {
-                                                                    setFullName(e.target.value);
-                                                                    if (errors.fullName) {
-                                                                        setErrors(prev => ({ ...prev, fullName: undefined }));
-                                                                    }
-                                                                }}
-                                                                placeholder="e.g. John Doe"
-                                                                disabled={isLoggedIn}
-                                                                maxLength={100}
-                                                                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''
-                                                                    } ${errors.fullName ? 'border-red-500' : 'border-gray-300'}`}
-                                                            />
-                                                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                                                                <div className="w-6 h-6 bg-gray-500 rounded-full flex items-center justify-center">
-                                                                    <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                                    </svg>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        {errors.fullName && (
-                                                            <p className="mt-1 text-sm text-red-600 block">{errors.fullName}</p>
-                                                        )}
-                                                    </div>
-
-                                                    {/* Email */}
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                                                        <div className="relative">
-                                                            <input
-                                                                type="email"
-                                                                id="email-other"
-                                                                data-field="email"
-                                                                value={email}
-                                                                onChange={(e) => {
-                                                                    setEmail(e.target.value);
-                                                                    if (errors.email) {
-                                                                        setErrors(prev => ({ ...prev, email: undefined }));
-                                                                    }
-                                                                }}
-                                                                placeholder="e.g. john.doe@example.com"
-                                                                disabled={isLoggedIn}
-                                                                maxLength={100}
-                                                                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''
-                                                                    } ${errors.email ? 'border-red-500' : 'border-gray-300'}`}
-                                                            />
-                                                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                                                                <div className="w-6 h-6 bg-gray-500 rounded-full flex items-center justify-center">
-                                                                    <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                                    </svg>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        {errors.email && (
-                                                            <p className="mt-1 text-sm text-red-600 block">{errors.email}</p>
-                                                        )}
-                                                    </div>
-
-                                                    {/* Mobile Number */}
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-gray-700 mb-2">Mobile number</label>
-                                                        <div className="relative">
-                                                            <input
-                                                                type="tel"
-                                                                id="mobileNumber-other"
-                                                                data-field="mobileNumber"
-                                                                value={mobileNumber}
-                                                                onChange={(e) => {
-                                                                    setMobileNumber(e.target.value);
-                                                                    if (errors.mobileNumber) {
-                                                                        setErrors(prev => ({ ...prev, mobileNumber: undefined }));
-                                                                    }
-                                                                }}
-                                                                placeholder="e.g. 08012345678"
-                                                                disabled={isLoggedIn}
-                                                                maxLength={15}
-                                                                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''
-                                                                    } ${errors.mobileNumber ? 'border-red-500' : 'border-gray-300'}`}
-                                                            />
-                                                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                                                                <div className="w-6 h-6 bg-gray-500 rounded-full flex items-center justify-center">
-                                                                    <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                                                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                                    </svg>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        {errors.mobileNumber && (
-                                                            <p className="mt-1 text-sm text-red-600 block">{errors.mobileNumber}</p>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* About Patient Section */}
-                                            <div>
-                                                <h3 className="text-lg font-bold text-black mb-4">About Patient</h3>
-                                                <div className="space-y-4">
-                                                    {/* Patient Full Name */}
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-gray-700 mb-2">Fullname</label>
+                                            <form className="space-y-6 w-[480px]">
+                                                {/* Full Name */}
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-2">Fullname</label>
+                                                    <div className="relative">
                                                         <input
                                                             type="text"
-                                                            id="patientFullName"
-                                                            data-field="patientFullName"
-                                                            value={patientFullName}
+                                                            id="fullName"
+                                                            data-field="fullName"
+                                                            value={fullName}
                                                             onChange={(e) => {
-                                                                setPatientFullName(e.target.value);
-                                                                if (errors.patientFullName) {
-                                                                    setErrors(prev => ({ ...prev, patientFullName: undefined }));
+                                                                setFullName(e.target.value);
+                                                                if (errors.fullName) {
+                                                                    setErrors(prev => ({ ...prev, fullName: undefined }));
                                                                 }
                                                             }}
-                                                            placeholder="e.g. Jane Doe"
+                                                            placeholder="e.g. John Doe"
+                                                            disabled={isLoggedIn}
                                                             maxLength={100}
-                                                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.patientFullName ? 'border-red-500' : 'border-gray-300'
-                                                                }`}
+                                                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''
+                                                                } ${errors.fullName ? 'border-red-500' : 'border-gray-300'}`}
                                                         />
-                                                        {errors.patientFullName && (
-                                                            <p className="mt-1 text-sm text-red-600 block">{errors.patientFullName}</p>
-                                                        )}
-                                                    </div>
-
-                                                    {/* Patient Email */}
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                                                        <input
-                                                            type="email"
-                                                            id="patientEmail"
-                                                            data-field="patientEmail"
-                                                            value={patientEmail}
-                                                            onChange={(e) => {
-                                                                setPatientEmail(e.target.value);
-                                                                if (errors.patientEmail) {
-                                                                    setErrors(prev => ({ ...prev, patientEmail: undefined }));
-                                                                }
-                                                            }}
-                                                            placeholder="e.g. jane.doe@example.com"
-                                                            maxLength={100}
-                                                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.patientEmail ? 'border-red-500' : 'border-gray-300'
-                                                                }`}
-                                                        />
-                                                        {errors.patientEmail && (
-                                                            <p className="mt-1 text-sm text-red-600 block">{errors.patientEmail}</p>
-                                                        )}
-                                                    </div>
-
-                                                    {/* Patient Mobile Number */}
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-gray-700 mb-2">Mobile number</label>
-                                                        <input
-                                                            type="tel"
-                                                            id="patientMobileNumber"
-                                                            data-field="patientMobileNumber"
-                                                            value={patientMobileNumber}
-                                                            onChange={(e) => {
-                                                                setPatientMobileNumber(e.target.value);
-                                                                if (errors.patientMobileNumber) {
-                                                                    setErrors(prev => ({ ...prev, patientMobileNumber: undefined }));
-                                                                }
-                                                            }}
-                                                            placeholder="e.g. 08012345678"
-                                                            maxLength={15}
-                                                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.patientMobileNumber ? 'border-red-500' : 'border-gray-300'
-                                                                }`}
-                                                        />
-                                                        {errors.patientMobileNumber && (
-                                                            <p className="mt-1 text-sm text-red-600 block">{errors.patientMobileNumber}</p>
-                                                        )}
-                                                    </div>
-
-
-                                                    {/* Patient Gender */}
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
-                                                        <div className="relative">
-                                                            <select
-                                                                id="patientGender"
-                                                                data-field="patientGender"
-                                                                value={patientGender}
-                                                                onChange={(e) => {
-                                                                    setPatientGender(e.target.value);
-                                                                    if (errors.patientGender) {
-                                                                        setErrors(prev => ({ ...prev, patientGender: undefined }));
-                                                                    }
-                                                                }}
-                                                                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none ${errors.patientGender ? 'border-red-500' : 'border-gray-300'
-                                                                    }`}
-                                                            >
-                                                                <option value="">Select Gender</option>
-                                                                <option value="Male">Male</option>
-                                                                <option value="Female">Female</option>
-                                                            </select>
-                                                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                                                                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                                                            <div className="w-6 h-6 bg-gray-500 rounded-full flex items-center justify-center">
+                                                                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                                                 </svg>
                                                             </div>
                                                         </div>
-                                                        {errors.patientGender && (
-                                                            <p className="mt-1 text-sm text-red-600 block">{errors.patientGender}</p>
-                                                        )}
                                                     </div>
+                                                    {errors.fullName && (
+                                                        <p className="mt-1 text-sm text-red-600 block">{errors.fullName}</p>
+                                                    )}
+                                                </div>
 
-                                                    {/* Patient Date of Birth */}
-                                                    <div>
-                                                        <label className="block text-sm font-medium text-gray-700 mb-2">Date of birth</label>
+                                                {/* Email */}
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                                                    <div className="relative">
                                                         <input
-                                                            type="date"
-                                                            value={patientDateOfBirth}
+                                                            type="email"
+                                                            id="email"
+                                                            data-field="email"
+                                                            value={email}
                                                             onChange={(e) => {
-                                                                setPatientDateOfBirth(e.target.value);
-                                                                if (errors.patientDateOfBirth) {
-                                                                    setErrors(prev => ({ ...prev, patientDateOfBirth: undefined }));
+                                                                setEmail(e.target.value);
+                                                                if (errors.email) {
+                                                                    setErrors(prev => ({ ...prev, email: undefined }));
                                                                 }
                                                             }}
-                                                            placeholder="YYYY-MM-DD (e.g. 1990-03-15)"
-                                                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.patientDateOfBirth ? 'border-red-500' : 'border-gray-300'
-                                                                }`}
+                                                            placeholder="e.g. john.doe@example.com"
+                                                            disabled={isLoggedIn}
+                                                            maxLength={100}
+                                                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''
+                                                                } ${errors.email ? 'border-red-500' : 'border-gray-300'}`}
                                                         />
-                                                        {errors.patientDateOfBirth && (
-                                                            <p className="mt-1 text-sm text-red-600 block">{errors.patientDateOfBirth}</p>
-                                                        )}
+                                                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                                                            <div className="w-6 h-6 bg-gray-500 rounded-full flex items-center justify-center">
+                                                                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                                </svg>
+                                                            </div>
+                                                        </div>
                                                     </div>
+                                                    {errors.email && (
+                                                        <p className="mt-1 text-sm text-red-600 block">{errors.email}</p>
+                                                    )}
                                                 </div>
-                                            </div>
 
-                                            {/* Communication Section */}
-                                            <div>
-                                                <h3 className="text-lg font-bold text-black mb-4">Communication</h3>
+                                                {/* Mobile Number */}
                                                 <div>
-                                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                                        Who will receive booking confirmation and mails
-                                                    </label>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-2">Mobile number</label>
+                                                    <div className="relative">
+                                                        <input
+                                                            type="tel"
+                                                            id="mobileNumber"
+                                                            data-field="mobileNumber"
+                                                            value={mobileNumber}
+                                                            onChange={(e) => {
+                                                                setMobileNumber(e.target.value);
+                                                                if (errors.mobileNumber) {
+                                                                    setErrors(prev => ({ ...prev, mobileNumber: undefined }));
+                                                                }
+                                                            }}
+                                                            placeholder="e.g. 08012345678"
+                                                            disabled={isLoggedIn}
+                                                            maxLength={15}
+                                                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''
+                                                                } ${errors.mobileNumber ? 'border-red-500' : 'border-gray-300'}`}
+                                                        />
+                                                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                                                            <div className="w-6 h-6 bg-gray-500 rounded-full flex items-center justify-center">
+                                                                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                                </svg>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    {errors.mobileNumber && (
+                                                        <p className="mt-1 text-sm text-red-600 block">{errors.mobileNumber}</p>
+                                                    )}
+                                                </div>
+
+
+                                                {/* Gender */}
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
                                                     <div className="relative">
                                                         <select
-                                                            value={communicationPreference}
-                                                            onChange={(e) => setCommunicationPreference(e.target.value)}
-                                                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
+                                                            id="gender"
+                                                            data-field="gender"
+                                                            value={gender}
+                                                            onChange={(e) => {
+                                                                setGender(e.target.value);
+                                                                if (errors.gender) {
+                                                                    setErrors(prev => ({ ...prev, gender: undefined }));
+                                                                }
+                                                            }}
+                                                            disabled={isLoggedIn}
+                                                            className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''
+                                                                } ${errors.gender ? 'border-red-500' : 'border-gray-300'}`}
                                                         >
-                                                            <option value="Both">Both</option>
-                                                            <option value="Booker">You only</option>
-                                                            <option value="Patient">Patient only</option>
+                                                            <option value="">Select Gender</option>
+                                                            <option value="Male">Male</option>
+                                                            <option value="Female">Female</option>
                                                         </select>
                                                         <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
                                                             <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1585,550 +1090,1055 @@ const BookingPage = () => {
                                                             </svg>
                                                         </div>
                                                     </div>
+                                                    {errors.gender && (
+                                                        <p className="mt-1 text-sm text-red-600 block">{errors.gender}</p>
+                                                    )}
                                                 </div>
-                                            </div>
 
-                                            {/* Continue button */}
-                                            <div className="pt-6 relative">
-                                                {/* Service/Date/Time Error Display */}
-                                                {(errors.service || errors.date || errors.time) && (
-                                                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
-                                                        <p className="text-sm text-red-600 font-medium mb-1">Please fix the following:</p>
-                                                        <ul className="list-disc list-inside text-sm text-red-600 space-y-1">
-                                                            {errors.service && <li>{errors.service}</li>}
-                                                            {errors.date && <li>{errors.date}</li>}
-                                                            {errors.time && <li>{errors.time}</li>}
-                                                        </ul>
-                                                    </div>
-                                                )}
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        const draft = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
-                                                        const svc = draft?.service || {};
-                                                        const serviceId = svc?.id || svc?.serviceId || '';
-                                                        const forWhom = 'Other';
-                                                        const visited = visitedBefore === 'Yes';
-
-                                                        // Clear previous errors
-                                                        setErrors({});
-
-                                                        // Validate service, date, and time
-                                                        const serviceDateTimeErrors: typeof errors = {};
-                                                        if (!id || !serviceId) {
-                                                            serviceDateTimeErrors.service = "Please select a service to proceed.";
-                                                        }
-                                                        if (!selectedDate) {
-                                                            serviceDateTimeErrors.date = "Please select a date to proceed.";
-                                                        }
-                                                        if (!selectedTime) {
-                                                            serviceDateTimeErrors.time = "Please select a time to proceed.";
-                                                        }
-
-                                                        if (Object.keys(serviceDateTimeErrors).length > 0) {
-                                                            setErrors(serviceDateTimeErrors);
-                                                            // Scroll to first error - prioritize date/time fields
-                                                            setTimeout(() => {
-                                                                let errorElement: HTMLElement | null = null;
-                                                                if (serviceDateTimeErrors.date) {
-                                                                    // Scroll to date selection area
-                                                                    errorElement = document.querySelector('[data-step="appointment-details"]') as HTMLElement;
-                                                                } else if (serviceDateTimeErrors.time) {
-                                                                    // Scroll to time selection area
-                                                                    errorElement = document.querySelector('[data-step="appointment-details"]') as HTMLElement;
-                                                                } else if (serviceDateTimeErrors.service) {
-                                                                    // Scroll to service selection
-                                                                    errorElement = document.querySelector('[data-step="appointment-details"]') as HTMLElement;
-                                                                }
-                                                                if (errorElement) {
-                                                                    errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                                                } else {
-                                                                    // Fallback to error message area
-                                                                    const fallback = document.querySelector('.pt-6.relative');
-                                                                    if (fallback) {
-                                                                        fallback.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                                                    }
-                                                                }
-                                                            }, 100);
-                                                            return;
-                                                        }
-
-
-                                                        // Validate required fields with proper format checks
-                                                        const fieldValidationErrorsOther: typeof errors = {};
-
-                                                        // Validate "About You" section
-                                                        if (!fullName?.trim()) {
-                                                            fieldValidationErrorsOther.fullName = 'Your Full Name is required';
-                                                        } else if (!validateFullName(fullName)) {
-                                                            fieldValidationErrorsOther.fullName = 'Your Full Name must be at least 3 characters';
-                                                        }
-
-                                                        if (!email?.trim()) {
-                                                            fieldValidationErrorsOther.email = 'Your Email is required';
-                                                        } else if (!validateEmail(email)) {
-                                                            fieldValidationErrorsOther.email = 'Please enter a valid email address for yourself (e.g. john.doe@example.com)';
-                                                        }
-
-                                                        if (!mobileNumber?.trim()) {
-                                                            fieldValidationErrorsOther.mobileNumber = 'Your Mobile Number is required';
-                                                        } else if (!validatePhoneNumber(mobileNumber)) {
-                                                            fieldValidationErrorsOther.mobileNumber = 'Please enter a valid phone number for yourself (e.g. 08012345678)';
-                                                        }
-
-                                                        // Validate "About Patient" section
-                                                        if (!patientFullName?.trim()) {
-                                                            fieldValidationErrorsOther.patientFullName = 'Patient Full Name is required';
-                                                        } else if (!validateFullName(patientFullName)) {
-                                                            fieldValidationErrorsOther.patientFullName = 'Patient Full Name must be at least 3 characters';
-                                                        }
-
-                                                        if (!patientEmail?.trim()) {
-                                                            fieldValidationErrorsOther.patientEmail = 'Patient Email is required';
-                                                        } else if (!validateEmail(patientEmail)) {
-                                                            fieldValidationErrorsOther.patientEmail = 'Please enter a valid email address for the patient (e.g. jane.doe@example.com)';
-                                                        }
-
-                                                        if (!patientMobileNumber?.trim()) {
-                                                            fieldValidationErrorsOther.patientMobileNumber = 'Patient Mobile Number is required';
-                                                        } else if (!validatePhoneNumber(patientMobileNumber)) {
-                                                            fieldValidationErrorsOther.patientMobileNumber = 'Please enter a valid phone number for the patient (e.g. 08012345678)';
-                                                        }
-
-                                                        if (!patientGender?.trim()) {
-                                                            fieldValidationErrorsOther.patientGender = 'Patient Gender is required';
-                                                        }
-
-                                                        if (!patientDateOfBirth?.trim()) {
-                                                            fieldValidationErrorsOther.patientDateOfBirth = 'Patient Date of Birth is required';
-                                                        } else if (!validateDateOfBirth(patientDateOfBirth)) {
-                                                            fieldValidationErrorsOther.patientDateOfBirth = 'Please enter a valid date (Patient must be at least 2 years old)';
-                                                        }
-
-                                                        if (Object.keys(fieldValidationErrorsOther).length > 0) {
-                                                            setErrors(fieldValidationErrorsOther);
-                                                            // Scroll to first error field
-                                                            const firstErrorField = Object.keys(fieldValidationErrorsOther)[0];
-                                                            setTimeout(() => {
-                                                                // Try to find field by ID first, then by data-field attribute
-                                                                const errorElement = document.getElementById(firstErrorField) ||
-                                                                    document.getElementById(`${firstErrorField}-other`) ||
-                                                                    document.querySelector(`[data-field="${firstErrorField}"]`);
-                                                                if (errorElement) {
-                                                                    errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                                                                    // Focus the field for better UX
-                                                                    if (errorElement instanceof HTMLElement && !errorElement.hasAttribute('disabled')) {
-                                                                        (errorElement as HTMLElement).focus();
-                                                                    }
-                                                                }
-                                                            }, 100);
-                                                            return;
-                                                        }
-                                                        const toMinutes = (t: string) => {
-                                                            const [time, mer] = String(t).split(/\s+/);
-                                                            const [hh, mm] = (time || '').split(':').map((v) => parseInt(v || '0', 10));
-                                                            let h = (hh || 0) % 12; if ((mer || '').toLowerCase().startsWith('p')) h += 12;
-                                                            return h * 60 + (mm || 0);
-                                                        };
-                                                        const fmt = (m: number) => {
-                                                            const h24 = Math.floor(m / 60);
-                                                            const mm = m % 60;
-                                                            const mer = h24 >= 12 ? 'PM' : 'AM';
-                                                            let h = h24 % 12; if (h === 0) h = 12;
-                                                            const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
-                                                            return `${h}:${pad(mm)} ${mer}`;
-                                                        };
-                                                        const endTime = fmt(toMinutes(selectedTime) + 30);
-
-                                                        // Prevent duplicate booking submissions
-                                                        if (isBookingInProgressRef.current || bookAppointmentMutation.isPending) {
-                                                            return;
-                                                        }
-
-                                                        // Check if booking already exists
-                                                        const draftCheck = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
-                                                        if (draftCheck?.appointment?.id) {
-                                                            toast.error('A booking is already in progress. Please complete the payment first.');
-                                                            return;
-                                                        }
-
-                                                        isBookingInProgressRef.current = true;
-
-                                                        // Prepare formData for "Someone else" booking with patient details
-                                                        const formData = {
-                                                            forWhom,
-                                                            visitedBefore: visited,
-                                                            identificationNumber,
-                                                            comments,
-                                                            communicationPreference,
-                                                            patientName: patientFullName,
-                                                            patientEmail: patientEmail,
-                                                            patientPhone: patientMobileNumber,
-                                                            patientGender: patientGender,
-                                                            patientDOB: patientDateOfBirth,
-                                                        };
-
-                                                        bookAppointmentMutation.mutate({
-                                                            providerId: id || '',
-                                                            serviceId: serviceId || '',
-                                                            date: selectedDate,
-                                                            start_time: selectedTime,
-                                                            end_time: endTime,
-                                                            formData,
-                                                            notes: comments || '',
-                                                        }, {
-                                                            onSuccess: (res) => {
-                                                                isBookingInProgressRef.current = false;
-                                                                if (!res?.success) {
-                                                                    const msg = res?.message || 'Unable to book this slot. Please choose another time.';
-                                                                    toast.error(msg);
-                                                                    return;
-                                                                }
-                                                                try {
-                                                                    const prev = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
-                                                                    const appointment = res?.data?.appointment || {};
-                                                                    localStorage.setItem('bookingDraft', JSON.stringify({
-                                                                        ...prev,
-                                                                        appointment,
-                                                                    }));
-                                                                } catch { }
-                                                                // Invalidate appointments query to refresh booking history
-                                                                queryClient.invalidateQueries({ queryKey: ['patientAppointments'] });
-                                                                if (res?.message) toast.success(res.message);
-                                                                setCurrentStep('payment');
-                                                            },
-                                                            onError: (error: any) => {
-                                                                isBookingInProgressRef.current = false;
-                                                                const apiMsg = error?.response?.data?.message;
-                                                                const mongoCode = error?.response?.data?.code || error?.code;
-                                                                const isDup = mongoCode === 11000 || /duplicate key/i.test(String(apiMsg || ''));
-                                                                const msg = isDup
-                                                                    ? 'This time slot is already booked. Please choose another time.'
-                                                                    : (apiMsg || 'Failed to book appointment. Please try another time.');
-                                                                toast.error(msg);
-                                                            }
-                                                        });
-                                                    }}
-                                                    disabled={isBookingInProgressRef.current || bookAppointmentMutation.isPending}
-                                                    className={`w-full py-3 px-6 rounded-md transition-colors font-medium relative ${(isBookingInProgressRef.current || bookAppointmentMutation.isPending) ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-gray-900 text-white hover:bg-gray-800'}`}
-                                                >
-                                                    {(isBookingInProgressRef.current || bookAppointmentMutation.isPending) ? 'Booking…' : 'Continue'}
-                                                </button>
-                                            </div>
-                                        </form>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {currentStep === 'login' && !isLoggedIn && (
-                            <div className="mb-8 ">
-                                <div className="max-w-md ">
-                                    {/* Header */}
-                                    <div className="text-center mb-8">
-                                        <h2 className="text-2xl font-bold text-black">Almost there!</h2>
-                                    </div>
-
-                                    {/* Login Section */}
-                                    <div className="mb-8">
-                                        <p className="text-sm text-gray-600 mb-4">
-                                            <span className="underline cursor-pointer">Log in</span> to book faster with your saved details
-                                        </p>
-                                        <ul className="text-sm text-gray-600 mb-6 space-y-2">
-                                            <li>• Book appointments and complete online forms faster with saved details</li>
-                                            <li>• Save your favourite healthcare providers</li>
-                                            <li>• Manage your appointments easily</li>
-                                        </ul>
-                                        <button
-                                            onClick={handleGoogleLogin}
-                                            disabled={oauthLoginMutation.isPending}
-                                            className="w-full border border-gray-300 rounded-lg py-3 px-4 flex items-center justify-center space-x-3 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            <img src="/google.png" alt="Google" className="w-5 h-5" />
-                                            <span className="text-sm font-medium">
-                                                {oauthLoginMutation.isPending ? 'Signing in...' : 'Continue with Google'}
-                                            </span>
-                                        </button>
-                                    </div>
-
-                                    {/* Divider */}
-                                    <div className="text-center mb-8">
-                                        <span className="text-sm text-gray-500">OR</span>
-                                    </div>
-
-                                    {/* Sign Up Section */}
-                                    <div className="mb-8">
-                                        <p className="text-sm text-gray-600 mb-2">Don't have an account?</p>
-                                        <p className="text-sm text-gray-600 mb-6">
-                                            <span className="underline cursor-pointer">Sign up</span> to book faster next time and get a personalized health experience.
-                                        </p>
-                                    </div>
-
-                                    {/* Continue as Guest */}
-                                    <button
-                                        onClick={() => setCurrentStep('patient-details')}
-                                        className="w-full border border-gray-300 rounded-lg py-3 px-4 flex items-center justify-center space-x-3 hover:bg-gray-50 transition-colors"
-                                    >
-                                        <svg className="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
-                                        </svg>
-                                        <span className="text-sm font-medium">Continue as guest</span>
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-
-                        {currentStep === 'payment' && (
-                            <div className="mb-8">
-                                <div className="flex gap-8">
-                                    {/* Left Panel - Payment Methods */}
-                                    <div className="flex-1">
-                                        <h2 className="text-2xl font-bold text-black mb-6">Choose your payment method</h2>
-
-                                        {/* Payment Options */}
-                                        <div className="space-y-4 mb-6">
-                                            {/* Paystack Option */}
-                                            <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                                                <div className="flex items-center space-x-3">
+                                                {/* Date of Birth */}
+                                                <div>
+                                                    <label className="block text-sm font-medium text-gray-700 mb-2">Date of birth</label>
                                                     <input
-                                                        type="radio"
-                                                        name="paymentMethod"
-                                                        id="paystack"
-                                                        checked={selectedPaymentMethod === 'paystack'}
-                                                        onChange={() => setSelectedPaymentMethod('paystack')}
-                                                        className="w-4 h-4 text-blue-600"
-                                                    />
-                                                    <div>
-                                                        <label htmlFor="paystack" className="block text-sm font-medium text-gray-900">Paystack</label>
-                                                        <p className="text-xs text-gray-600">Safe payment online. </p>
-                                                    </div>
-                                                </div>
-                                                <img src="/paystack.png" alt="Paystack" className="w-12 h-8 object-contain" />
-                                            </div>
-
-
-                                        </div>
-
-                                        {/* Coupon Section */}
-                                        <div className="mb-6">
-                                            <div className="flex items-center space-x-2 mb-2">
-                                                <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                                                    <path d="M2 6a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 100 4v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2a2 2 0 100-4V6z" />
-                                                </svg>
-                                                <label className="text-sm font-medium text-gray-700">Coupon</label>
-                                            </div>
-                                            <div className="flex space-x-2">
-                                                <input
-                                                    type="text"
-                                                    value={couponCode}
-                                                    onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
-                                                    placeholder="Enter coupon code"
-                                                    disabled={couponApplied}
-                                                    className={`flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${couponApplied ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-                                                />
-                                                {couponApplied ? (
-                                                    <button
-                                                        onClick={() => {
-                                                            setCouponApplied(false);
-                                                            setCouponCode('');
-                                                            toast.success('Coupon removed');
+                                                        type="date"
+                                                        id="dateOfBirth"
+                                                        data-field="dateOfBirth"
+                                                        value={dateOfBirth}
+                                                        onChange={(e) => {
+                                                            setDateOfBirth(e.target.value);
+                                                            if (errors.dateOfBirth) {
+                                                                setErrors(prev => ({ ...prev, dateOfBirth: undefined }));
+                                                            }
                                                         }}
-                                                        className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
-                                                    >
-                                                        Remove
-                                                    </button>
-                                                ) : (
+                                                        placeholder="YYYY-MM-DD (e.g. 1990-03-15)"
+                                                        disabled={isLoggedIn}
+                                                        className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''
+                                                            } ${errors.dateOfBirth ? 'border-red-500' : 'border-gray-300'}`}
+                                                    />
+                                                    {errors.dateOfBirth && (
+                                                        <p className="mt-1 text-sm text-red-600 block">{errors.dateOfBirth}</p>
+                                                    )}
+                                                </div>
+
+                                                {/* Continue button */}
+                                                <div className="pt-6 relative">
+                                                    {/* Service/Date/Time Error Display */}
+                                                    {(errors.service || errors.date || errors.time) && (
+                                                        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                                                            <p className="text-sm text-red-600 font-medium mb-1">Please fix the following:</p>
+                                                            <ul className="list-disc list-inside text-sm text-red-600 space-y-1">
+                                                                {errors.service && <li>{errors.service}</li>}
+                                                                {errors.date && <li>{errors.date}</li>}
+                                                                {errors.time && <li>{errors.time}</li>}
+                                                            </ul>
+                                                        </div>
+                                                    )}
                                                     <button
+                                                        type="button"
                                                         onClick={() => {
-                                                            if (!couponCode.trim()) {
-                                                                toast.error('Please enter a coupon code');
+                                                            const draft = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
+                                                            const svc = draft?.service || {};
+                                                            const serviceId = svc?.id || svc?.serviceId || '';
+                                                            const forWhom = appointmentFor === 'Myself' ? 'Self' : 'Other';
+                                                            const visited = visitedBefore === 'Yes';
+
+                                                            // Clear previous errors
+                                                            setErrors({});
+
+                                                            // Validate service, date, and time
+                                                            const newErrors: typeof errors = {};
+                                                            if (!id || !serviceId) {
+                                                                newErrors.service = "Please select a service to proceed.";
+                                                            }
+                                                            if (!selectedDate) {
+                                                                newErrors.date = "Please select a date to proceed.";
+                                                            }
+                                                            if (!selectedTime) {
+                                                                newErrors.time = "Please select a time to proceed.";
+                                                            }
+
+                                                            if (Object.keys(newErrors).length > 0) {
+                                                                setErrors(newErrors);
+                                                                // Scroll to first error - prioritize date/time fields
+                                                                setTimeout(() => {
+                                                                    let errorElement: HTMLElement | null = null;
+                                                                    if (newErrors.date) {
+                                                                        // Scroll to date selection area
+                                                                        errorElement = document.querySelector('[data-step="appointment-details"]') as HTMLElement;
+                                                                    } else if (newErrors.time) {
+                                                                        // Scroll to time selection area
+                                                                        errorElement = document.querySelector('[data-step="appointment-details"]') as HTMLElement;
+                                                                    } else if (newErrors.service) {
+                                                                        // Scroll to service selection
+                                                                        errorElement = document.querySelector('[data-step="appointment-details"]') as HTMLElement;
+                                                                    }
+                                                                    if (errorElement) {
+                                                                        errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                                    } else {
+                                                                        // Fallback to error message area
+                                                                        const fallback = document.querySelector('.pt-6.relative');
+                                                                        if (fallback) {
+                                                                            fallback.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                                        }
+                                                                    }
+                                                                }, 100);
                                                                 return;
                                                             }
-                                                            if (couponCode.toUpperCase() === 'IJKZYB') {
-                                                                setCouponApplied(true);
-                                                                toast.success('Coupon applied! 25% discount applied');
-                                                            } else {
-                                                                toast.error('Invalid coupon code');
+
+
+                                                            // Validate required fields with proper format checks
+                                                            const fieldValidationErrors: typeof errors = {};
+
+                                                            if (!fullName?.trim()) {
+                                                                fieldValidationErrors.fullName = 'Full Name is required';
+                                                            } else if (!validateFullName(fullName)) {
+                                                                fieldValidationErrors.fullName = 'Full Name must be at least 3 characters';
                                                             }
-                                                        }}
-                                                        className="px-4 py-2 bg-gray-900 text-white rounded-md hover:bg-gray-800 transition-colors"
-                                                    >
-                                                        Apply
-                                                    </button>
-                                                )}
-                                            </div>
-                                            {couponApplied && (
-                                                <p className="mt-2 text-sm text-green-600 font-medium">
-                                                    ✓ 25% discount applied
-                                                </p>
-                                            )}
-                                        </div>
-                                    </div>
 
-                                    {/* Right Panel - Booking Summary */}
-                                    <div className="w-80">
-                                        <div className="bg-gray-50 rounded-lg p-6">
-                                            <div className="flex items-center space-x-2 mb-4">
-                                                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-                                                    <span className="text-white text-sm font-bold">B</span>
-                                                </div>
-                                                <h3 className="text-lg font-bold text-black">Booking Summary</h3>
-                                            </div>
+                                                            if (!email?.trim()) {
+                                                                fieldValidationErrors.email = 'Email is required';
+                                                            } else if (!validateEmail(email)) {
+                                                                fieldValidationErrors.email = 'Please enter a valid email address (e.g. john.doe@example.com)';
+                                                            }
 
-                                            {/* Summary Details */}
-                                            <div className="space-y-3 mb-6">
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-sm text-gray-600">Service</span>
-                                                    <span className="text-sm font-medium text-black">{(JSON.parse(localStorage.getItem('bookingDraft') || '{}')?.service?.name) || selectedService || 'N/A'}</span>
-                                                </div>
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-sm text-gray-600">Price</span>
-                                                    <span className="text-sm font-medium text-black">{(() => { try { const s = JSON.parse(localStorage.getItem('bookingDraft') || '{}')?.service; const price = s?.price ?? s?.amount ?? s?.cost; return price ? `₦${price}` : '—'; } catch { return '—'; } })()}</span>
-                                                </div>
-                                                {couponApplied && (() => {
-                                                    try {
-                                                        const draft = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
-                                                        const s = draft?.service;
-                                                        const price = s?.price ?? s?.amount ?? s?.cost;
-                                                        if (price) {
-                                                            const discount = price * 0.25;
-                                                            return (
-                                                                <div className="flex justify-between items-center">
-                                                                    <span className="text-sm text-gray-600">Discount (25%)</span>
-                                                                    <span className="text-sm font-medium text-green-600">-₦{discount.toFixed(2)}</span>
-                                                                </div>
-                                                            );
-                                                        }
-                                                    } catch { }
-                                                    return null;
-                                                })()}
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-sm text-gray-600">Provider</span>
-                                                    <span className="text-sm font-medium text-black">{providerData?.name || JSON.parse(localStorage.getItem('bookingDraft') || '{}')?.provider?.name || 'N/A'}</span>
-                                                </div>
-                                                <div className="flex justify-between items-center">
-                                                    <span className="text-sm text-gray-600">When</span>
-                                                    <span className="text-sm font-medium text-black">{selectedDate} {selectedTime ? `at ${selectedTime}` : ''}</span>
-                                                </div>
-                                                <div className="border-t border-gray-200 pt-3">
-                                                    <div className="flex justify-between items-center">
-                                                        <span className="text-lg font-bold text-black">Total</span>
-                                                        <span className="text-lg font-bold text-black">{(() => {
-                                                            try {
-                                                                const draft = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
-                                                                const s = draft?.service;
-                                                                const price = s?.price ?? s?.amount ?? s?.cost;
-                                                                if (price) {
-                                                                    const finalPrice = couponApplied ? price * 0.75 : price;
-                                                                    return `₦${finalPrice.toFixed(2)}`;
+                                                            if (!mobileNumber?.trim()) {
+                                                                fieldValidationErrors.mobileNumber = 'Mobile Number is required';
+                                                            } else if (!validatePhoneNumber(mobileNumber)) {
+                                                                fieldValidationErrors.mobileNumber = 'Please enter a valid phone number (e.g. 08012345678)';
+                                                            }
+
+                                                            if (!gender?.trim()) {
+                                                                fieldValidationErrors.gender = 'Gender is required';
+                                                            }
+
+                                                            if (!dateOfBirth?.trim()) {
+                                                                fieldValidationErrors.dateOfBirth = 'Date of Birth is required';
+                                                            } else if (!validateDateOfBirth(dateOfBirth)) {
+                                                                fieldValidationErrors.dateOfBirth = 'Please enter a valid date (Patient must be at least 2 years old)';
+                                                            }
+
+                                                            if (Object.keys(fieldValidationErrors).length > 0) {
+                                                                setErrors(fieldValidationErrors);
+                                                                // Scroll to first error field
+                                                                const firstErrorField = Object.keys(fieldValidationErrors)[0];
+                                                                setTimeout(() => {
+                                                                    const errorElement = document.getElementById(firstErrorField) ||
+                                                                        document.querySelector(`[data-field="${firstErrorField}"]`);
+                                                                    if (errorElement) {
+                                                                        errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                                        // Focus the field for better UX
+                                                                        if (errorElement instanceof HTMLElement && !errorElement.hasAttribute('disabled')) {
+                                                                            (errorElement as HTMLElement).focus();
+                                                                        }
+                                                                    }
+                                                                }, 100);
+                                                                return;
+                                                            }
+                                                            const toMinutes = (t: string) => {
+                                                                const [time, mer] = String(t).split(/\s+/);
+                                                                const [hh, mm] = (time || '').split(':').map((v) => parseInt(v || '0', 10));
+                                                                let h = (hh || 0) % 12; if ((mer || '').toLowerCase().startsWith('p')) h += 12;
+                                                                return h * 60 + (mm || 0);
+                                                            };
+                                                            const fmt = (m: number) => {
+                                                                const h24 = Math.floor(m / 60);
+                                                                const mm = m % 60;
+                                                                const mer = h24 >= 12 ? 'PM' : 'AM';
+                                                                let h = h24 % 12; if (h === 0) h = 12;
+                                                                const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+                                                                return `${h}:${pad(mm)} ${mer}`;
+                                                            };
+                                                            const endTime = fmt(toMinutes(selectedTime) + 30);
+
+                                                            // Prevent duplicate booking submissions
+                                                            if (isBookingInProgressRef.current || bookAppointmentMutation.isPending) {
+                                                                return;
+                                                            }
+
+                                                            // Check if booking already exists
+                                                            const draftCheck = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
+                                                            if (draftCheck?.appointment?.id) {
+                                                                toast.error('A booking is already in progress. Please complete the payment first.');
+                                                                return;
+                                                            }
+
+                                                            isBookingInProgressRef.current = true;
+
+                                                            // Prepare formData based on booking type - include patient details for "Self" bookings
+                                                            const formData = {
+                                                                forWhom,
+                                                                visitedBefore: visited,
+                                                                identificationNumber,
+                                                                comments,
+                                                                communicationPreference: appointmentFor === 'Myself' ? 'Booker' : communicationPreference,
+                                                                // Include patient details for "Self" bookings (guest or logged-in user data)
+                                                                patientName: fullName,
+                                                                patientEmail: email,
+                                                                patientPhone: mobileNumber,
+                                                                patientGender: gender,
+                                                                patientDOB: dateOfBirth,
+                                                            };
+
+                                                            bookAppointmentMutation.mutate({
+                                                                providerId: id || '',
+                                                                serviceId: serviceId || '',
+                                                                date: selectedDate,
+                                                                start_time: selectedTime,
+                                                                end_time: endTime,
+                                                                formData,
+                                                                notes: comments || '',
+                                                            }, {
+                                                                onSuccess: (res) => {
+                                                                    isBookingInProgressRef.current = false;
+                                                                    if (!res?.success) {
+                                                                        const msg = res?.message || 'Unable to book this slot. Please choose another time.';
+                                                                        toast.error(msg);
+                                                                        return;
+                                                                    }
+                                                                    try {
+                                                                        const prev = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
+                                                                        const appointment = res?.data?.appointment || {};
+                                                                        localStorage.setItem('bookingDraft', JSON.stringify({
+                                                                            ...prev,
+                                                                            appointment,
+                                                                        }));
+                                                                    } catch { }
+                                                                    // Invalidate appointments query to refresh booking history
+                                                                    queryClient.invalidateQueries({ queryKey: ['patientAppointments'] });
+                                                                    if (res?.message) toast.success(res.message);
+                                                                    setCurrentStep('payment');
+                                                                },
+                                                                onError: (error: any) => {
+                                                                    isBookingInProgressRef.current = false;
+                                                                    const apiMsg = error?.response?.data?.message;
+                                                                    const mongoCode = error?.response?.data?.code || error?.code;
+                                                                    const isDup = mongoCode === 11000 || /duplicate key/i.test(String(apiMsg || ''));
+                                                                    const msg = isDup
+                                                                        ? 'This time slot is already booked. Please choose another time.'
+                                                                        : (apiMsg || 'Failed to book appointment. Please try another time.');
+                                                                    toast.error(msg);
                                                                 }
-                                                                return '—';
-                                                            } catch {
-                                                                return '—';
-                                                            }
-                                                        })()}</span>
+                                                            });
+                                                        }}
+                                                        disabled={isBookingInProgressRef.current || bookAppointmentMutation.isPending}
+                                                        className={`w-full py-3 px-6 rounded-md transition-colors font-medium relative ${(isBookingInProgressRef.current || bookAppointmentMutation.isPending) ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-gray-900 text-white hover:bg-gray-800'}`}
+                                                    >
+                                                        {(isBookingInProgressRef.current || bookAppointmentMutation.isPending) ? 'Booking…' : 'Continue'}
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    ) : (
+                                        // Form for booking for someone else
+                                        <div>
+                                            <form className="space-y-8 w-[480px]">
+                                                {/* About You Section */}
+                                                <div>
+                                                    <h3 className="text-lg font-bold text-black mb-4">About You</h3>
+                                                    <div className="space-y-4">
+                                                        {/* Full Name */}
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700 mb-2">Fullname</label>
+                                                            <div className="relative">
+                                                                <input
+                                                                    type="text"
+                                                                    id="fullName-other"
+                                                                    data-field="fullName"
+                                                                    value={fullName}
+                                                                    onChange={(e) => {
+                                                                        setFullName(e.target.value);
+                                                                        if (errors.fullName) {
+                                                                            setErrors(prev => ({ ...prev, fullName: undefined }));
+                                                                        }
+                                                                    }}
+                                                                    placeholder="e.g. John Doe"
+                                                                    disabled={isLoggedIn}
+                                                                    maxLength={100}
+                                                                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''
+                                                                        } ${errors.fullName ? 'border-red-500' : 'border-gray-300'}`}
+                                                                />
+                                                                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                                                                    <div className="w-6 h-6 bg-gray-500 rounded-full flex items-center justify-center">
+                                                                        <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                                        </svg>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            {errors.fullName && (
+                                                                <p className="mt-1 text-sm text-red-600 block">{errors.fullName}</p>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Email */}
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                                                            <div className="relative">
+                                                                <input
+                                                                    type="email"
+                                                                    id="email-other"
+                                                                    data-field="email"
+                                                                    value={email}
+                                                                    onChange={(e) => {
+                                                                        setEmail(e.target.value);
+                                                                        if (errors.email) {
+                                                                            setErrors(prev => ({ ...prev, email: undefined }));
+                                                                        }
+                                                                    }}
+                                                                    placeholder="e.g. john.doe@example.com"
+                                                                    disabled={isLoggedIn}
+                                                                    maxLength={100}
+                                                                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''
+                                                                        } ${errors.email ? 'border-red-500' : 'border-gray-300'}`}
+                                                                />
+                                                                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                                                                    <div className="w-6 h-6 bg-gray-500 rounded-full flex items-center justify-center">
+                                                                        <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                                        </svg>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            {errors.email && (
+                                                                <p className="mt-1 text-sm text-red-600 block">{errors.email}</p>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Mobile Number */}
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700 mb-2">Mobile number</label>
+                                                            <div className="relative">
+                                                                <input
+                                                                    type="tel"
+                                                                    id="mobileNumber-other"
+                                                                    data-field="mobileNumber"
+                                                                    value={mobileNumber}
+                                                                    onChange={(e) => {
+                                                                        setMobileNumber(e.target.value);
+                                                                        if (errors.mobileNumber) {
+                                                                            setErrors(prev => ({ ...prev, mobileNumber: undefined }));
+                                                                        }
+                                                                    }}
+                                                                    placeholder="e.g. 08012345678"
+                                                                    disabled={isLoggedIn}
+                                                                    maxLength={15}
+                                                                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent pr-10 ${isLoggedIn ? 'bg-gray-100 cursor-not-allowed' : ''
+                                                                        } ${errors.mobileNumber ? 'border-red-500' : 'border-gray-300'}`}
+                                                                />
+                                                                <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                                                                    <div className="w-6 h-6 bg-gray-500 rounded-full flex items-center justify-center">
+                                                                        <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                                        </svg>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                            {errors.mobileNumber && (
+                                                                <p className="mt-1 text-sm text-red-600 block">{errors.mobileNumber}</p>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
 
-                                            {/* Terms and Conditions */}
-                                            <div className="mb-6 space-y-2">
-                                                <p className="text-xs text-gray-600">
-                                                    By confirming your payment, you agree to the{' '}
-                                                    <a href="#" className="text-blue-600 underline">medresq healthcare terms and conditions</a>.
-                                                </p>
-                                                <p className="text-xs text-gray-600">
-                                                    By confirming your payment, you agree to the{' '}
-                                                    <a href="#" className="text-blue-600 underline">medresq healthcare's user agreement and privacy notice</a>.
-                                                </p>
-                                            </div>
+                                                {/* About Patient Section */}
+                                                <div>
+                                                    <h3 className="text-lg font-bold text-black mb-4">About Patient</h3>
+                                                    <div className="space-y-4">
+                                                        {/* Patient Full Name */}
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700 mb-2">Fullname</label>
+                                                            <input
+                                                                type="text"
+                                                                id="patientFullName"
+                                                                data-field="patientFullName"
+                                                                value={patientFullName}
+                                                                onChange={(e) => {
+                                                                    setPatientFullName(e.target.value);
+                                                                    if (errors.patientFullName) {
+                                                                        setErrors(prev => ({ ...prev, patientFullName: undefined }));
+                                                                    }
+                                                                }}
+                                                                placeholder="e.g. Jane Doe"
+                                                                maxLength={100}
+                                                                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.patientFullName ? 'border-red-500' : 'border-gray-300'
+                                                                    }`}
+                                                            />
+                                                            {errors.patientFullName && (
+                                                                <p className="mt-1 text-sm text-red-600 block">{errors.patientFullName}</p>
+                                                            )}
+                                                        </div>
 
-                                            {/* Confirm and Pay Button */}
+                                                        {/* Patient Email */}
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                                                            <input
+                                                                type="email"
+                                                                id="patientEmail"
+                                                                data-field="patientEmail"
+                                                                value={patientEmail}
+                                                                onChange={(e) => {
+                                                                    setPatientEmail(e.target.value);
+                                                                    if (errors.patientEmail) {
+                                                                        setErrors(prev => ({ ...prev, patientEmail: undefined }));
+                                                                    }
+                                                                }}
+                                                                placeholder="e.g. jane.doe@example.com"
+                                                                maxLength={100}
+                                                                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.patientEmail ? 'border-red-500' : 'border-gray-300'
+                                                                    }`}
+                                                            />
+                                                            {errors.patientEmail && (
+                                                                <p className="mt-1 text-sm text-red-600 block">{errors.patientEmail}</p>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Patient Mobile Number */}
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700 mb-2">Mobile number</label>
+                                                            <input
+                                                                type="tel"
+                                                                id="patientMobileNumber"
+                                                                data-field="patientMobileNumber"
+                                                                value={patientMobileNumber}
+                                                                onChange={(e) => {
+                                                                    setPatientMobileNumber(e.target.value);
+                                                                    if (errors.patientMobileNumber) {
+                                                                        setErrors(prev => ({ ...prev, patientMobileNumber: undefined }));
+                                                                    }
+                                                                }}
+                                                                placeholder="e.g. 08012345678"
+                                                                maxLength={15}
+                                                                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.patientMobileNumber ? 'border-red-500' : 'border-gray-300'
+                                                                    }`}
+                                                            />
+                                                            {errors.patientMobileNumber && (
+                                                                <p className="mt-1 text-sm text-red-600 block">{errors.patientMobileNumber}</p>
+                                                            )}
+                                                        </div>
+
+
+                                                        {/* Patient Gender */}
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700 mb-2">Gender</label>
+                                                            <div className="relative">
+                                                                <select
+                                                                    id="patientGender"
+                                                                    data-field="patientGender"
+                                                                    value={patientGender}
+                                                                    onChange={(e) => {
+                                                                        setPatientGender(e.target.value);
+                                                                        if (errors.patientGender) {
+                                                                            setErrors(prev => ({ ...prev, patientGender: undefined }));
+                                                                        }
+                                                                    }}
+                                                                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none ${errors.patientGender ? 'border-red-500' : 'border-gray-300'
+                                                                        }`}
+                                                                >
+                                                                    <option value="">Select Gender</option>
+                                                                    <option value="Male">Male</option>
+                                                                    <option value="Female">Female</option>
+                                                                </select>
+                                                                <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                                                                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                                    </svg>
+                                                                </div>
+                                                            </div>
+                                                            {errors.patientGender && (
+                                                                <p className="mt-1 text-sm text-red-600 block">{errors.patientGender}</p>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Patient Date of Birth */}
+                                                        <div>
+                                                            <label className="block text-sm font-medium text-gray-700 mb-2">Date of birth</label>
+                                                            <input
+                                                                type="date"
+                                                                value={patientDateOfBirth}
+                                                                onChange={(e) => {
+                                                                    setPatientDateOfBirth(e.target.value);
+                                                                    if (errors.patientDateOfBirth) {
+                                                                        setErrors(prev => ({ ...prev, patientDateOfBirth: undefined }));
+                                                                    }
+                                                                }}
+                                                                placeholder="YYYY-MM-DD (e.g. 1990-03-15)"
+                                                                className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${errors.patientDateOfBirth ? 'border-red-500' : 'border-gray-300'
+                                                                    }`}
+                                                            />
+                                                            {errors.patientDateOfBirth && (
+                                                                <p className="mt-1 text-sm text-red-600 block">{errors.patientDateOfBirth}</p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Communication Section */}
+                                                <div>
+                                                    <h3 className="text-lg font-bold text-black mb-4">Communication</h3>
+                                                    <div>
+                                                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                                                            Who will receive booking confirmation and mails
+                                                        </label>
+                                                        <div className="relative">
+                                                            <select
+                                                                value={communicationPreference}
+                                                                onChange={(e) => setCommunicationPreference(e.target.value)}
+                                                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent appearance-none"
+                                                            >
+                                                                <option value="Both">Both</option>
+                                                                <option value="Booker">You only</option>
+                                                                <option value="Patient">Patient only</option>
+                                                            </select>
+                                                            <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                                                                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                                                </svg>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Continue button */}
+                                                <div className="pt-6 relative">
+                                                    {/* Service/Date/Time Error Display */}
+                                                    {(errors.service || errors.date || errors.time) && (
+                                                        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                                                            <p className="text-sm text-red-600 font-medium mb-1">Please fix the following:</p>
+                                                            <ul className="list-disc list-inside text-sm text-red-600 space-y-1">
+                                                                {errors.service && <li>{errors.service}</li>}
+                                                                {errors.date && <li>{errors.date}</li>}
+                                                                {errors.time && <li>{errors.time}</li>}
+                                                            </ul>
+                                                        </div>
+                                                    )}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => {
+                                                            const draft = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
+                                                            const svc = draft?.service || {};
+                                                            const serviceId = svc?.id || svc?.serviceId || '';
+                                                            const forWhom = 'Other';
+                                                            const visited = visitedBefore === 'Yes';
+
+                                                            // Clear previous errors
+                                                            setErrors({});
+
+                                                            // Validate service, date, and time
+                                                            const serviceDateTimeErrors: typeof errors = {};
+                                                            if (!id || !serviceId) {
+                                                                serviceDateTimeErrors.service = "Please select a service to proceed.";
+                                                            }
+                                                            if (!selectedDate) {
+                                                                serviceDateTimeErrors.date = "Please select a date to proceed.";
+                                                            }
+                                                            if (!selectedTime) {
+                                                                serviceDateTimeErrors.time = "Please select a time to proceed.";
+                                                            }
+
+                                                            if (Object.keys(serviceDateTimeErrors).length > 0) {
+                                                                setErrors(serviceDateTimeErrors);
+                                                                // Scroll to first error - prioritize date/time fields
+                                                                setTimeout(() => {
+                                                                    let errorElement: HTMLElement | null = null;
+                                                                    if (serviceDateTimeErrors.date) {
+                                                                        // Scroll to date selection area
+                                                                        errorElement = document.querySelector('[data-step="appointment-details"]') as HTMLElement;
+                                                                    } else if (serviceDateTimeErrors.time) {
+                                                                        // Scroll to time selection area
+                                                                        errorElement = document.querySelector('[data-step="appointment-details"]') as HTMLElement;
+                                                                    } else if (serviceDateTimeErrors.service) {
+                                                                        // Scroll to service selection
+                                                                        errorElement = document.querySelector('[data-step="appointment-details"]') as HTMLElement;
+                                                                    }
+                                                                    if (errorElement) {
+                                                                        errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                                    } else {
+                                                                        // Fallback to error message area
+                                                                        const fallback = document.querySelector('.pt-6.relative');
+                                                                        if (fallback) {
+                                                                            fallback.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                                        }
+                                                                    }
+                                                                }, 100);
+                                                                return;
+                                                            }
+
+
+                                                            // Validate required fields with proper format checks
+                                                            const fieldValidationErrorsOther: typeof errors = {};
+
+                                                            // Validate "About You" section
+                                                            if (!fullName?.trim()) {
+                                                                fieldValidationErrorsOther.fullName = 'Your Full Name is required';
+                                                            } else if (!validateFullName(fullName)) {
+                                                                fieldValidationErrorsOther.fullName = 'Your Full Name must be at least 3 characters';
+                                                            }
+
+                                                            if (!email?.trim()) {
+                                                                fieldValidationErrorsOther.email = 'Your Email is required';
+                                                            } else if (!validateEmail(email)) {
+                                                                fieldValidationErrorsOther.email = 'Please enter a valid email address for yourself (e.g. john.doe@example.com)';
+                                                            }
+
+                                                            if (!mobileNumber?.trim()) {
+                                                                fieldValidationErrorsOther.mobileNumber = 'Your Mobile Number is required';
+                                                            } else if (!validatePhoneNumber(mobileNumber)) {
+                                                                fieldValidationErrorsOther.mobileNumber = 'Please enter a valid phone number for yourself (e.g. 08012345678)';
+                                                            }
+
+                                                            // Validate "About Patient" section
+                                                            if (!patientFullName?.trim()) {
+                                                                fieldValidationErrorsOther.patientFullName = 'Patient Full Name is required';
+                                                            } else if (!validateFullName(patientFullName)) {
+                                                                fieldValidationErrorsOther.patientFullName = 'Patient Full Name must be at least 3 characters';
+                                                            }
+
+                                                            if (!patientEmail?.trim()) {
+                                                                fieldValidationErrorsOther.patientEmail = 'Patient Email is required';
+                                                            } else if (!validateEmail(patientEmail)) {
+                                                                fieldValidationErrorsOther.patientEmail = 'Please enter a valid email address for the patient (e.g. jane.doe@example.com)';
+                                                            }
+
+                                                            if (!patientMobileNumber?.trim()) {
+                                                                fieldValidationErrorsOther.patientMobileNumber = 'Patient Mobile Number is required';
+                                                            } else if (!validatePhoneNumber(patientMobileNumber)) {
+                                                                fieldValidationErrorsOther.patientMobileNumber = 'Please enter a valid phone number for the patient (e.g. 08012345678)';
+                                                            }
+
+                                                            if (!patientGender?.trim()) {
+                                                                fieldValidationErrorsOther.patientGender = 'Patient Gender is required';
+                                                            }
+
+                                                            if (!patientDateOfBirth?.trim()) {
+                                                                fieldValidationErrorsOther.patientDateOfBirth = 'Patient Date of Birth is required';
+                                                            } else if (!validateDateOfBirth(patientDateOfBirth)) {
+                                                                fieldValidationErrorsOther.patientDateOfBirth = 'Please enter a valid date (Patient must be at least 2 years old)';
+                                                            }
+
+                                                            if (Object.keys(fieldValidationErrorsOther).length > 0) {
+                                                                setErrors(fieldValidationErrorsOther);
+                                                                // Scroll to first error field
+                                                                const firstErrorField = Object.keys(fieldValidationErrorsOther)[0];
+                                                                setTimeout(() => {
+                                                                    // Try to find field by ID first, then by data-field attribute
+                                                                    const errorElement = document.getElementById(firstErrorField) ||
+                                                                        document.getElementById(`${firstErrorField}-other`) ||
+                                                                        document.querySelector(`[data-field="${firstErrorField}"]`);
+                                                                    if (errorElement) {
+                                                                        errorElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                                                        // Focus the field for better UX
+                                                                        if (errorElement instanceof HTMLElement && !errorElement.hasAttribute('disabled')) {
+                                                                            (errorElement as HTMLElement).focus();
+                                                                        }
+                                                                    }
+                                                                }, 100);
+                                                                return;
+                                                            }
+                                                            const toMinutes = (t: string) => {
+                                                                const [time, mer] = String(t).split(/\s+/);
+                                                                const [hh, mm] = (time || '').split(':').map((v) => parseInt(v || '0', 10));
+                                                                let h = (hh || 0) % 12; if ((mer || '').toLowerCase().startsWith('p')) h += 12;
+                                                                return h * 60 + (mm || 0);
+                                                            };
+                                                            const fmt = (m: number) => {
+                                                                const h24 = Math.floor(m / 60);
+                                                                const mm = m % 60;
+                                                                const mer = h24 >= 12 ? 'PM' : 'AM';
+                                                                let h = h24 % 12; if (h === 0) h = 12;
+                                                                const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+                                                                return `${h}:${pad(mm)} ${mer}`;
+                                                            };
+                                                            const endTime = fmt(toMinutes(selectedTime) + 30);
+
+                                                            // Prevent duplicate booking submissions
+                                                            if (isBookingInProgressRef.current || bookAppointmentMutation.isPending) {
+                                                                return;
+                                                            }
+
+                                                            // Check if booking already exists
+                                                            const draftCheck = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
+                                                            if (draftCheck?.appointment?.id) {
+                                                                toast.error('A booking is already in progress. Please complete the payment first.');
+                                                                return;
+                                                            }
+
+                                                            isBookingInProgressRef.current = true;
+
+                                                            // Prepare formData for "Someone else" booking with patient details
+                                                            const formData = {
+                                                                forWhom,
+                                                                visitedBefore: visited,
+                                                                identificationNumber,
+                                                                comments,
+                                                                communicationPreference,
+                                                                patientName: patientFullName,
+                                                                patientEmail: patientEmail,
+                                                                patientPhone: patientMobileNumber,
+                                                                patientGender: patientGender,
+                                                                patientDOB: patientDateOfBirth,
+                                                            };
+
+                                                            bookAppointmentMutation.mutate({
+                                                                providerId: id || '',
+                                                                serviceId: serviceId || '',
+                                                                date: selectedDate,
+                                                                start_time: selectedTime,
+                                                                end_time: endTime,
+                                                                formData,
+                                                                notes: comments || '',
+                                                            }, {
+                                                                onSuccess: (res) => {
+                                                                    isBookingInProgressRef.current = false;
+                                                                    if (!res?.success) {
+                                                                        const msg = res?.message || 'Unable to book this slot. Please choose another time.';
+                                                                        toast.error(msg);
+                                                                        return;
+                                                                    }
+                                                                    try {
+                                                                        const prev = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
+                                                                        const appointment = res?.data?.appointment || {};
+                                                                        localStorage.setItem('bookingDraft', JSON.stringify({
+                                                                            ...prev,
+                                                                            appointment,
+                                                                        }));
+                                                                    } catch { }
+                                                                    // Invalidate appointments query to refresh booking history
+                                                                    queryClient.invalidateQueries({ queryKey: ['patientAppointments'] });
+                                                                    if (res?.message) toast.success(res.message);
+                                                                    setCurrentStep('payment');
+                                                                },
+                                                                onError: (error: any) => {
+                                                                    isBookingInProgressRef.current = false;
+                                                                    const apiMsg = error?.response?.data?.message;
+                                                                    const mongoCode = error?.response?.data?.code || error?.code;
+                                                                    const isDup = mongoCode === 11000 || /duplicate key/i.test(String(apiMsg || ''));
+                                                                    const msg = isDup
+                                                                        ? 'This time slot is already booked. Please choose another time.'
+                                                                        : (apiMsg || 'Failed to book appointment. Please try another time.');
+                                                                    toast.error(msg);
+                                                                }
+                                                            });
+                                                        }}
+                                                        disabled={isBookingInProgressRef.current || bookAppointmentMutation.isPending}
+                                                        className={`w-full py-3 px-6 rounded-md transition-colors font-medium relative ${(isBookingInProgressRef.current || bookAppointmentMutation.isPending) ? 'bg-gray-400 text-white cursor-not-allowed' : 'bg-gray-900 text-white hover:bg-gray-800'}`}
+                                                    >
+                                                        {(isBookingInProgressRef.current || bookAppointmentMutation.isPending) ? 'Booking…' : 'Continue'}
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {currentStep === 'login' && !isLoggedIn && (
+                                <div className="mb-8 ">
+                                    <div className="max-w-md ">
+                                        {/* Header */}
+                                        <div className="text-center mb-8">
+                                            <h2 className="text-2xl font-bold text-black">Almost there!</h2>
+                                        </div>
+
+                                        {/* Login Section */}
+                                        <div className="mb-8">
+                                            <p className="text-sm text-gray-600 mb-4">
+                                                <span className="underline cursor-pointer">Log in</span> to book faster with your saved details
+                                            </p>
+                                            <ul className="text-sm text-gray-600 mb-6 space-y-2">
+                                                <li>• Book appointments and complete online forms faster with saved details</li>
+                                                <li>• Save your favourite healthcare providers</li>
+                                                <li>• Manage your appointments easily</li>
+                                            </ul>
                                             <button
-                                                onClick={async () => {
-                                                    // Prevent duplicate payment initializations
-                                                    if (isPaymentInProgressRef.current || initializePaymentMutation.isPending) {
-                                                        return;
-                                                    }
+                                                onClick={handleGoogleLogin}
+                                                disabled={oauthLoginMutation.isPending}
+                                                className="w-full border border-gray-300 rounded-lg py-3 px-4 flex items-center justify-center space-x-3 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                <img src="/google.png" alt="Google" className="w-5 h-5" />
+                                                <span className="text-sm font-medium">
+                                                    {oauthLoginMutation.isPending ? 'Signing in...' : 'Continue with Google'}
+                                                </span>
+                                            </button>
+                                        </div>
 
-                                                    try {
-                                                        const draft = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
-                                                        const appointmentId = draft?.appointment?.id;
-                                                        const s = draft?.service || {};
-                                                        const baseAmount = s?.price ?? s?.amount ?? s?.cost ?? 0;
-                                                        // Apply 25% discount if coupon is applied
-                                                        const amount = couponApplied ? baseAmount * 0.75 : baseAmount;
-                                                        // Use profile email if available, otherwise use the email entered in the form
-                                                        const emailToUse = profileData?.data?.contact_details?.email_address || profileData?.data?.email || email || patientEmail || '';
+                                        {/* Divider */}
+                                        <div className="text-center mb-8">
+                                            <span className="text-sm text-gray-500">OR</span>
+                                        </div>
 
-                                                        if (!appointmentId || !amount || !emailToUse) {
-                                                            if (!emailToUse) toast.error("Email address is missing");
+                                        {/* Sign Up Section */}
+                                        <div className="mb-8">
+                                            <p className="text-sm text-gray-600 mb-2">Don't have an account?</p>
+                                            <p className="text-sm text-gray-600 mb-6">
+                                                <span className="underline cursor-pointer">Sign up</span> to book faster next time and get a personalized health experience.
+                                            </p>
+                                        </div>
+
+                                        {/* Continue as Guest */}
+                                        <button
+                                            onClick={() => setCurrentStep('patient-details')}
+                                            className="w-full border border-gray-300 rounded-lg py-3 px-4 flex items-center justify-center space-x-3 hover:bg-gray-50 transition-colors"
+                                        >
+                                            <svg className="w-5 h-5 text-gray-600" fill="currentColor" viewBox="0 0 20 20">
+                                                <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+                                            </svg>
+                                            <span className="text-sm font-medium">Continue as guest</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {currentStep === 'payment' && (
+                                <div className="mb-8">
+                                    <div className="flex gap-8">
+                                        {/* Left Panel - Payment Methods */}
+                                        <div className="flex-1">
+                                            <h2 className="text-2xl font-bold text-black mb-6">Choose your payment method</h2>
+
+                                            {/* Payment Options */}
+                                            <div className="space-y-4 mb-6">
+                                                {/* Paystack Option */}
+                                                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                                                    <div className="flex items-center space-x-3">
+                                                        <input
+                                                            type="radio"
+                                                            name="paymentMethod"
+                                                            id="paystack"
+                                                            checked={selectedPaymentMethod === 'paystack'}
+                                                            onChange={() => setSelectedPaymentMethod('paystack')}
+                                                            className="w-4 h-4 text-blue-600"
+                                                        />
+                                                        <div>
+                                                            <label htmlFor="paystack" className="block text-sm font-medium text-gray-900">Paystack</label>
+                                                            <p className="text-xs text-gray-600">Safe payment online. </p>
+                                                        </div>
+                                                    </div>
+                                                    <img src="/paystack.png" alt="Paystack" className="w-12 h-8 object-contain" />
+                                                </div>
+
+
+                                            </div>
+
+                                            {/* Coupon Section */}
+                                            <div className="mb-6">
+                                                <div className="flex items-center space-x-2 mb-2">
+                                                    <svg className="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                                        <path d="M2 6a2 2 0 012-2h12a2 2 0 012 2v2a2 2 0 100 4v2a2 2 0 01-2 2H4a2 2 0 01-2-2v-2a2 2 0 100-4V6z" />
+                                                    </svg>
+                                                    <label className="text-sm font-medium text-gray-700">Coupon</label>
+                                                </div>
+                                                <div className="flex space-x-2">
+                                                    <input
+                                                        type="text"
+                                                        value={couponCode}
+                                                        onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                                                        placeholder="Enter coupon code"
+                                                        disabled={couponApplied}
+                                                        className={`flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent ${couponApplied ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                                                    />
+                                                    {couponApplied ? (
+                                                        <button
+                                                            onClick={() => {
+                                                                setCouponApplied(false);
+                                                                setCouponCode('');
+                                                                toast.success('Coupon removed');
+                                                            }}
+                                                            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 transition-colors"
+                                                        >
+                                                            Remove
+                                                        </button>
+                                                    ) : (
+                                                        <button
+                                                            onClick={() => {
+                                                                if (!couponCode.trim()) {
+                                                                    toast.error('Please enter a coupon code');
+                                                                    return;
+                                                                }
+                                                                if (couponCode.toUpperCase() === 'IJKZYB') {
+                                                                    setCouponApplied(true);
+                                                                    toast.success('Coupon applied! 25% discount applied');
+                                                                } else {
+                                                                    toast.error('Invalid coupon code');
+                                                                }
+                                                            }}
+                                                            className="px-4 py-2 bg-gray-900 text-white rounded-md hover:bg-gray-800 transition-colors"
+                                                        >
+                                                            Apply
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                {couponApplied && (
+                                                    <p className="mt-2 text-sm text-green-600 font-medium">
+                                                        ✓ 25% discount applied
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </div>
+
+                                        {/* Right Panel - Booking Summary */}
+                                        <div className="w-80">
+                                            <div className="bg-gray-50 rounded-lg p-6">
+                                                <div className="flex items-center space-x-2 mb-4">
+                                                    <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+                                                        <span className="text-white text-sm font-bold">B</span>
+                                                    </div>
+                                                    <h3 className="text-lg font-bold text-black">Booking Summary</h3>
+                                                </div>
+
+                                                {/* Summary Details */}
+                                                <div className="space-y-3 mb-6">
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-sm text-gray-600">Service</span>
+                                                        <span className="text-sm font-medium text-black">{(JSON.parse(localStorage.getItem('bookingDraft') || '{}')?.service?.name) || selectedService || 'N/A'}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-sm text-gray-600">Price</span>
+                                                        <span className="text-sm font-medium text-black">{(() => { try { const s = JSON.parse(localStorage.getItem('bookingDraft') || '{}')?.service; const price = s?.price ?? s?.amount ?? s?.cost; return price ? `₦${price}` : '—'; } catch { return '—'; } })()}</span>
+                                                    </div>
+                                                    {couponApplied && (() => {
+                                                        try {
+                                                            const draft = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
+                                                            const s = draft?.service;
+                                                            const price = s?.price ?? s?.amount ?? s?.cost;
+                                                            if (price) {
+                                                                const discount = price * 0.25;
+                                                                return (
+                                                                    <div className="flex justify-between items-center">
+                                                                        <span className="text-sm text-gray-600">Discount (25%)</span>
+                                                                        <span className="text-sm font-medium text-green-600">-₦{discount.toFixed(2)}</span>
+                                                                    </div>
+                                                                );
+                                                            }
+                                                        } catch { }
+                                                        return null;
+                                                    })()}
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-sm text-gray-600">Provider</span>
+                                                        <span className="text-sm font-medium text-black">{providerData?.name || JSON.parse(localStorage.getItem('bookingDraft') || '{}')?.provider?.name || 'N/A'}</span>
+                                                    </div>
+                                                    <div className="flex justify-between items-center">
+                                                        <span className="text-sm text-gray-600">When</span>
+                                                        <span className="text-sm font-medium text-black">{selectedDate} {selectedTime ? `at ${selectedTime}` : ''}</span>
+                                                    </div>
+                                                    <div className="border-t border-gray-200 pt-3">
+                                                        <div className="flex justify-between items-center">
+                                                            <span className="text-lg font-bold text-black">Total</span>
+                                                            <span className="text-lg font-bold text-black">{(() => {
+                                                                try {
+                                                                    const draft = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
+                                                                    const s = draft?.service;
+                                                                    const price = s?.price ?? s?.amount ?? s?.cost;
+                                                                    if (price) {
+                                                                        const finalPrice = couponApplied ? price * 0.75 : price;
+                                                                        return `₦${finalPrice.toFixed(2)}`;
+                                                                    }
+                                                                    return '—';
+                                                                } catch {
+                                                                    return '—';
+                                                                }
+                                                            })()}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Terms and Conditions */}
+                                                <div className="mb-6 space-y-2">
+                                                    <p className="text-xs text-gray-600">
+                                                        By confirming your payment, you agree to the{' '}
+                                                        <a href="#" className="text-blue-600 underline">medresq healthcare terms and conditions</a>.
+                                                    </p>
+                                                    <p className="text-xs text-gray-600">
+                                                        By confirming your payment, you agree to the{' '}
+                                                        <a href="#" className="text-blue-600 underline">medresq healthcare's user agreement and privacy notice</a>.
+                                                    </p>
+                                                </div>
+
+                                                {/* Confirm and Pay Button */}
+                                                <button
+                                                    onClick={async () => {
+                                                        // Prevent duplicate payment initializations
+                                                        if (isPaymentInProgressRef.current || initializePaymentMutation.isPending) {
                                                             return;
                                                         }
 
-                                                        isPaymentInProgressRef.current = true;
+                                                        try {
+                                                            const draft = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
+                                                            const appointmentId = draft?.appointment?.id;
+                                                            const s = draft?.service || {};
+                                                            const baseAmount = s?.price ?? s?.amount ?? s?.cost ?? 0;
+                                                            // Apply 25% discount if coupon is applied
+                                                            const amount = couponApplied ? baseAmount * 0.75 : baseAmount;
+                                                            // Use profile email if available, otherwise use the email entered in the form
+                                                            const emailToUse = profileData?.data?.contact_details?.email_address || profileData?.data?.email || email || patientEmail || '';
 
-                                                        const res = await initializePaymentMutation.mutateAsync({
-                                                            appointmentId,
-                                                            amount,
-                                                            email: emailToUse,
-                                                        });
-                                                        const url = res?.data?.authorization_url;
-                                                        if (url) {
-                                                            // Payment initiated successfully, redirect to payment gateway
+                                                            if (!appointmentId || !amount || !emailToUse) {
+                                                                if (!emailToUse) toast.error("Email address is missing");
+                                                                return;
+                                                            }
+
+                                                            isPaymentInProgressRef.current = true;
+
+                                                            const res = await initializePaymentMutation.mutateAsync({
+                                                                appointmentId,
+                                                                amount,
+                                                                email: emailToUse,
+                                                            });
+                                                            const url = res?.data?.authorization_url;
+                                                            if (url) {
+                                                                // Payment initiated successfully, redirect to payment gateway
+                                                                isPaymentInProgressRef.current = false;
+                                                                window.location.href = url;
+                                                            } else {
+                                                                isPaymentInProgressRef.current = false;
+                                                                toast.error('Failed to initialize payment. Please try again.');
+                                                            }
+                                                        } catch (e: any) {
                                                             isPaymentInProgressRef.current = false;
-                                                            window.location.href = url;
-                                                        } else {
-                                                            isPaymentInProgressRef.current = false;
-                                                            toast.error('Failed to initialize payment. Please try again.');
+                                                            const errorMsg = e?.response?.data?.message || 'Failed to initialize payment. Please try again.';
+                                                            toast.error(errorMsg);
                                                         }
-                                                    } catch (e: any) {
-                                                        isPaymentInProgressRef.current = false;
-                                                        const errorMsg = e?.response?.data?.message || 'Failed to initialize payment. Please try again.';
-                                                        toast.error(errorMsg);
-                                                    }
-                                                }}
-                                                disabled={isPaymentInProgressRef.current || initializePaymentMutation.isPending}
-                                                className={`w-full bg-gray-900 text-white py-3 px-6 rounded-md transition-colors font-medium mb-4 ${isPaymentInProgressRef.current || initializePaymentMutation.isPending ? 'bg-gray-400 cursor-not-allowed hover:bg-gray-400' : 'hover:bg-gray-800'}`}
-                                            >
-                                                {isPaymentInProgressRef.current || initializePaymentMutation.isPending ? 'Processing...' : 'Confirm and pay'}
-                                            </button>
+                                                    }}
+                                                    disabled={isPaymentInProgressRef.current || initializePaymentMutation.isPending}
+                                                    className={`w-full bg-gray-900 text-white py-3 px-6 rounded-md transition-colors font-medium mb-4 ${isPaymentInProgressRef.current || initializePaymentMutation.isPending ? 'bg-gray-400 cursor-not-allowed hover:bg-gray-400' : 'hover:bg-gray-800'}`}
+                                                >
+                                                    {isPaymentInProgressRef.current || initializePaymentMutation.isPending ? 'Processing...' : 'Confirm and pay'}
+                                                </button>
 
-                                            {/* Promotions Checkbox */}
-                                            <div className="flex items-center space-x-2">
-                                                <input
-                                                    type="checkbox"
-                                                    id="promotions"
-                                                    checked
-                                                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                                                />
-                                                <label htmlFor="promotions" className="text-sm text-gray-700">
-                                                    Get exclusive offers and promotions from Medresq Healthcare
-                                                </label>
+                                                {/* Promotions Checkbox */}
+                                                <div className="flex items-center space-x-2">
+                                                    <input
+                                                        type="checkbox"
+                                                        id="promotions"
+                                                        checked
+                                                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                                                    />
+                                                    <label htmlFor="promotions" className="text-sm text-gray-700">
+                                                        Get exclusive offers and promotions from Medresq Healthcare
+                                                    </label>
+                                                </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
+                            )}
+
+                            {/* Booking Policy Section */}
+                            <div className="mb-8">
+                                <h3 className="text-lg font-bold text-black mb-4">Booking Policy</h3>
+                                <p className="text-sm text-gray-600 leading-relaxed">
+                                    Lorem ipsum dolor sit amet consectetur. Laoreet integer purus gravida consequat tincidunt nisi.
+                                    Egestas ac vitae purus purus adipiscing. Aliquam blandit consectetur volutpat pellentesque vitae in.
+                                    Morbi condimentum et nibh scelerisque. Convallis velit quis scelerisque eget maecenas.
+                                    Mauris duis suspendisse sed dis. Habitant biben.
+                                </p>
                             </div>
-                        )}
 
-                        {/* Booking Policy Section */}
-                        <div className="mb-8">
-                            <h3 className="text-lg font-bold text-black mb-4">Booking Policy</h3>
-                            <p className="text-sm text-gray-600 leading-relaxed">
-                                Lorem ipsum dolor sit amet consectetur. Laoreet integer purus gravida consequat tincidunt nisi.
-                                Egestas ac vitae purus purus adipiscing. Aliquam blandit consectetur volutpat pellentesque vitae in.
-                                Morbi condimentum et nibh scelerisque. Convallis velit quis scelerisque eget maecenas.
-                                Mauris duis suspendisse sed dis. Habitant biben.
-                            </p>
-                        </div>
-
-                        {/* Cancellation Policy Section */}
-                        <div>
-                            <h3 className="text-lg font-bold text-black mb-4">Cancellation Policy</h3>
-                            <p className="text-sm text-gray-600">
-                                You can cancel or reschedule up to 24 hours before the appointment time.
-                            </p>
+                            {/* Cancellation Policy Section */}
+                            <div>
+                                <h3 className="text-lg font-bold text-black mb-4">Cancellation Policy</h3>
+                                <p className="text-sm text-gray-600">
+                                    You can cancel or reschedule up to 24 hours before the appointment time.
+                                </p>
+                            </div>
                         </div>
                     </div>
                 </div>

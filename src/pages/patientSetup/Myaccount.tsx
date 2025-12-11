@@ -160,6 +160,9 @@ export default function Myaccount() {
   const updateProfileMutation = useUpdatePatientProfile();
   const uploadProfilePictureMutation = useUploadProfilePicture();
   const queryClient = useQueryClient();
+  
+  // Track initial load to prevent toast on page refresh/navigation if already complete
+  const isInitialLoad = useRef(true);
 
   // Calculate onboarding completion status and progress
   const calculateOnboardingProgress = () => {
@@ -348,8 +351,20 @@ export default function Myaccount() {
 
   // Show success message when onboarding is completed
   useEffect(() => {
-    if (onboardingStatus.isComplete && profileData?.data) {
-      // Only show toast if this is a new completion (not on initial load)
+    // Wait for data to be loaded
+    if (!profileData?.data) return;
+
+    // On initial data load, just set the flag state without showing toast
+    if (isInitialLoad.current) {
+      isInitialLoad.current = false;
+      if (onboardingStatus.isComplete) {
+        localStorage.setItem('onboarding_completed', 'true');
+      }
+      return;
+    }
+
+    if (onboardingStatus.isComplete) {
+      // Only show toast if this is a NEW completion (transition from incomplete to complete)
       const wasComplete = localStorage.getItem('onboarding_completed');
       if (!wasComplete) {
         toast.success('🎉 Profile complete! You can now access all features.');

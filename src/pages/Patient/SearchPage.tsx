@@ -2,7 +2,6 @@ import { useMemo, useState, useEffect } from 'react'
 import { useFilters } from '../../contexts/FilterContext'
 import HospitalCard from '../../components/HospitalCard'
 import Pagination from '../../components/Pagination'
-import Footer from '../../components/patient/Footer'
 import AppointmentDateDropdown from '../../components/AppointmentDateDropdown'
 import TimeDropdown from '../../components/TimeDropdown'
 import RatingDropdown from '../../components/RatingDropdown'
@@ -241,8 +240,8 @@ const SearchPage = () => {
     return (
         <div className="h-full w-full bg-gray-50 flex flex-col">
             {/* Filter Bar */}
-            <div className="bg-white border-b border-gray-200 sticky top-0 z-10 flex-shrink-0">
-                <div className="max-w-7xl mx-auto px-4 py-4">
+            <div className="  border-gray-200 sticky top-0 z-10 flex-shrink-0">
+                <div className="max-w-[1440px] mx-auto py-4">
                     <div className="flex items-center justify-between">
                         <h1 className="text-xl font-bold text-gray-900">Filters</h1>
 
@@ -307,11 +306,10 @@ const SearchPage = () => {
 
                                 <button
                                     onClick={handleSpecialOfferToggle}
-                                    className={`text-sm px-3 py-1 rounded-md transition-colors ${
-                                        specialOfferFilter
-                                            ? 'bg-blue-500 text-white hover:bg-blue-600'
-                                            : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
-                                    }`}
+                                    className={`text-sm px-3 py-1 rounded-md transition-colors ${specialOfferFilter
+                                        ? 'bg-blue-500 text-white hover:bg-blue-600'
+                                        : 'text-gray-700 hover:text-gray-900 hover:bg-gray-100'
+                                        }`}
                                 >
                                     Special offer
                                 </button>
@@ -322,7 +320,7 @@ const SearchPage = () => {
             </div>
 
             {/* Main Content */}
-            <div className="max-w-7xl mx-auto px-4 py-8 flex-1 w-full flex flex-col">
+            <div className="max-w-[1440px] mx-auto py-8 flex-1 w-full flex flex-col">
                 {/* Results Count */}
                 <div className="mb-6">
                     <p className="text-gray-600 text-sm">
@@ -377,8 +375,6 @@ const SearchPage = () => {
                     </div>
                 )}
             </div>
-
-            <Footer />
         </div>
     )
 }

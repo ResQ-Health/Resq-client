@@ -31,6 +31,9 @@ function Navbar() {
   // Check if we're on the search page
   const isSearchPage = location.pathname === '/search';
 
+  // Check if we're on a login page
+  const isLoginPage = ['/sign-in-patient', '/sign-in-provider', '/forgot-password'].includes(location.pathname);
+
   // Sync search input with filter
   React.useEffect(() => {
     if (searchFilter) {
@@ -96,11 +99,23 @@ function Navbar() {
         </button>
       </div>
     );
-  } else if (location.pathname === '/' || location.pathname === '/onboarding') {
+  } else if (isLoginPage) {
+    rightContent = (
+      <div className="flex items-center gap-4">
+        <span className="text-[#06202E] font-medium text-sm">No account?</span>
+        <Link
+          to="/"
+          className="px-6 py-2 border border-gray-300 rounded-[6px] text-[#06202E] hover:bg-gray-50 transition-colors font-medium text-sm"
+        >
+          Sign up
+        </Link>
+      </div>
+    );
+  } else if (location.pathname === '/' || location.pathname === '/onboarding' || location.pathname === '/login') {
     rightContent = (
       <div className="flex items-center space-x-4">
         <span className="text-gray-700">Are you a provider?</span>
-        <Link to="/login" className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:text-gray-900">
+        <Link to="/sign-in-provider" className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:text-gray-900">
           Sign in
         </Link>
       </div>
@@ -109,9 +124,10 @@ function Navbar() {
     rightContent = null;
   } else {
     rightContent = (
-      <div className="flex items-center">
-        <Link to="/login" className="px-4 py-2 bg-blue-600 rounded-md text-white hover:bg-blue-700">
-          Login
+      <div className="flex items-center space-x-4">
+        <span className="text-gray-700">Are you a provider?</span>
+        <Link to="/sign-in-provider" className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:text-gray-900">
+          Sign in
         </Link>
       </div>
     );
@@ -119,10 +135,10 @@ function Navbar() {
 
   return (
     <>
-      <nav className="bg-white py-2 px-16 border-b border-[#E1E3E6]">
+      <nav className={`bg-white border-b border-[#E1E3E6] py-3 px-16 transition-colors duration-200`}>
         <div className="flex justify-between items-center max-w-[1440px] mx-auto">
           {/* Left section - Logo */}
-          <div className="text-lg flex items-center gap-2 font-bold w-1/4">
+          <div className={`text-lg flex items-center gap-2 font-bold w-1/4 text-[#06202E]`}>
             <img src={logo} alt="RESQ" className="w-10 h-10" />
             RESQ
           </div>
@@ -143,13 +159,13 @@ function Navbar() {
                       className="h-5 w-5 text-gray-400"
                       fill="none"
                       stroke="currentColor"
+                      strokeWidth={2}
                       viewBox="0 0 24 24"
                       xmlns="http://www.w3.org/2000/svg"
                     >
                       <path
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        strokeWidth={2}
                         d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
                       />
                     </svg>
@@ -179,4 +195,4 @@ function Navbar() {
   )
 }
 
-export default Navbar 
+export default Navbar

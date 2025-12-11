@@ -25,6 +25,7 @@
 - **Toast Notifications**: User-friendly success/error messages
 - **Form Validation**: Real-time validation with visual feedback
 - **Responsive Design**: Mobile-friendly interface
+- **Login Page**: Refactored `LoginPatientPage.tsx` with Tailwind CSS classes, responsive layout, and theme colors.
 
 ### 🧪 Testing Infrastructure
 - **Vitest Setup**: Complete testing environment with proper configuration
@@ -50,6 +51,7 @@
 ## 🔄 IN PROGRESS
 
 ### 🎯 Current Focus
+- **Visual Alignment**: Fine-tuning UI to match design (pending reference)
 - **Backend Integration**: Ready to connect to actual API endpoints
 - **Enhanced Validation**: Client-side validation rules can be added
 - **Image Upload**: Backend file upload integration

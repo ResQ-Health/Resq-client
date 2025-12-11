@@ -110,7 +110,7 @@ export default function PatientLayout({ children }: PatientLayoutProps) {
     return (
         <div className="w-full min-h-screen">
             {/* Top navigation bar with border-y */}
-            <div className="w-full flex items-center justify-center border-y-2 border-gray-200 py-4 mb-12 relative">
+            <div className="w-screen ml-[calc(50%-50vw)] flex items-center justify-center border-y-2 border-gray-200 py-4 mb-12 relative bg-white">
                 <div className="flex gap-12 relative">
                     {NAV_ITEMS.map((item, index) => {
                         const isMyAccount = item.path.includes('/my-account') || item.path.includes('/Myaccount');

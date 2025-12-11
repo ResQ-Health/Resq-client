@@ -995,7 +995,7 @@ const ProviderPage = () => {
                 </div>
 
                 {/* Overlapping Availability Card */}
-                <div className="absolute top-[350px] right-16 w-96">
+                <div className="absolute top-[40px] z-50 right-16 w-96">
                     <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
                         <h3 className="text-xl font-semibold text-gray-900 mb-4 text-center">Availability</h3>
                         <div className="border-b border-gray-200 mb-4"></div>
@@ -1151,7 +1151,7 @@ const ProviderPage = () => {
             </div>
 
             {/* Main Content */}
-            <div className="max-w-7xl  px-16 py-8">
+            <div className="max-w-[830px]  bg-[white]  px-16 py-8">
                 {/* About Section */}
                 <section id="About" className="mb-16">
                     <div className="flex items-start border-b border-gray-200 pb-8">

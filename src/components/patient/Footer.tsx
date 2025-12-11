@@ -1,19 +1,16 @@
+import logo from '/icons/Logomark (1).png'
+
 const Footer = () => {
     return (
-        <footer className="bg-[#0F1C26] w-full text-white">
+        <footer className="bg-[#0F1C26] text-white w-full">
             {/* Top Section - Main Content */}
-            <div className="w-full max-w-7xl mx-auto px-4 sm:px-8 lg:px-16 py-12">
+            <div className="w-full max-w-[1440px] mx-auto px-16 py-12">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-[21px]">
                     {/* Left Half - Branding and Social Media */}
                     <div className="space-y-6">
-                        {/* Logo Section - Placeholder for logo */}
-                        <div className="flex items-center space-x-2">
-                            <div className="w-8 h-8 bg-white rounded flex items-center justify-center">
-                                {/* Logo placeholder - replace with actual logo */}
-                                <svg className="w-5 h-5 text-[#0F1C26]" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
-                                </svg>
-                            </div>
+                        {/* Logo Section */}
+                        <div className="flex items-center gap-2 text-white">
+                            <img src={logo} alt="RESQ" className="w-10 h-10 object-contain brightness-0 invert" />
                             <span className="text-xl font-bold">RESQ</span>
                         </div>
 
@@ -59,8 +56,8 @@ const Footer = () => {
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
                         {/* Services */}
                         <div className="space-y-3">
-                            <h3 className="font-bold text-lg">Services</h3>
-                            <ul className="space-y-2 text-[16px] font-[400] ">
+                            <h3 className="font-bold text-sm lg:text-base">Services</h3>
+                            <ul className="space-y-2 text-xs lg:text-sm font-[400]">
                                 <li><a href="#" className="hover:opacity-80 transition-opacity">CT Scan</a></li>
                                 <li><a href="#" className="hover:opacity-80 transition-opacity">MRI</a></li>
                                 <li><a href="#" className="hover:opacity-80 transition-opacity">Mammogram</a></li>
@@ -71,8 +68,8 @@ const Footer = () => {
 
                         {/* About Us */}
                         <div className="space-y-3">
-                            <h3 className="font-bold text-lg">About Us</h3>
-                            <ul className="space-y-2">
+                            <h3 className="font-bold text-sm lg:text-base">About Us</h3>
+                            <ul className="space-y-2 text-xs lg:text-sm">
                                 <li><a href="#" className="hover:opacity-80 transition-opacity">FAQ</a></li>
                                 <li><a href="#" className="hover:opacity-80 transition-opacity">ResQ Story</a></li>
                                 <li><a href="#" className="hover:opacity-80 transition-opacity">Partners</a></li>
@@ -81,8 +78,8 @@ const Footer = () => {
 
                         {/* Business */}
                         <div className="space-y-3">
-                            <h3 className="font-bold text-lg">Business</h3>
-                            <ul className="space-y-2">
+                            <h3 className="font-bold text-sm lg:text-base">Business</h3>
+                            <ul className="space-y-2 text-xs lg:text-sm">
                                 <li><a href="#" className="hover:opacity-80 transition-opacity">Specialists</a></li>
                                 <li><a href="#" className="hover:opacity-80 transition-opacity">Hospitals</a></li>
                                 <li><a href="#" className="hover:opacity-80 transition-opacity">Imaging Centers</a></li>
@@ -92,8 +89,8 @@ const Footer = () => {
 
                         {/* Contact */}
                         <div className="space-y-3">
-                            <h3 className="font-bold text-lg">Contact</h3>
-                            <ul className="space-y-2">
+                            <h3 className="font-bold text-sm lg:text-base">Contact</h3>
+                            <ul className="space-y-2 text-xs lg:text-sm">
                                 <li><a href="mailto:Hello@resqhealthafrica.com" className="hover:opacity-80 transition-opacity">Hello@resqhealthafrica.com</a></li>
                                 <li><a href="tel:+234707277983" className="hover:opacity-80 transition-opacity">+234707277983</a></li>
                             </ul>
