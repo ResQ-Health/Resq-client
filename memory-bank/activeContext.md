@@ -7,6 +7,7 @@
 - **Layout Alignment**: Updating `Layout.tsx` to enforce global constraints (`px-16`, `max-w-[1440px]`).
 - **Full-width Elements**: Adjusting `PatientLayout` to maintain full-width borders while aligning content with the global layout.
 - **Footer Visibility**: Hiding the footer on authentication pages (Sign Up, Sign In, Verification) for a cleaner flow.
+- **Support Page**: Added a dedicated Support page and linked it from relevant areas.
 
 ### 🔧 **Technical Implementation**
 
@@ -19,8 +20,14 @@
 - Adjusted the secondary navigation bar to use negative margins (`-mx-16`) to span the full width of the viewport (counteracting the global padding).
 - Maintained the border edge-to-edge look while keeping the navigation items centered.
 
-#### **3. Page-Specific Cleanup** (`src/pages/onboarding patients/LoginPatientPage.tsx`)
+#### **3. Page-Specific Cleanup** (`src/pages/onboarding patients/LoginPatientPage.tsx`, `src/pages/onboarding provider/sign-in-provider.tsx`)
 - Removed the local footer implementation to rely on the global layout configuration (or lack thereof for this page).
+- Updated styling to match the standardized design.
+- Added link to `/support`.
+
+#### **4. New Feature** (`src/pages/SupportPage.tsx`)
+- Created a static `SupportPage` with contact information.
+- Registered route `/support` in `App.tsx`.
 
 ### 📊 **Current Status**
 
@@ -39,8 +46,12 @@
 12. **Navbar Redesign**: Updated default header for logged-out users.
 13. **Global Margins**: All pages now align with the Navbar margins (`px-16`, `max-w-[1440px]`).
 14. **Footer Cleanup**: Removed footer from signup and signin pages for a cleaner interface.
+15. **Support Page**: Added Support page with contact info.
 
 ### 📁 **Files Modified**
 1. `src/components/Layout.tsx`
 2. `src/components/PatientLayout.tsx`
 3. `src/pages/onboarding patients/LoginPatientPage.tsx`
+4. `src/pages/onboarding provider/sign-in-provider.tsx`
+5. `src/pages/SupportPage.tsx`
+6. `src/App.tsx`
