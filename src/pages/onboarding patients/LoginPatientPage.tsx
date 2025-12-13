@@ -244,14 +244,6 @@ function LoginPatientPage() {
         </form>
       </div>
 
-      {/* Footer */}
-      <div className="mt-auto pt-12 pb-8 text-center text-sm text-gray-500 w-full">
-        <div className="flex justify-center items-center gap-6">
-          <span>2025 MedResQ Healthcare</span>
-          <Link to="/terms-and-policy" className="underline hover:text-gray-700">Privacy Policy</Link>
-          <Link to="/support" className="underline hover:text-gray-700">Support</Link>
-        </div>
-      </div>
     </div>
   );
 }

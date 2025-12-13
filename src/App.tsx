@@ -28,6 +28,7 @@ import BookingPage from './pages/Patient/BookingPage'
 import BookingSuccessPage from './pages/Patient/BookingSuccessPage'
 import PaymentCallback from './components/PaymentCallback'
 import TermsAndPolicyPage from './pages/TermsAndPolicyPage'
+import SupportPage from './pages/SupportPage'
 
 function App() {
 
@@ -73,6 +74,11 @@ function App() {
         <Route path="/terms-and-policy" element={
           <PublicRoute>
             <TermsAndPolicyPage />
+          </PublicRoute>
+        } />
+        <Route path="/support" element={
+          <PublicRoute>
+            <SupportPage />
           </PublicRoute>
         } />
 
@@ -145,11 +151,6 @@ function App() {
         <Route path="/sign-in-provider" element={
           <PublicRoute>
             <SignInProvider />
-          </PublicRoute>
-        } />
-        <Route path="/sign-in-provider" element={
-          <PublicRoute>
-            <LoginProviderPage />
           </PublicRoute>
         } />
         <Route path="/verify-provider" element={

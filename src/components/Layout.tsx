@@ -1,9 +1,25 @@
 import React from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import Navbar from './Navbar';
 import Footer from './patient/Footer';
 
 const Layout: React.FC = () => {
+  const location = useLocation();
+  const hideFooterRoutes = [
+    '/',
+    '/onboardingPatient',
+    '/sign-in-patient',
+    '/verify',
+    '/forgot-password',
+    '/reset-password',
+    '/onboardingProvider',
+    '/sign-in-provider',
+    '/verify-provider',
+    '/welcome-provider'
+  ];
+
+  const shouldHideFooter = hideFooterRoutes.includes(location.pathname);
+
   return (
     <div className="min-h-screen flex flex-col bg-[#F9FAFB]">
       <Navbar />
@@ -12,9 +28,9 @@ const Layout: React.FC = () => {
           <Outlet />
         </div>
       </main>
-      <Footer />
+      {!shouldHideFooter && <Footer />}
     </div>
   );
 };
 
-export default Layout; 
+export default Layout;
