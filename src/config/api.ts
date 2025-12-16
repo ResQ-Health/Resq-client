@@ -72,8 +72,14 @@ apiClient.interceptors.response.use(
 
         // Only redirect on 401 errors for authenticated requests (not login/register)
         if (error.response?.status === 401) {
-            const isAuthEndpoint = error.config?.url?.includes('/auth/login') || error.config?.url?.includes('/auth/register');
-            const isBookingEndpoint = error.config?.url?.includes('/appointments/book');
+            const url = error.config?.url || '';
+            const isAuthEndpoint =
+                url.includes('/auth/login') ||
+                url.includes('/auth/register') ||
+                url.includes('/auth/provider/login') ||
+                url.includes('/providers/register');
+
+            const isBookingEndpoint = url.includes('/appointments/book');
 
             // Don't redirect for login/register errors or booking errors (allow guest flow), let the component handle them
             if (!isAuthEndpoint && !isBookingEndpoint) {
@@ -85,17 +91,81 @@ apiClient.interceptors.response.use(
     }
 );
 
-// API endpoints
+// API endpoints grouped by User Role
 export const API_ENDPOINTS = {
-    AUTH: {
-        REGISTER: '/api/v1/auth/register',
-        LOGIN: '/api/v1/auth/login',
-        VERIFY: '/api/v1/auth/verify',
-        VERIFY_OTP: '/api/v1/auth/verify-otp',
-        RESEND_OTP: '/api/v1/auth/resend-otp',
-        FORGOT_PASSWORD: '/api/v1/auth/forgot-password',
-        RESET_PASSWORD: '/api/v1/auth/reset-password',
-        LOGOUT: '/api/v1/auth/logout',
-        OAUTH_LOGIN: '/api/v1/auth/oauth/login',
+    // Shared Authentication & Utilities (Common)
+    COMMON: {
+        AUTH: {
+            VERIFY_EMAIL: '/api/v1/auth/verify',
+            VERIFY_OTP: '/api/v1/auth/verify-otp',
+            RESEND_OTP: '/api/v1/auth/resend-otp',
+            FORGOT_PASSWORD: '/api/v1/auth/forgot-password',
+            RESET_PASSWORD: '/api/v1/auth/reset-password',
+            LOGOUT: '/api/v1/auth/logout',
+            ME: '/api/v1/auth/me', // User Profile (Shared)
+            OAUTH_LOGIN: '/api/v1/auth/oauth/login',
+        },
     },
-} as const; 
+
+    // Patient-Specific Endpoints
+    PATIENT: {
+        AUTH: {
+            REGISTER: '/api/v1/auth/register',
+            LOGIN: '/api/v1/auth/login',
+        },
+        APPOINTMENTS: {
+            GET_ALL: '/api/v1/appointments/patient',
+            BOOK: '/api/v1/appointments/book',
+            DELETE: (id: string) => `/api/v1/appointments/${id}`,
+        },
+        PROVIDERS: {
+            GET_ALL: '/api/v1/providers/all', // Patients searching for providers
+            AVAILABILITY: (id: string) => `/api/v1/providers/${id}/availability`,
+        },
+        PAYMENTS: {
+            INITIALIZE: '/api/v1/payments/initialize',
+            RECEIPT: (id: string) => `/api/v1/payments/receipt/${id}`,
+            SEND_RECEIPT: '/api/v1/payments/receipt/send',
+        },
+        REVIEWS: {
+            CREATE: '/api/v1/reviews',
+            LIKE: (id: string) => `/api/v1/reviews/${id}/like`,
+            SAVE: (id: string) => `/api/v1/reviews/${id}/save`,
+        },
+        FAVORITES: {
+            TOGGLE: '/api/v1/auth/favorites/providers/toggle',
+            STATUS: (id: string) => `/api/v1/auth/favorites/providers/${id}/status`,
+        }
+    },
+
+    // Provider-Specific Endpoints
+    PROVIDER: {
+        AUTH: {
+            REGISTER: '/api/v1/providers/register',
+            LOGIN: '/api/v1/auth/provider/login',
+        },
+        DASHBOARD: {
+            STATS: '/api/v1/providers/me/dashboard-stats',
+        },
+        PROFILE: {
+            ME: '/api/v1/providers/profile/me',
+            PROFILE_PICTURE: '/api/v1/providers/me/profile-picture',
+            WORKING_HOURS: '/api/v1/providers/me/working-hours',
+        },
+        APPOINTMENTS: {
+            CREATE: '/api/v1/appointments', // Provider creating appointment manually
+            GET_ALL: '/api/v1/providers/appointments',
+        },
+        PATIENTS: {
+            GET_ALL: '/api/v1/providers/patients',
+            CREATE: '/api/v1/providers/patients',
+            UPDATE: '/api/v1/providers/patients',
+        },
+        SERVICES: {
+            GET_ALL: '/api/v1/providers/services',
+            CREATE: '/api/v1/providers/services',
+            UPDATE: (id: string) => `/api/v1/providers/services/${id}`,
+            DELETE: (id: string) => `/api/v1/providers/services/${id}`,
+        }
+    }
+} as const;

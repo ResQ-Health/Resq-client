@@ -1,5 +1,118 @@
-import { useQuery, useMutation } from '@tanstack/react-query';
-import { apiClient } from '../config/api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiClient, API_ENDPOINTS } from '../config/api';
+import toast from 'react-hot-toast';
+import { LoginRequest, LoginResponse } from './authService';
+
+// Provider Dashboard Stats
+export interface ProviderDashboardRevenueByMonthItem {
+    year: number;
+    month: number; // 1-12
+    month_name: string;
+    amount: number;
+    count: number;
+    period: string; // e.g. "January 2023"
+}
+
+export interface ProviderDashboardRevenueByServiceItem {
+    // Backend field names may vary, so we support common ones
+    service_id?: string;
+    service_name?: string;
+    name?: string;
+    service?: string;
+    amount: number;
+    count?: number;
+}
+
+export interface ProviderDashboardTopServiceItem {
+    id?: string;
+    service_id?: string;
+    name?: string;
+    service_name?: string;
+    count?: number;
+    amount?: number;
+}
+
+export type ProviderDashboardPatientVisits =
+    | number
+    | {
+        male?: number;
+        female?: number;
+        total?: number;
+        male_change_pct?: number;
+        female_change_pct?: number;
+    };
+
+export interface ProviderDashboardStatsData {
+    overview: {
+        total: {
+            total_appointments: number;
+            completed_appointments: number;
+            upcoming_appointments: number;
+            cancelled_appointments: number;
+        };
+        monthly: {
+            total_appointments: number;
+            completed_appointments: number;
+            upcoming_appointments: number;
+            cancelled_appointments: number;
+        };
+        weekly: {
+            total_appointments: number;
+            completed_appointments: number;
+            upcoming_appointments: number;
+            cancelled_appointments: number;
+        };
+        user_stats?: {
+            total_unique_patients: number;
+            new_patients_this_month: number;
+            demographics: {
+                male: number;
+                female: number;
+                other: number;
+                unknown: number;
+            };
+        };
+    };
+    financials: {
+        total_revenue: number;
+        first_payment_date?: string;
+        last_payment_date?: string;
+        revenue_by_month: ProviderDashboardRevenueByMonthItem[];
+        revenue_by_service?: {
+            total: ProviderDashboardRevenueByServiceItem[];
+            monthly: ProviderDashboardRevenueByServiceItem[];
+            weekly: ProviderDashboardRevenueByServiceItem[];
+        };
+    };
+    patient_visits?: {
+        total: number;
+        monthly: number;
+        weekly: number;
+    };
+    top_services?: {
+        total: ProviderDashboardTopServiceItem[];
+        monthly: ProviderDashboardTopServiceItem[];
+        weekly: ProviderDashboardTopServiceItem[];
+    };
+}
+
+export interface ProviderDashboardStatsResponse {
+    success: boolean;
+    data: ProviderDashboardStatsData;
+}
+
+export const fetchProviderDashboardStats = async (): Promise<ProviderDashboardStatsResponse> => {
+    const res = await apiClient.get(API_ENDPOINTS.PROVIDER.DASHBOARD.STATS);
+    return res.data as ProviderDashboardStatsResponse;
+};
+
+export const useProviderDashboardStats = () => {
+    return useQuery({
+        queryKey: ['providerDashboardStats'],
+        queryFn: fetchProviderDashboardStats,
+        staleTime: 30 * 1000,
+    });
+};
 
 export interface ProviderAddress {
     street?: string;
@@ -39,7 +152,7 @@ export interface ProvidersAllResponse {
 }
 
 export const fetchAllProviders = async (): Promise<ProvidersAllResponse> => {
-    const response = await apiClient.get('/api/v1/providers/all');
+    const response = await apiClient.get(API_ENDPOINTS.PATIENT.PROVIDERS.GET_ALL);
     return response.data as ProvidersAllResponse;
 };
 
@@ -73,9 +186,10 @@ export const fetchProviderAvailability = async (
         if (params?.service) query.append('service', params.service);
         if (typeof params?.month === 'number') query.append('month', String(params.month));
         if (typeof params?.year === 'number') query.append('year', String(params.year));
-        const url = query.toString()
-            ? `/api/v1/providers/${providerId}/availability?${query.toString()}`
-            : `/api/v1/providers/${providerId}/availability`;
+        
+        const endpoint = API_ENDPOINTS.PATIENT.PROVIDERS.AVAILABILITY(providerId);
+        const url = query.toString() ? `${endpoint}?${query.toString()}` : endpoint;
+        
         const res = await apiClient.get(url);
         return res.data as ProviderAvailabilityResponse;
     } catch (err) {
@@ -154,7 +268,7 @@ export interface CreateAppointmentResponse {
 }
 
 export const createAppointment = async (payload: CreateAppointmentRequest): Promise<CreateAppointmentResponse> => {
-    const res = await apiClient.post('/api/v1/appointments', payload);
+    const res = await apiClient.post(API_ENDPOINTS.PROVIDER.APPOINTMENTS.CREATE, payload);
     return res.data as CreateAppointmentResponse;
 };
 
@@ -163,6 +277,75 @@ export const useCreateAppointment = () => {
         mutationFn: createAppointment,
     });
 };
+
+// Fetch Provider Appointments
+export interface ProviderAppointment {
+    _id: string;
+    id: string; // appointment_id
+    patient_id: string;
+    provider_id: string;
+    service_id: string;
+    appointment_date: string;
+    start_time: string;
+    end_time: string;
+    status: string;
+    service_name: string;
+    patient_name: string;
+    patient_email: string;
+    patient_phone: string;
+    patient_dob: string;
+    patient_gender: string;
+    patient_address: string;
+    formData: {
+        forWhom: string;
+        visitedBefore: boolean;
+        identificationNumber: string;
+        comments: string;
+        communicationPreference: string;
+        patientName?: string;
+        patientEmail?: string;
+        patientPhone?: string;
+        patientAddress?: string;
+        patientGender?: string;
+        patientDOB?: string;
+    };
+    payment: {
+        status: string;
+        amount: number;
+        paystackReference?: string;
+        paidAt?: string;
+    };
+    notes?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface ProviderAppointmentsResponse {
+    success: boolean;
+    data: ProviderAppointment[];
+    pagination: {
+        total: number;
+        page: number;
+        limit: number;
+        pages: number;
+    };
+}
+
+export const fetchProviderAppointments = async (page = 1, limit = 100): Promise<ProviderAppointmentsResponse> => {
+    const res = await apiClient.get(API_ENDPOINTS.PROVIDER.APPOINTMENTS.GET_ALL, {
+        params: { page, limit }
+    });
+    return res.data as ProviderAppointmentsResponse;
+};
+
+export const useProviderAppointments = (page = 1, limit = 100) => {
+    return useQuery({
+        queryKey: ['providerAppointments', page, limit],
+        queryFn: () => fetchProviderAppointments(page, limit),
+        staleTime: 5 * 60 * 1000, // 5 minutes
+    });
+};
+
 
 // Booking API (pre-payment)
 export interface BookAppointmentRequest {
@@ -207,7 +390,7 @@ export interface BookAppointmentResponse {
 }
 
 export const bookAppointment = async (payload: BookAppointmentRequest): Promise<BookAppointmentResponse> => {
-    const res = await apiClient.post('/api/v1/appointments/book', payload);
+    const res = await apiClient.post(API_ENDPOINTS.PATIENT.APPOINTMENTS.BOOK, payload);
     return res.data as BookAppointmentResponse;
 };
 
@@ -240,7 +423,7 @@ export const initializePayment = async (payload: InitializePaymentRequest): Prom
     const publicUrl = import.meta.env.VITE_APP_URL || window.location.origin;
     // Ensure we don't have double slashes if env var has trailing slash
     const base = String(publicUrl).replace(/\/$/, '');
-    const res = await apiClient.post('/api/v1/payments/initialize', {
+    const res = await apiClient.post(API_ENDPOINTS.PATIENT.PAYMENTS.INITIALIZE, {
         ...payload,
         callback_url: `${base}/payment/callback`,
     });
@@ -295,7 +478,7 @@ export interface PaymentReceiptResponse {
 }
 
 export const fetchPaymentReceipt = async (appointmentId: string): Promise<PaymentReceiptResponse> => {
-    const res = await apiClient.get(`/api/v1/payments/receipt/${appointmentId}`);
+    const res = await apiClient.get(API_ENDPOINTS.PATIENT.PAYMENTS.RECEIPT(appointmentId));
     return res.data as PaymentReceiptResponse;
 };
 
@@ -328,7 +511,7 @@ export const sendReceiptEmail = async (payload: SendReceiptRequest): Promise<Sen
     }
 
     // Increased timeout for PDF generation + email sending (60 seconds)
-    const res = await apiClient.post('/api/v1/payments/receipt/send', formData, {
+    const res = await apiClient.post(API_ENDPOINTS.PATIENT.PAYMENTS.SEND_RECEIPT, formData, {
         headers: {
             'Content-Type': 'multipart/form-data',
         },
@@ -363,7 +546,7 @@ export interface CreateReviewResponse {
 }
 
 export const createReview = async (payload: CreateReviewRequest): Promise<CreateReviewResponse> => {
-    const res = await apiClient.post('/api/v1/reviews', payload);
+    const res = await apiClient.post(API_ENDPOINTS.PATIENT.REVIEWS.CREATE, payload);
     return res.data as CreateReviewResponse;
 };
 
@@ -378,7 +561,7 @@ export interface LikeReviewResponse {
 }
 
 export const likeReview = async (reviewId: string): Promise<LikeReviewResponse> => {
-    const res = await apiClient.post(`/api/v1/reviews/${reviewId}/like`, {});
+    const res = await apiClient.post(API_ENDPOINTS.PATIENT.REVIEWS.LIKE(reviewId), {});
     return res.data as LikeReviewResponse;
 };
 
@@ -392,9 +575,662 @@ export interface SaveReviewResponse {
 }
 
 export const saveReview = async (reviewId: string): Promise<SaveReviewResponse> => {
-    const res = await apiClient.post(`/api/v1/reviews/${reviewId}/save`, {});
+    const res = await apiClient.post(API_ENDPOINTS.PATIENT.REVIEWS.SAVE(reviewId), {});
     return res.data as SaveReviewResponse;
 };
 
+// --- New Provider Registration Logic ---
 
+export interface ProviderRegisterRequest {
+    provider_name: string;
+    work_email: string;
+    work_phone: string;
+    password: string;
+    user_type?: string; // Optional, defaults to 'DiagnosticProvider'
+}
 
+export interface ProviderRegisterResponse {
+    success: boolean;
+    data: {
+        email: string;
+        message: string;
+    };
+    message: string;
+}
+
+export const registerProvider = async (data: ProviderRegisterRequest): Promise<ProviderRegisterResponse> => {
+    try {
+        const response = await apiClient.post(API_ENDPOINTS.PROVIDER.AUTH.REGISTER, data);
+        return response.data;
+    } catch (error: any) {
+        console.error('Provider registration error details:', {
+            message: error.message,
+            code: error.code,
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            response: error.response?.data,
+            isNetworkError: !error.response,
+        });
+
+        // Re-throw the error for React Query to handle
+        throw error;
+    }
+};
+
+export const useRegisterProvider = () => {
+    return useMutation({
+        mutationFn: registerProvider,
+        onSuccess: (data) => {
+            toast.success('Registration initiated. Please check your email.');
+        },
+        onError: (error: any) => {
+            console.error('Provider registration mutation error:', error);
+
+            let errorMessage = 'Registration failed. Please try again.';
+
+            if (error.code === 'ERR_NETWORK') {
+                errorMessage = 'Network error: Unable to connect to the server.';
+            } else if (error.response?.data?.message) {
+                errorMessage = error.response.data.message;
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+
+            toast.error(errorMessage);
+        },
+    });
+};
+
+// New Provider Profile Fetch Logic
+export const getProviderProfile = async (): Promise<any> => {
+    try {
+        const response = await apiClient.get(API_ENDPOINTS.PROVIDER.PROFILE.ME);
+        return response.data;
+    } catch (error: any) {
+        console.error('Get provider profile error details:', {
+            message: error.message,
+            code: error.code,
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            response: error.response?.data,
+            isNetworkError: !error.response,
+        });
+        throw error;
+    }
+};
+
+export const useProviderProfile = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: getProviderProfile,
+    });
+};
+
+export const uploadProviderProfilePicture = async (file: File): Promise<any> => {
+    const formData = new FormData();
+    formData.append('profile_picture', file);
+
+    try {
+        const response = await apiClient.put(API_ENDPOINTS.PROVIDER.PROFILE.PROFILE_PICTURE, formData, {
+            headers: {
+                'Content-Type': 'multipart/form-data',
+            },
+        });
+        return response.data;
+    } catch (error: any) {
+         console.error('Upload provider profile picture error:', error);
+         throw error;
+    }
+};
+
+export const useUploadProviderProfilePicture = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: uploadProviderProfilePicture,
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+            toast.success('Profile picture updated successfully');
+        },
+        onError: (error: any) => {
+            console.error('Provider profile picture upload error:', error);
+            let errorMessage = 'Failed to upload profile picture.';
+            if (error.response?.data?.message) {
+                errorMessage = error.response.data.message;
+            }
+            toast.error(errorMessage);
+        },
+    });
+};
+
+// Update Provider Profile (Administrative Details)
+export interface UpdateProviderProfileRequest {
+    fullname?: string;
+    email?: string; // read-only usually, but included in sample
+    phone?: string;
+    about?: string;
+    address?: {
+        street?: string;
+        city?: string;
+        state?: string;
+        country?: string;
+        postal_code?: string;
+    };
+    services?: string[];
+    social_links?: {
+        facebook?: string;
+        instagram?: string;
+        twitter?: string;
+    };
+    accreditations?: Array<{
+        name: string;
+        issuing_body: string;
+        year: number;
+    }>;
+    policy?: string;
+}
+
+export const updateProviderProfile = async (data: UpdateProviderProfileRequest): Promise<any> => {
+    try {
+        const response = await apiClient.put('/api/v1/providers/me', data);
+        return response.data;
+    } catch (error: any) {
+        console.error('Update provider profile error:', error);
+        throw error;
+    }
+};
+
+export const useUpdateProviderProfile = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: updateProviderProfile,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+            toast.success('Profile updated successfully');
+        },
+        onError: (error: any) => {
+             console.error('Update profile mutation error:', error);
+             let errorMessage = 'Failed to update profile.';
+             if (error.response?.data?.message) {
+                 errorMessage = error.response.data.message;
+             }
+             toast.error(errorMessage);
+        }
+    });
+};
+
+// Update Provider Working Hours
+export interface WorkingHourItem {
+    day: string;
+    startTime: string;
+    endTime: string;
+    isAvailable: boolean;
+}
+
+export interface UpdateWorkingHoursRequest {
+    working_hours: WorkingHourItem[];
+}
+
+export const updateProviderWorkingHours = async (data: UpdateWorkingHoursRequest): Promise<any> => {
+    try {
+        const response = await apiClient.put(API_ENDPOINTS.PROVIDER.PROFILE.WORKING_HOURS, data);
+        return response.data;
+    } catch (error: any) {
+        console.error('Update working hours error:', error);
+        throw error;
+    }
+};
+
+export const useUpdateProviderWorkingHours = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: updateProviderWorkingHours,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['userProfile'] }); // or whatever key is used for the profile
+            toast.success('Working hours updated successfully');
+        },
+        onError: (error: any) => {
+             console.error('Update working hours mutation error:', error);
+             let errorMessage = 'Failed to update working hours.';
+             if (error.response?.data?.message) {
+                 errorMessage = error.response.data.message;
+             }
+             toast.error(errorMessage);
+        }
+    });
+};
+
+// Update Notification Settings
+export interface UpdateNotificationSettingsRequest {
+    notification_settings: {
+        email: boolean;
+        push: boolean;
+        sms: boolean;
+    };
+}
+
+export const updateProviderNotificationSettings = async (data: UpdateNotificationSettingsRequest): Promise<any> => {
+    try {
+        const response = await apiClient.put('/api/v1/providers/me/notification-settings', data);
+        return response.data;
+    } catch (error: any) {
+        console.error('Update notification settings error:', error);
+        throw error;
+    }
+};
+
+export const useUpdateProviderNotificationSettings = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: updateProviderNotificationSettings,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+            toast.success('Notification settings updated successfully');
+        },
+        onError: (error: any) => {
+             console.error('Update notification settings mutation error:', error);
+             let errorMessage = 'Failed to update notification settings.';
+             if (error.response?.data?.message) {
+                 errorMessage = error.response.data.message;
+             }
+             toast.error(errorMessage);
+        }
+    });
+};
+
+// --- Provider Login Logic ---
+
+export const loginProvider = async (data: LoginRequest): Promise<LoginResponse> => {
+    try {
+        const response = await apiClient.post(API_ENDPOINTS.PROVIDER.AUTH.LOGIN, data);
+        return response.data;
+    } catch (error: any) {
+        console.error('Provider login error details:', {
+            message: error.message,
+            code: error.code,
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            response: error.response?.data,
+            isNetworkError: !error.response,
+        });
+
+        // Re-throw the error for React Query to handle
+        throw error;
+    }
+};
+
+export const useProviderLogin = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: loginProvider,
+        onSuccess: (data) => {
+            // Store token and user data
+            if (data.data?.token) {
+                localStorage.setItem('authToken', data.data.token);
+                localStorage.setItem('user', JSON.stringify(data.data));
+            }
+
+            // Invalidate and refetch user data
+            queryClient.invalidateQueries({ queryKey: ['user'] });
+
+            toast.success('Login successful!');
+        },
+        onError: (error: any) => {
+            console.error('Provider login mutation error:', error);
+
+            let errorMessage = 'Login failed. Please try again.';
+
+            if (error.code === 'ERR_NETWORK') {
+                errorMessage = 'Network error: Unable to connect to the server.';
+            } else if (error.response?.status === 401) {
+                errorMessage = 'Invalid email or password. Please check your credentials.';
+            } else if (error.response?.data?.message) {
+                errorMessage = error.response.data.message;
+            }
+
+            toast.error(errorMessage);
+        },
+    });
+};
+
+// Provider Patients
+export interface ProviderPatient {
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    address: string;
+    city: string;
+    state: string;
+    date_of_birth: string;
+    gender: string;
+    identification_number?: string;
+    registered: string;
+    last_appointment: string | null;
+    next_appointment: string | null;
+}
+
+export interface ProviderPatientsResponse {
+    success: boolean;
+    data: ProviderPatient[];
+    pagination: {
+        total: number;
+        page: number;
+        limit: number;
+        pages: number;
+    };
+}
+
+export const fetchProviderPatients = async (page = 1, limit = 10, search?: string): Promise<ProviderPatientsResponse> => {
+    const params: any = { page, limit };
+    if (search) {
+        params.search = search;
+    }
+    const res = await apiClient.get(API_ENDPOINTS.PROVIDER.PATIENTS.GET_ALL, {
+        params
+    });
+    return res.data as ProviderPatientsResponse;
+};
+
+export const useProviderPatients = (page = 1, limit = 10, search?: string) => {
+    return useQuery({
+        queryKey: ['providerPatients', page, limit, search],
+        queryFn: () => fetchProviderPatients(page, limit, search),
+        staleTime: 5 * 60 * 1000, // 5 minutes
+        placeholderData: (previousData) => previousData, // Keep previous data while fetching new search results
+    });
+};
+
+// Create/Update Patient
+export interface CreatePatientRequest {
+    full_name: string;
+    email: string;
+    phone_number: string;
+    date_of_birth: string; // YYYY-MM-DD
+    gender: string;
+    address: string;
+    city: string;
+    state: string;
+    notes?: string;
+}
+
+export interface UpdatePatientRequest extends CreatePatientRequest {
+    id: string; // Patient ID for update
+}
+
+export interface CreatePatientResponse {
+    success: boolean;
+    message?: string;
+    data?: ProviderPatient;
+}
+
+export const createPatient = async (payload: CreatePatientRequest): Promise<CreatePatientResponse> => {
+    const res = await apiClient.post(API_ENDPOINTS.PROVIDER.PATIENTS.CREATE, payload);
+    return res.data as CreatePatientResponse;
+};
+
+export const updatePatient = async (payload: UpdatePatientRequest): Promise<CreatePatientResponse> => {
+    const res = await apiClient.post(API_ENDPOINTS.PROVIDER.PATIENTS.UPDATE, payload);
+    return res.data as CreatePatientResponse;
+};
+
+export const useCreatePatient = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: createPatient,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['providerPatients'] });
+            toast.success('Patient created successfully');
+        },
+        onError: (error: any) => {
+            console.error('Create patient error:', error);
+            let errorMessage = 'Failed to create patient.';
+            if (error.response?.data?.message) {
+                errorMessage = error.response.data.message;
+            }
+            toast.error(errorMessage);
+        },
+    });
+};
+
+export const useUpdatePatient = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: updatePatient,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['providerPatients'] });
+            toast.success('Patient updated successfully');
+        },
+        onError: (error: any) => {
+            console.error('Update patient error:', error);
+            let errorMessage = 'Failed to update patient.';
+            if (error.response?.data?.message) {
+                errorMessage = error.response.data.message;
+            }
+            toast.error(errorMessage);
+        },
+    });
+};
+
+// Services Management
+export interface ProviderServiceItem {
+    id: string; // The public ID (e.g. "UkFH7ckwgi")
+    _id: string; // The internal MongoDB ID
+    provider_id: string;
+    category: string;
+    name: string;
+    description: string;
+    uses: string;
+    price: number;
+    metadata?: {
+        preparation?: string;
+        report_time?: string;
+        equipment_needed?: string[];
+    };
+    created_at: string;
+    updated_at: string;
+    durationMins?: number; // Optional, UI helper, might not be in API yet or could be added to metadata
+}
+
+export interface ProviderServicesResponse {
+    success: boolean;
+    count: number;
+    data: ProviderServiceItem[];
+}
+
+export interface CreateServiceRequest {
+    name: string;
+    category: string; // 'scans', 'tests', 'consultation'
+    description: string;
+    price: number;
+    uses?: string;
+}
+
+export interface UpdateServiceRequest {
+    id: string;
+    price?: number;
+    description?: string;
+    name?: string;
+    category?: string;
+    uses?: string;
+}
+
+export const fetchProviderServices = async (): Promise<ProviderServicesResponse> => {
+    const res = await apiClient.get(API_ENDPOINTS.PROVIDER.SERVICES.GET_ALL);
+    return res.data as ProviderServicesResponse;
+};
+
+export const useProviderServices = () => {
+    return useQuery({
+        queryKey: ['providerServices'],
+        queryFn: fetchProviderServices,
+        staleTime: 5 * 60 * 1000, // 5 minutes
+    });
+};
+
+export const createProviderService = async (payload: CreateServiceRequest): Promise<any> => {
+    const res = await apiClient.post(API_ENDPOINTS.PROVIDER.SERVICES.CREATE, payload);
+    return res.data;
+};
+
+export const useCreateProviderService = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: createProviderService,
+        onMutate: async (newServiceData) => {
+            // Cancel any outgoing refetches (so they don't overwrite our optimistic update)
+            await queryClient.cancelQueries({ queryKey: ['providerServices'] });
+
+            // Snapshot the previous value
+            const previousServices = queryClient.getQueryData<ProviderServicesResponse>(['providerServices']);
+
+            // Optimistically update to the new value
+            queryClient.setQueryData<ProviderServicesResponse>(['providerServices'], (old) => {
+                if (!old) return old;
+                
+                // Create a temporary mock object
+                const optimisticService: ProviderServiceItem = {
+                    id: `temp-${Date.now()}`,
+                    _id: `temp-${Date.now()}`,
+                    provider_id: 'current-user', // This will be replaced by backend
+                    name: newServiceData.name,
+                    category: newServiceData.category,
+                    description: newServiceData.description,
+                    price: newServiceData.price,
+                    uses: newServiceData.uses || newServiceData.description, // Fallback
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                    metadata: {} 
+                };
+
+                return {
+                    ...old,
+                    data: [optimisticService, ...old.data],
+                    count: old.count + 1
+                };
+            });
+
+            // Return a context object with the snapshotted value
+            return { previousServices };
+        },
+        onError: (err, newService, context) => {
+            console.error('Create service error:', err);
+            // If the mutation fails, use the context returned from onMutate to roll back
+            if (context?.previousServices) {
+                queryClient.setQueryData(['providerServices'], context.previousServices);
+            }
+            
+            let errorMessage = 'Failed to create service.';
+            if ((err as any).response?.data?.message) {
+                errorMessage = (err as any).response.data.message;
+            }
+            toast.error(errorMessage);
+        },
+        onSettled: () => {
+            // Always refetch after error or success to ensure data is in sync
+            queryClient.invalidateQueries({ queryKey: ['providerServices'] });
+        },
+        onSuccess: () => {
+            toast.success('Service created successfully');
+        }
+    });
+};
+
+export const updateProviderService = async (payload: UpdateServiceRequest): Promise<any> => {
+    const { id, ...data } = payload;
+    const res = await apiClient.put(API_ENDPOINTS.PROVIDER.SERVICES.UPDATE(id), data);
+    return res.data;
+};
+
+export const useUpdateProviderService = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: updateProviderService,
+        onMutate: async (updatedServiceData) => {
+            await queryClient.cancelQueries({ queryKey: ['providerServices'] });
+            const previousServices = queryClient.getQueryData<ProviderServicesResponse>(['providerServices']);
+
+            queryClient.setQueryData<ProviderServicesResponse>(['providerServices'], (old) => {
+                if (!old) return old;
+                return {
+                    ...old,
+                    data: old.data.map((service) => {
+                        // Check against both id and _id to be safe
+                        if (service.id === updatedServiceData.id || service._id === updatedServiceData.id) {
+                            return {
+                                ...service,
+                                ...updatedServiceData,
+                                // Maintain existing fields that are not in the update payload
+                                updated_at: new Date().toISOString()
+                            } as ProviderServiceItem;
+                        }
+                        return service;
+                    })
+                };
+            });
+
+            return { previousServices };
+        },
+        onError: (err, newService, context) => {
+            console.error('Update service error:', err);
+            if (context?.previousServices) {
+                queryClient.setQueryData(['providerServices'], context.previousServices);
+            }
+            let errorMessage = 'Failed to update service.';
+            if ((err as any).response?.data?.message) {
+                errorMessage = (err as any).response.data.message;
+            }
+            toast.error(errorMessage);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['providerServices'] });
+        },
+        onSuccess: () => {
+            toast.success('Service updated successfully');
+        }
+    });
+};
+
+export const deleteProviderService = async (id: string): Promise<any> => {
+    const res = await apiClient.delete(API_ENDPOINTS.PROVIDER.SERVICES.DELETE(id));
+    return res.data;
+};
+
+export const useDeleteProviderService = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: deleteProviderService,
+        onMutate: async (id) => {
+            await queryClient.cancelQueries({ queryKey: ['providerServices'] });
+            const previousServices = queryClient.getQueryData<ProviderServicesResponse>(['providerServices']);
+
+            queryClient.setQueryData<ProviderServicesResponse>(['providerServices'], (old) => {
+                if (!old) return old;
+                return {
+                    ...old,
+                    data: old.data.filter((s) => s.id !== id && s._id !== id),
+                    count: Math.max(0, old.count - 1)
+                };
+            });
+
+            return { previousServices };
+        },
+        onError: (err, id, context) => {
+            console.error('Delete service error:', err);
+            if (context?.previousServices) {
+                queryClient.setQueryData(['providerServices'], context.previousServices);
+            }
+            let errorMessage = 'Failed to delete service.';
+            if ((err as any).response?.data?.message) {
+                errorMessage = (err as any).response.data.message;
+            }
+            toast.error(errorMessage);
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['providerServices'] });
+        },
+        onSuccess: () => {
+            toast.success('Service deleted successfully');
+        }
+    });
+};

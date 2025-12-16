@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AxiosError } from 'axios';
-import { apiClient } from '../config/api';
+import { apiClient, API_ENDPOINTS } from '../config/api';
 import toast from 'react-hot-toast';
 
 // Types for the API
@@ -150,7 +150,7 @@ export interface PatientAppointmentsResponse {
 
 // API functions
 export const getPatientProfile = async (): Promise<PatientProfileResponse> => {
-    const response = await apiClient.get('/api/v1/auth/me');
+    const response = await apiClient.get(API_ENDPOINTS.COMMON.AUTH.ME);
 
     // Handle case where API returns different structure or empty data
     const data = response.data;
@@ -206,7 +206,7 @@ export const getPatientProfile = async (): Promise<PatientProfileResponse> => {
 };
 
 export const updatePatientProfile = async (data: PatientProfileRequest): Promise<PatientProfileResponse> => {
-    const response = await apiClient.put('/api/v1/auth/me', data);
+    const response = await apiClient.put(API_ENDPOINTS.COMMON.AUTH.ME, data);
     return response.data;
 };
 
@@ -214,19 +214,19 @@ export const uploadProfilePicture = async (file: File): Promise<PatientProfileRe
     const formData = new FormData();
     formData.append('profile_picture', file);
 
-    const response = await apiClient.put('/api/v1/auth/me', formData, {
+    const response = await apiClient.put(API_ENDPOINTS.COMMON.AUTH.ME, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
     });
     return response.data;
 };
 
 export const getPatientAppointments = async (): Promise<PatientAppointmentsResponse> => {
-    const response = await apiClient.get('/api/v1/appointments/patient');
+    const response = await apiClient.get(API_ENDPOINTS.PATIENT.APPOINTMENTS.GET_ALL);
     return response.data;
 };
 
 export const deleteAppointment = async (appointmentId: string): Promise<{ success: boolean; message: string }> => {
-    const response = await apiClient.delete(`/api/v1/appointments/${appointmentId}`, {
+    const response = await apiClient.delete(API_ENDPOINTS.PATIENT.APPOINTMENTS.DELETE(appointmentId), {
         data: { reason: 'user_request' }
     });
     return response.data;
@@ -242,24 +242,40 @@ export interface ToggleFavoriteResponse {
 }
 
 export const toggleFavoriteProvider = async (providerId: string): Promise<ToggleFavoriteResponse> => {
-    const response = await apiClient.post('/api/v1/auth/favorites/providers/toggle', {
+    const response = await apiClient.post(API_ENDPOINTS.PATIENT.FAVORITES.TOGGLE, {
         provider_id: providerId
     });
     return response.data;
 };
 
 export const checkFavoriteStatus = async (providerId: string): Promise<{ success: boolean; data: { is_favorite: boolean } }> => {
-    const response = await apiClient.get(`/api/v1/auth/favorites/providers/${providerId}/status`);
+    const response = await apiClient.get(API_ENDPOINTS.PATIENT.FAVORITES.STATUS(providerId));
     return response.data;
 };
 
 // React Query hooks
 export const usePatientProfile = () => {
+    const token = localStorage.getItem('authToken');
+    const userStr = localStorage.getItem('user');
+    let isPatient = true;
+    
+    if (userStr) {
+        try {
+            const user = JSON.parse(userStr);
+            const type = user.user_type?.toLowerCase();
+            if (type === 'provider' || type === 'diagnosticprovider') {
+                isPatient = false;
+            }
+        } catch (e) {
+            console.error('Error parsing user from local storage', e);
+        }
+    }
+
     return useQuery({
         queryKey: ['patientProfile'],
         queryFn: getPatientProfile,
-        // Only run when a token is available to ensure Authorization header is sent
-        enabled: !!localStorage.getItem('authToken'),
+        // Only run when a token is available AND user is NOT a provider
+        enabled: !!token && isPatient,
         staleTime: 5 * 60 * 1000, // 5 minutes
         gcTime: 10 * 60 * 1000, // 10 minutes
     });

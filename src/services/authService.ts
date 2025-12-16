@@ -1,4 +1,4 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient, API_ENDPOINTS } from '../config/api';
 import toast from 'react-hot-toast';
 
@@ -135,7 +135,7 @@ export interface AuthError {
 // API functions
 export const registerUser = async (data: RegisterRequest): Promise<RegisterResponse> => {
     try {
-        const response = await apiClient.post(API_ENDPOINTS.AUTH.REGISTER, data);
+        const response = await apiClient.post(API_ENDPOINTS.PATIENT.AUTH.REGISTER, data);
         return response.data;
     } catch (error: any) {
         console.error('Registration error details:', {
@@ -154,7 +154,7 @@ export const registerUser = async (data: RegisterRequest): Promise<RegisterRespo
 
 export const loginUser = async (data: LoginRequest): Promise<LoginResponse> => {
     try {
-        const response = await apiClient.post(API_ENDPOINTS.AUTH.LOGIN, data);
+        const response = await apiClient.post(API_ENDPOINTS.PATIENT.AUTH.LOGIN, data);
         return response.data;
     } catch (error: any) {
         console.error('Login error details:', {
@@ -173,7 +173,7 @@ export const loginUser = async (data: LoginRequest): Promise<LoginResponse> => {
 
 export const verifyEmail = async (data: VerifyRequest): Promise<VerifyResponse> => {
     try {
-        const response = await apiClient.post(API_ENDPOINTS.AUTH.VERIFY, data);
+        const response = await apiClient.post(API_ENDPOINTS.COMMON.AUTH.VERIFY_EMAIL, data);
         return response.data;
     } catch (error: any) {
         console.error('Verification error details:', {
@@ -192,7 +192,7 @@ export const verifyEmail = async (data: VerifyRequest): Promise<VerifyResponse> 
 
 export const verifyOTP = async (data: VerifyOTPRequest): Promise<VerifyResponse> => {
     try {
-        const response = await apiClient.post(API_ENDPOINTS.AUTH.VERIFY_OTP, data);
+        const response = await apiClient.post(API_ENDPOINTS.COMMON.AUTH.VERIFY_OTP, data);
         return response.data;
     } catch (error: any) {
         console.error('OTP verification error details:', {
@@ -211,7 +211,7 @@ export const verifyOTP = async (data: VerifyOTPRequest): Promise<VerifyResponse>
 
 export const resendOTP = async (data: ResendOTPRequest): Promise<ResendOTPResponse> => {
     try {
-        const response = await apiClient.post(API_ENDPOINTS.AUTH.RESEND_OTP, data);
+        const response = await apiClient.post(API_ENDPOINTS.COMMON.AUTH.RESEND_OTP, data);
         return response.data;
     } catch (error: any) {
         console.error('Resend OTP error details:', {
@@ -230,7 +230,7 @@ export const resendOTP = async (data: ResendOTPRequest): Promise<ResendOTPRespon
 
 export const forgotPassword = async (data: ForgotPasswordRequest): Promise<ForgotPasswordResponse> => {
     try {
-        const response = await apiClient.post(API_ENDPOINTS.AUTH.FORGOT_PASSWORD, data);
+        const response = await apiClient.post(API_ENDPOINTS.COMMON.AUTH.FORGOT_PASSWORD, data);
         return response.data;
     } catch (error: any) {
         console.error('Forgot password error details:', {
@@ -249,7 +249,7 @@ export const forgotPassword = async (data: ForgotPasswordRequest): Promise<Forgo
 
 export const resetPassword = async (data: ResetPasswordRequest): Promise<ResetPasswordResponse> => {
     try {
-        const response = await apiClient.post(API_ENDPOINTS.AUTH.RESET_PASSWORD, data);
+        const response = await apiClient.post(API_ENDPOINTS.COMMON.AUTH.RESET_PASSWORD, data);
         return response.data;
     } catch (error: any) {
         console.error('Reset password error details:', {
@@ -268,7 +268,7 @@ export const resetPassword = async (data: ResetPasswordRequest): Promise<ResetPa
 
 export const oauthLogin = async (data: OAuthLoginRequest): Promise<OAuthLoginResponse> => {
     try {
-        const response = await apiClient.post(API_ENDPOINTS.AUTH.OAUTH_LOGIN, data);
+        const response = await apiClient.post(API_ENDPOINTS.COMMON.AUTH.OAUTH_LOGIN, data);
         return response.data;
     } catch (error: any) {
         console.error('OAuth login error details:', {
@@ -285,7 +285,49 @@ export const oauthLogin = async (data: OAuthLoginRequest): Promise<OAuthLoginRes
     }
 };
 
-// React Query hooks
+// New function to get user profile
+export const getUserProfile = async (): Promise<any> => {
+    try {
+        // Check user type from local storage to determine endpoint
+        const storedUser = localStorage.getItem('user');
+        let endpoint = API_ENDPOINTS.COMMON.AUTH.ME;
+
+        if (storedUser) {
+            try {
+                const user = JSON.parse(storedUser);
+                const userType = user.user_type?.toLowerCase();
+                if (userType === 'provider' || userType === 'diagnosticprovider') {
+                    endpoint = API_ENDPOINTS.PROVIDER.PROFILE.ME;
+                }
+            } catch (e) {
+                // Fallback to default endpoint if JSON parse fails
+            }
+        }
+
+        const response = await apiClient.get(endpoint);
+        return response.data;
+    } catch (error: any) {
+        console.error('Get user profile error details:', {
+            message: error.message,
+            code: error.code,
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            response: error.response?.data,
+            isNetworkError: !error.response,
+        });
+        throw error;
+    }
+};
+
+export const useGetUserProfile = () => {
+    return useQuery({
+        queryKey: ['userProfile'],
+        queryFn: getUserProfile,
+        enabled: !!localStorage.getItem('authToken'),
+        staleTime: 5 * 60 * 1000,
+    });
+};
+
 export const useRegister = () => {
     const queryClient = useQueryClient();
 
@@ -421,27 +463,9 @@ export const useVerifyOTP = () => {
 
             // Invalidate and refetch user data
             queryClient.invalidateQueries({ queryKey: ['user'] });
-
-            toast.success('Email verified successfully!');
         },
         onError: (error: any) => {
             console.error('OTP verification mutation error:', error);
-
-            let errorMessage = 'OTP verification failed. Please try again.';
-
-            if (error.code === 'ERR_NETWORK') {
-                errorMessage = 'Network error: Unable to connect to the server. Please check your internet connection and try again.';
-            } else if (error.code === 'ECONNABORTED') {
-                errorMessage = 'Request timeout: The server is taking too long to respond. Please try again.';
-            } else if (error.response?.data?.message) {
-                errorMessage = error.response.data.message;
-            } else if (error.response?.data?.error) {
-                errorMessage = error.response.data.error;
-            } else if (error.message) {
-                errorMessage = error.message;
-            }
-
-            toast.error(errorMessage);
         },
     });
 };
@@ -450,26 +474,11 @@ export const useResendOTP = () => {
     return useMutation({
         mutationFn: resendOTP,
         onSuccess: () => {
-            toast.success('OTP has been resent to your email. Please check your inbox.');
+            // Toast notification handled by component
         },
         onError: (error: any) => {
             console.error('Resend OTP mutation error:', error);
-
-            let errorMessage = 'Failed to resend OTP. Please try again.';
-
-            if (error.code === 'ERR_NETWORK') {
-                errorMessage = 'Network error: Unable to connect to the server. Please check your internet connection and try again.';
-            } else if (error.code === 'ECONNABORTED') {
-                errorMessage = 'Request timeout: The server is taking too long to respond. Please try again.';
-            } else if (error.response?.data?.message) {
-                errorMessage = error.response.data.message;
-            } else if (error.response?.data?.error) {
-                errorMessage = error.response.data.error;
-            } else if (error.message) {
-                errorMessage = error.message;
-            }
-
-            toast.error(errorMessage);
+            // Error handling remains for fallback
         },
     });
 };
@@ -571,4 +580,4 @@ export const useOAuthLogin = () => {
             toast.error(errorMessage);
         },
     });
-}; 
+};

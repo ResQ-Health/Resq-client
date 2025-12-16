@@ -1,57 +1,28 @@
 # Active Context
 
-## Current Focus: Layout & Styling Standardization
+## Current Focus
+- Implementing the **Provider Dashboard**.
+- Connecting real API data to dashboard pages.
+- **Fixing Runtime Errors**: Resolved a crash in `ProviderCalendarPage.tsx` caused by missing/malformed API data.
 
-### 🎯 **Feature Overview**
-- **Uniform Margins**: Ensuring all pages have consistent margins (left/right) matching the Header/Navbar.
-- **Layout Alignment**: Updating `Layout.tsx` to enforce global constraints (`px-16`, `max-w-[1440px]`).
-- **Full-width Elements**: Adjusting `PatientLayout` to maintain full-width borders while aligning content with the global layout.
-- **Footer Visibility**: Hiding the footer on authentication pages (Sign Up, Sign In, Verification) for a cleaner flow.
-- **Support Page**: Added a dedicated Support page and linked it from relevant areas.
+## Recent Changes
+- **Provider Calendar Fix**: Added robust data mapping in `ProviderCalendarPage.tsx` to handle cases where appointment data (like `date_time` or `patient_info`) might be undefined or incomplete. This prevents the "Cannot read properties of undefined" error.
+- Implemented **Provider Calendar** with real API integration:
+  - Added `fetchProviderAppointments` and `useProviderAppointments` to `providerService.ts`.
+  - Updated `ProviderCalendarPage.tsx` to use the API data instead of mock data.
+  - Mapped API response fields to the calendar UI components.
+- Created `ProviderLayout` with a sidebar and header matching the provided design.
+- Created `DashboardPage` for providers with stats cards and charts.
+- Updated `App.tsx` to include the `/provider/dashboard` route.
 
-### 🔧 **Technical Implementation**
+## Next Steps
+- Connect real data to the Provider Dashboard stats and charts (Overview page).
+- Implement other provider pages (Services, Payments, etc.).
+- Verify responsiveness and error handling for the Calendar page.
+- **Backend Connection**: Ensure the backend server is running on port 6000 and accessible to resolve `ECONNREFUSED` errors.
 
-#### **1. Global Layout Updates** (`src/components/Layout.tsx`)
-- Added `px-16` padding to the `main` container to match the Navbar's padding.
-- Wrapped `Outlet` in a `max-w-[1440px] mx-auto` container to ensure content centering and max-width consistency with the Navbar.
-- **New**: Added conditional rendering for the `Footer` component. It is now hidden on authentication-related routes (e.g., `/`, `/sign-in-patient`, `/onboardingPatient`).
-
-#### **2. Patient Layout Updates** (`src/components/PatientLayout.tsx`)
-- Adjusted the secondary navigation bar to use negative margins (`-mx-16`) to span the full width of the viewport (counteracting the global padding).
-- Maintained the border edge-to-edge look while keeping the navigation items centered.
-
-#### **3. Page-Specific Cleanup** (`src/pages/onboarding patients/LoginPatientPage.tsx`, `src/pages/onboarding provider/sign-in-provider.tsx`)
-- Removed the local footer implementation to rely on the global layout configuration (or lack thereof for this page).
-- Updated styling to match the standardized design.
-- Added link to `/support`.
-
-#### **4. New Feature** (`src/pages/SupportPage.tsx`)
-- Created a static `SupportPage` with contact information.
-- Registered route `/support` in `App.tsx`.
-
-### 📊 **Current Status**
-
-#### ✅ **Completed Features**
-1. **Simplified Booking Form**: No longer asks for home address.
-2. **Age Validation**: Users must be at least 2 years old to be booked.
-3. **Optional ID**: Identification number is optional and marked as such.
-4. **Binary Gender**: Gender selection restricted to Male/Female.
-5. **Accurate Receipt**: Correctly displays available address information.
-6. **Draft Cleanup**: Booking draft is automatically cleared after successful payment.
-7. **Default Service**: First service is auto-selected by default.
-8. **Logout Redirection**: Logout now consistently redirects to `/sign-in-patient`.
-9. **Login Page Code Quality**: Refactored `LoginPatientPage` for better maintainability and responsiveness.
-10. **Visual Alignment**: Updated `LoginPatientPage` to match Figma/Provider design.
-11. **UX Improvement**: Fixed annoying "Profile complete" toast on repeated logins.
-12. **Navbar Redesign**: Updated default header for logged-out users.
-13. **Global Margins**: All pages now align with the Navbar margins (`px-16`, `max-w-[1440px]`).
-14. **Footer Cleanup**: Removed footer from signup and signin pages for a cleaner interface.
-15. **Support Page**: Added Support page with contact info.
-
-### 📁 **Files Modified**
-1. `src/components/Layout.tsx`
-2. `src/components/PatientLayout.tsx`
-3. `src/pages/onboarding patients/LoginPatientPage.tsx`
-4. `src/pages/onboarding provider/sign-in-provider.tsx`
-5. `src/pages/SupportPage.tsx`
-6. `src/App.tsx`
+## Active Decisions
+- **Calendar Data Mapping**: Mapped the backend `ProviderAppointment` structure to a local `CalendarAppointment` interface within the component to maintain separation and ease of UI updates.
+- **Robust Error Handling**: Frontend components should fail gracefully when API data is partial or malformed, especially during development when data shape might evolve.
+- **Provider Dashboard Layout**: Separated from the main `Layout` (patient-focused) to accommodate the specific sidebar design for providers.
+- **Charts**: Using `chart.js` via `react-chartjs-2` for visual consistency.

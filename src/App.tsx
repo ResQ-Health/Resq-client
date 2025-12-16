@@ -29,11 +29,40 @@ import BookingSuccessPage from './pages/Patient/BookingSuccessPage'
 import PaymentCallback from './components/PaymentCallback'
 import TermsAndPolicyPage from './pages/TermsAndPolicyPage'
 import SupportPage from './pages/SupportPage'
+import ProviderLayout from './components/ProviderLayout'
+import DashboardPage from './pages/provider/DashboardPage'
+
+import ProviderCalendarPage from './pages/provider/ProviderCalendarPage'
+import ProviderPatientsPage from './pages/provider/ProviderPatientsPage'
+import ProviderServicesPage from './pages/provider/ProviderServicesPage'
+import ProviderPaymentsPage from './pages/provider/ProviderPaymentsPage'
+import ProviderPlaceholderPage from './pages/provider/ProviderPlaceholderPage'
+import ProviderSettingsPage from './pages/provider/ProviderSettingsPage'
+import { ProviderSearchProvider } from './contexts/ProviderSearchContext'
 
 function App() {
 
   return (
     <Routes>
+      {/* Provider Dashboard Routes - Independent Layout */}
+      <Route element={
+        <ProtectedRoute>
+          <ProviderSearchProvider>
+            <ProviderLayout />
+          </ProviderSearchProvider>
+        </ProtectedRoute>
+      }>
+        <Route path="/provider/dashboard" element={<DashboardPage />} />
+        <Route path="/provider/calendar" element={<ProviderCalendarPage />} />
+        <Route path="/provider/patients" element={<ProviderPatientsPage />} />
+        <Route path="/provider/services" element={<ProviderServicesPage />} />
+        <Route path="/provider/payments" element={<ProviderPaymentsPage />} />
+        <Route path="/provider/reports" element={<ProviderPlaceholderPage title="Reports" />} />
+        <Route path="/provider/reviews" element={<ProviderPlaceholderPage title="Reviews" />} />
+        <Route path="/provider/support" element={<ProviderPlaceholderPage title="Support" />} />
+        <Route path="/provider/settings" element={<ProviderSettingsPage />} />
+      </Route>
+
       <Route element={<Layout />}>
         {/* Patient routes */}
         <Route path="/" element={
@@ -143,25 +172,25 @@ function App() {
         } />
 
         {/* Provider routes */}
-        <Route path="/onboardingProvider" element={
+        <Route path="/providers/signup" element={
           <PublicRoute>
             <OnboardingProviderPage />
           </PublicRoute>
         } />
-        <Route path="/sign-in-provider" element={
+        <Route path="/providers/signin" element={
           <PublicRoute>
             <SignInProvider />
           </PublicRoute>
         } />
-        <Route path="/verify-provider" element={
+        <Route path="/providers/verify" element={
           <PublicRoute>
             <VerificationProviderPage />
           </PublicRoute>
         } />
         <Route path="/welcome-provider" element={
-          <PublicRoute>
+          <ProtectedRoute>
             <WelcomeProviderPage />
-          </PublicRoute>
+          </ProtectedRoute>
         } />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>

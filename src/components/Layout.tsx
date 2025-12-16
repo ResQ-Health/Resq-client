@@ -12,9 +12,9 @@ const Layout: React.FC = () => {
     '/verify',
     '/forgot-password',
     '/reset-password',
-    '/onboardingProvider',
-    '/sign-in-provider',
-    '/verify-provider',
+    '/providers/signup',
+    '/providers/signin',
+    '/providers/verify',
     '/welcome-provider'
   ];
 

@@ -5,7 +5,7 @@ import { useFilters } from '../contexts/FilterContext'
 import { ProfileMenu } from './ProfileMenu'
 import logo from '/icons/Logomark (1).png'
 // import profileIcon from '../../public/icons/profile.png'
-import { usePatientProfile } from '../services/userService'
+import { useGetUserProfile } from '../services/authService'
 
 function Navbar() {
   const location = useLocation();
@@ -14,7 +14,7 @@ function Navbar() {
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const searchFilter = filters.find(f => f.type === 'search');
   const [searchQuery, setSearchQuery] = useState(searchFilter?.value || '');
-  const { data: profileData } = usePatientProfile();
+  const { data: profileData } = useGetUserProfile();
   let centerContent;
   let rightContent;
 
@@ -32,7 +32,7 @@ function Navbar() {
   const isSearchPage = location.pathname === '/search';
 
   // Check if we're on a login page
-  const isLoginPage = ['/sign-in-patient', '/sign-in-provider', '/forgot-password'].includes(location.pathname);
+  const isLoginPage = ['/sign-in-patient', '/providers/signin', '/forgot-password'].includes(location.pathname);
 
   // Sync search input with filter
   React.useEffect(() => {
@@ -99,6 +99,18 @@ function Navbar() {
         </button>
       </div>
     );
+  } else if (location.pathname === '/providers/signin' || location.pathname === '/providers/signup') {
+    rightContent = (
+      <div className="flex items-center gap-4">
+        <span className="text-[#06202E] font-medium text-sm">Are you a patient?</span>
+        <Link
+          to="/sign-in-patient"
+          className="px-6 py-2 border border-gray-300 rounded-[6px] text-[#06202E] hover:bg-gray-50 transition-colors font-medium text-sm"
+        >
+          Login
+        </Link>
+      </div>
+    );
   } else if (isLoginPage) {
     rightContent = (
       <div className="flex items-center gap-4">
@@ -115,7 +127,7 @@ function Navbar() {
     rightContent = (
       <div className="flex items-center space-x-4">
         <span className="text-gray-700">Are you a provider?</span>
-        <Link to="/sign-in-provider" className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:text-gray-900">
+        <Link to="/providers/signin" className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:text-gray-900">
           Sign in
         </Link>
       </div>
@@ -126,7 +138,7 @@ function Navbar() {
     rightContent = (
       <div className="flex items-center space-x-4">
         <span className="text-gray-700">Are you a provider?</span>
-        <Link to="/sign-in-provider" className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:text-gray-900">
+        <Link to="/providers/signin" className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:text-gray-900">
           Sign in
         </Link>
       </div>

@@ -1,19 +1,22 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import googleLogo from '/icons/googleicon.png';
-import { AiOutlineEye, AiOutlineEyeInvisible, AiOutlineCheck } from 'react-icons/ai';
 import { IoEye } from "react-icons/io5";
 import { IoIosEyeOff, IoIosCheckmarkCircleOutline, IoIosCheckmarkCircle } from "react-icons/io";
+import { useRegisterProvider } from '../../services/providerService';
 
 function OnboardingProviderPage() {
   const navigate = useNavigate();
+  const registerMutation = useRegisterProvider();
+
   // form state
-  const [fullName, setFullName] = useState('');
+  const [providerName, setProviderName] = useState('');
   const [email, setEmail] = useState('');
+  const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [agreed, setAgreed] = useState(false);
-  const [errors, setErrors] = useState({ fullName: '', email: '', password: '' });
+  const [errors, setErrors] = useState({ providerName: '', email: '', phone: '', password: '' });
 
   /**
    * Redirect to backend OAuth
@@ -23,49 +26,102 @@ function OnboardingProviderPage() {
   };
 
   /**
+   * Validate email format
+   */
+  const isValidEmail = (email: string) => {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  };
+
+  /**
+   * Validate phone format (basic validation)
+   */
+  const isValidPhone = (phone: string) => {
+    return /^\d{10,}$/.test(phone.replace(/\D/g, ''));
+  };
+
+  /**
    * Create account and navigate to verification
    */
   const handleCreateAccount = async () => {
-    let newErrors = { fullName: '', email: '', password: '' };
-    if (!fullName) newErrors.fullName = 'Full name is required';
-    if (!email) newErrors.email = 'Email address is required';
-    if (!password) newErrors.password = 'Password is required';
-    setErrors(newErrors);
-    if (!fullName || !email || !password || !agreed) return;
+    let newErrors = { providerName: '', email: '', phone: '', password: '' };
+    let hasError = false;
 
-    // Navigate to verification page immediately
-    navigate('/verify', { state: { email } });
-
-    // Optionally, run the API call in the background
-    try {
-      await fetch('/api/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ fullName, email, password }),
-      });
-    } catch (err) {
-      console.error(err);
+    if (!providerName.trim()) {
+      newErrors.providerName = 'Provider name is required';
+      hasError = true;
     }
+
+    if (!email.trim()) {
+      newErrors.email = 'Email address is required';
+      hasError = true;
+    } else if (!isValidEmail(email)) {
+      newErrors.email = 'Please enter a valid email address';
+      hasError = true;
+    }
+
+    if (!phone.trim()) {
+      newErrors.phone = 'Phone number is required';
+      hasError = true;
+    } else if (!isValidPhone(phone)) {
+      newErrors.phone = 'Please enter a valid phone number';
+      hasError = true;
+    }
+
+    if (!password) {
+      newErrors.password = 'Password is required';
+      hasError = true;
+    } else if (password.length < 8) {
+      newErrors.password = 'Password must be at least 8 characters';
+      hasError = true;
+    }
+
+    setErrors(newErrors);
+
+    if (hasError || !agreed) return;
+
+    // Use the provider service mutation
+    registerMutation.mutate(
+      {
+        provider_name: providerName,
+        work_email: email,
+        work_phone: phone,
+        password: password,
+        user_type: 'DiagnosticProvider'
+      },
+      {
+        onSuccess: (data) => {
+          // Save email to local storage for persistence across refreshes
+          localStorage.setItem('pending_email', data.data.email);
+
+          // Navigate to verification page with email
+          navigate('/providers/verify', {
+            state: {
+              email: data.data.email
+            }
+          });
+        }
+      }
+    );
   };
 
   return (
-    <div className=" h-[638px] mx-auto flex flex-col justify-center max-w-[480px] mt-[108.5px] items-center  ">
+    <div className="mx-auto flex flex-col justify-center max-w-[480px] mt-[60px] mb-[60px] items-center">
       <h1
         style={{ fontFamily: 'Plus Jakarta Sans', letterSpacing: '0px' }}
-        className="text-xl font-medium leading-8 mb-[40px]  text-center align-middle"
+        className="text-xl font-medium leading-8 mb-[40px] text-center align-middle"
       >
-        Book appointments, manage your healthcare, and<br />
-        connect with hospitals.
+        Streamline your operations, enhance patient care,<br />
+        and connect with a growing network of patients
       </h1>
 
       {/* Social login button */}
       <div className="flex space-x-12 mb-[16px]">
         <button
           onClick={handleContinueWithGoogle}
-          className="flex items-center justify-center border w-[480px] h-[40px] gap-2 rounded-[6px] border-[#06202E] p-2"
+          className="flex items-center justify-center border w-[480px] h-[40px] gap-2 rounded-[6px] border-[#06202E] p-2 hover:bg-gray-50 transition-colors"
         >
           <img src={googleLogo} alt="google" className="w-5 h-5" />
-          <span>Continue with Google</span>
+          <span className="font-medium">Continue with Google</span>
         </button>
       </div>
 
@@ -79,106 +135,134 @@ function OnboardingProviderPage() {
       {/* Form */}
       <div className="flex flex-col w-full gap-6">
         <div className="flex flex-col">
-          <label className="text-gray-700 mb-1">Full name</label>
+          <label className="text-gray-700 mb-1">Provider name</label>
           <input
             type="text"
-            id="fullname"
-            value={fullName}
-            onChange={e => { setFullName(e.target.value); setErrors({ ...errors, fullName: '' }); }}
-            placeholder="Joshua Nasiru"
-            className={`w-[480px] h-[40px] border rounded-[6px] px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.fullName ? 'border-red-500' : 'border-gray-300'}`}
+            id="providerName"
+            value={providerName}
+            onChange={e => { setProviderName(e.target.value); setErrors({ ...errors, providerName: '' }); }}
+            placeholder="XYZ Diagnostics Center"
+            className={`w-[480px] h-[40px] border rounded-[6px] px-3 focus:outline-none focus:ring-2 focus:ring-[#06202E] ${errors.providerName ? 'border-red-500' : 'border-gray-300'}`}
           />
-          <div className="h-5">
-            {errors.fullName && <span className="text-red-500 text-xs">{errors.fullName}</span>}
+          <div className="h-5 mt-1">
+            {errors.providerName && <span className="text-red-500 text-xs">{errors.providerName}</span>}
           </div>
         </div>
 
         <div className="flex flex-col">
-          <label className="text-gray-700 mb-1">Email address</label>
+          <label className="text-gray-700 mb-1">Primary email address</label>
           <input
             type="email"
             id="email"
             value={email}
             onChange={e => { setEmail(e.target.value); setErrors({ ...errors, email: '' }); }}
-            placeholder="Joshuanasiru@yandex.com"
-            className={`w-[480px] h-[40px] border bg-none rounded-[6px] px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.email ? 'border-red-500' : 'border-gray-300'}`}
+            placeholder="Hospital@outlook.com"
+            className={`w-[480px] h-[40px] border bg-none rounded-[6px] px-3 focus:outline-none focus:ring-2 focus:ring-[#06202E] ${errors.email ? 'border-red-500' : 'border-gray-300'}`}
           />
-          <div className="h-5">
+          <div className="h-5 mt-1">
             {errors.email && <span className="text-red-500 text-xs">{errors.email}</span>}
+          </div>
+        </div>
+
+        <div className="flex flex-col">
+          <label className="text-gray-700 mb-1">Primary phone number</label>
+          <input
+            type="tel"
+            id="phone"
+            value={phone}
+            onChange={e => { setPhone(e.target.value); setErrors({ ...errors, phone: '' }); }}
+            placeholder="09180653262"
+            className={`w-[480px] h-[40px] border bg-none rounded-[6px] px-3 focus:outline-none focus:ring-2 focus:ring-[#06202E] ${errors.phone ? 'border-red-500' : 'border-gray-300'}`}
+          />
+          <div className="h-5 mt-1">
+            {errors.phone && <span className="text-red-500 text-xs">{errors.phone}</span>}
           </div>
         </div>
 
         <div className="flex flex-col relative">
           <label className="text-gray-700 mb-1">Password</label>
-          <input
-            type={showPassword ? 'text' : 'password'}
-            id="password"
-            value={password}
-            onChange={e => { setPassword(e.target.value); setErrors({ ...errors, password: '' }); }}
-            placeholder="Min 8 character password"
-            className={`w-[480px] h-[40px] border rounded-[6px] px-3 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.password ? 'border-red-500' : 'border-gray-300'}`}
-          />
-          <button
-            type="button"
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
-            onClick={() => setShowPassword(!showPassword)}
-          >
-            {showPassword ? <IoIosEyeOff /> : <IoEye />}
-          </button>
-          <div className="h-5">
+          <div className="relative">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              id="password"
+              value={password}
+              onChange={e => { setPassword(e.target.value); setErrors({ ...errors, password: '' }); }}
+              placeholder="Create password"
+              className={`w-[480px] h-[40px] border rounded-[6px] px-3 pr-10 focus:outline-none focus:ring-2 focus:ring-[#06202E] ${errors.password ? 'border-red-500' : 'border-gray-300'}`}
+            />
+            <button
+              type="button"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
+              onClick={() => setShowPassword(!showPassword)}
+            >
+              {showPassword ? <IoIosEyeOff size={20} /> : <IoEye size={20} />}
+            </button>
+          </div>
+          <p className="text-xs text-gray-500 mt-1">Min 8 character password</p>
+          <div className="h-5 mt-1">
             {errors.password && <span className="text-red-500 text-xs">{errors.password}</span>}
           </div>
         </div>
       </div>
 
       {/* Terms agreement */}
-      <div className="flex items-start justify-start gap-2 mt-[40px] mb-4 w-full self-start">
+      <div className="flex items-start justify-start gap-2 mt-[20px] mb-4 w-full self-start">
         {agreed ? (
           <IoIosCheckmarkCircle
-            className="h-6 w-6 cursor-pointer"
+            className="h-6 w-6 cursor-pointer flex-shrink-0"
             style={{ color: '#06202E' }}
             onClick={() => setAgreed(!agreed)}
           />
         ) : (
           <IoIosCheckmarkCircleOutline
-            className="h-6 w-6 cursor-pointer text-gray-400"
+            className="h-6 w-6 cursor-pointer text-gray-400 flex-shrink-0"
             onClick={() => setAgreed(!agreed)}
           />
         )}
-        <label className="ml-2 text-sm text-gray-700">
+        <label className="ml-2 text-sm text-gray-700 leading-tight">
           Yes, I understand and agree to the{' '}
-          <a href="#" className="underline">
-            ResQ Health Terms of <br /> Service
-          </a>, including the{' '}
-          <a href="#" className="underline">
+          <Link to="/terms-and-policy" className="underline font-medium hover:text-[#06202E]">
+            ResQ Health Terms of Service
+          </Link>, including the{' '}
+          <Link to="/terms-and-policy" className="underline font-medium hover:text-[#06202E]">
             User Agreement
-          </a>{' '}
+          </Link>{' '}
           and{' '}
-          <a href="#" className="underline">
+          <Link to="/terms-and-policy" className="underline font-medium hover:text-[#06202E]">
             Privacy Policy
-          </a>.
+          </Link>.
         </label>
       </div>
 
       {/* CTA */}
       <button
-        disabled={!agreed}
+        disabled={!agreed || registerMutation.isPending}
         onClick={handleCreateAccount}
         style={{ fontFamily: 'Plus Jakarta Sans', backgroundColor: agreed ? '#06202E' : undefined }}
-        className={`w-full h-[40px] flex items-start justify-center text-center  p-[7px] rounded-[6px] font-medium text-[14px] leading-[22.4px] tracking-normal align-middle ${agreed ? 'text-white' : 'bg-gray-300 text-gray-500'
-          }`}
+        className={`w-full h-[48px] flex items-center justify-center text-center rounded-[6px] font-medium text-[16px] transition-colors ${agreed ? 'text-white hover:bg-[#051b26]' : 'bg-gray-200 text-gray-400 cursor-not-allowed'} ${registerMutation.isPending ? 'opacity-70 cursor-wait' : ''}`}
       >
-        Create account
+        {registerMutation.isPending ? 'Creating account...' : 'Create account'}
       </button>
 
-      <p className="text-sm text-gray-700 mt-4">
+      <p className="text-sm text-gray-700 mt-6 font-medium">
         Already have an account?{' '}
-        <a href="//Sign-in-Patient" className="underline text-blue-600">
+        <Link to="/providers/signin" className="underline text-[#06202E] font-bold">
           Sign In
-        </a>
+        </Link>
       </p>
+
+      {/* Footer Links */}
+      <div className="flex items-center justify-center gap-8 mt-12 text-[#5C6F7F] text-sm">
+        <span>2025 MedResQ Healthcare</span>
+        <Link to="/terms-and-policy" className="underline hover:text-[#06202E]">
+          Privacy Policy
+        </Link>
+        <Link to="/support" className="underline hover:text-[#06202E]">
+          Support
+        </Link>
+      </div>
     </div>
   );
 }
 
-export default OnboardingProviderPage; 
+export default OnboardingProviderPage;

@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import googleLogo from '/icons/googleicon.png';
 import { AiOutlineEye, AiOutlineEyeInvisible } from 'react-icons/ai';
 import { useLogin, useOAuthLogin } from '../../services/authService';
+import { useProviderLogin } from '../../services/providerService';
 import { useAuth } from '../../contexts/AuthContext';
 import { signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider } from '../../config/firebase';
@@ -18,7 +19,7 @@ function SignInProvider() {
 
   const navigate = useNavigate();
   const { login } = useAuth();
-  const loginMutation = useLogin();
+  const loginMutation = useProviderLogin();
   const oauthLoginMutation = useOAuthLogin();
 
   const validateForm = () => {
@@ -67,7 +68,7 @@ function SignInProvider() {
         login(data.data.token, data.data);
 
         // Check user type to ensure they are a provider
-        if (data.data.user_type !== 'Provider' && data.data.user_type !== 'provider') {
+        if (data.data.user_type !== 'DiagnosticProvider' && data.data.user_type !== 'DiagnosticProvider') {
           toast.error('This account is not authorized as a Provider.');
           // Ideally logout immediately, but for now just warn?
           // Or maybe redirection logic handles it?
@@ -209,7 +210,7 @@ function SignInProvider() {
 
         <p className="text-sm text-gray-700 mt-6 text-center">
           Don't have an account?{' '}
-          <Link to="/onboardingProvider" className="text-[#06202E] font-semibold hover:underline">
+          <Link to="/providers/signup" className="text-[#06202E] font-semibold hover:underline">
             Create one
           </Link>
         </p>
