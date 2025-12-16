@@ -140,11 +140,31 @@ const ProviderPage = () => {
             ? p.gallery_image_urls
             : [p?.banner_image_url, p?.logo].filter(Boolean) as string[];
 
-        const services = {
+        // Map services by category
+        const servicesByCat: Record<string, any[]> = {
             scans: [],
             tests: [],
-            consultation: (p?.services || []).map((s: any) => ({ name: s?.name || String(s), price: s?.price ? `${s.price}` : '' })),
+            consultation: [],
         };
+
+        const rawServices = p?.services || [];
+        if (Array.isArray(rawServices)) {
+            rawServices.forEach((s: any) => {
+                const category = (s?.category || '').toLowerCase();
+                const serviceItem = {
+                    name: s?.name || String(s),
+                    price: typeof s?.price === 'number' ? `₦${s.price.toLocaleString()}` : (s?.price || '')
+                };
+
+                if (category === 'scans' || category === 'scan' || category.includes('scan')) {
+                    servicesByCat.scans.push(serviceItem);
+                } else if (category === 'tests' || category === 'test' || category.includes('test')) {
+                    servicesByCat.tests.push(serviceItem);
+                } else {
+                    servicesByCat.consultation.push(serviceItem);
+                }
+            });
+        }
 
 
         const mapped = {
@@ -231,17 +251,17 @@ const ProviderPage = () => {
             timeSlots: {},
             practiceInfo: {
                 gallery,
-                services,
+                services: servicesByCat,
                 contactDetails: {
-                    address: addressStr,
+                    address: addressStr || 'Address not available',
                     phone: p.work_phone || '',
                     email: p.work_email || '',
-                    website: '',
+                    website: p.website || '',
                 },
                 socialMedia: {
-                    facebook: p?.social_links?.facebook || '',
-                    instagram: p?.social_links?.instagram || '',
-                    twitter: p?.social_links?.twitter || '',
+                    facebook: p?.social_links?.facebook || '#',
+                    instagram: p?.social_links?.instagram || '#',
+                    twitter: p?.social_links?.twitter || '#',
                 },
                 openingHours,
                 accreditations: Array.isArray(p?.accreditations) ? p.accreditations : [],
@@ -1151,7 +1171,7 @@ const ProviderPage = () => {
             </div>
 
             {/* Main Content */}
-            <div className="max-w-[830px]  bg-[white]  px-16 py-8">
+            <div className="max-w-[1000px] bg-white px-8 py-8">
                 {/* About Section */}
                 <section id="About" className="mb-16">
                     <div className="flex items-start border-b border-gray-200 pb-8">
