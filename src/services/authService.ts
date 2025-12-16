@@ -290,7 +290,7 @@ export const getUserProfile = async (): Promise<any> => {
     try {
         // Check user type from local storage to determine endpoint
         const storedUser = localStorage.getItem('user');
-        let endpoint = API_ENDPOINTS.COMMON.AUTH.ME;
+        let endpoint: string = API_ENDPOINTS.COMMON.AUTH.ME;
 
         if (storedUser) {
             try {
