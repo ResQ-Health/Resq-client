@@ -186,10 +186,10 @@ export const fetchProviderAvailability = async (
         if (params?.service) query.append('service', params.service);
         if (typeof params?.month === 'number') query.append('month', String(params.month));
         if (typeof params?.year === 'number') query.append('year', String(params.year));
-        
+
         const endpoint = API_ENDPOINTS.PATIENT.PROVIDERS.AVAILABILITY(providerId);
         const url = query.toString() ? `${endpoint}?${query.toString()}` : endpoint;
-        
+
         const res = await apiClient.get(url);
         return res.data as ProviderAvailabilityResponse;
     } catch (err) {
@@ -579,6 +579,81 @@ export const saveReview = async (reviewId: string): Promise<SaveReviewResponse> 
     return res.data as SaveReviewResponse;
 };
 
+// Provider -> View My Reviews (with summary)
+export interface ProviderReviewPatient {
+    id?: string;
+    _id?: string;
+    name?: string;
+    full_name?: string;
+    email?: string;
+    phone?: string;
+    phone_number?: string;
+    profile_picture?: {
+        url?: string;
+    } | null;
+}
+
+export interface ProviderReviewItem {
+    id?: string;
+    _id?: string;
+    rating: number;
+    comment: string;
+    created_at: string;
+    likes_count: number;
+    saved_count: number;
+    patient?: ProviderReviewPatient | null;
+}
+
+export interface ProviderReviewsSummary {
+    average: number;
+    count: number;
+    breakdown: {
+        1: number;
+        2: number;
+        3: number;
+        4: number;
+        5: number;
+    };
+}
+
+export interface ProviderReviewsResponse {
+    success: boolean;
+    data: {
+        summary: ProviderReviewsSummary;
+        reviews: ProviderReviewItem[];
+    };
+    pagination: {
+        total: number;
+        page: number;
+        limit: number;
+        pages: number;
+    };
+}
+
+export interface FetchProviderReviewsParams {
+    page?: number;
+    limit?: number;
+    rating?: number; // exact rating 1-5
+}
+
+export const fetchProviderReviews = async (params: FetchProviderReviewsParams): Promise<ProviderReviewsResponse> => {
+    const res = await apiClient.get(API_ENDPOINTS.PROVIDER.REVIEWS.GET_ALL, { params });
+    return res.data as ProviderReviewsResponse;
+};
+
+export const useProviderReviews = (params: FetchProviderReviewsParams) => {
+    return useQuery({
+        queryKey: ['providerReviews', params],
+        queryFn: () => fetchProviderReviews(params),
+        staleTime: 5 * 60 * 1000, // reduce refetches when navigating back
+        gcTime: 30 * 60 * 1000,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        refetchOnMount: false,
+        placeholderData: (prev) => prev,
+    });
+};
+
 // --- New Provider Registration Logic ---
 
 export interface ProviderRegisterRequest {
@@ -666,6 +741,428 @@ export const useProviderProfile = () => {
     });
 };
 
+// Cached Provider Profile Query (avoid refetching on every mount)
+export const useProviderProfileQuery = () => {
+    return useQuery({
+        queryKey: ['providerProfileMe'],
+        queryFn: getProviderProfile,
+        staleTime: 5 * 60 * 1000,
+        gcTime: 30 * 60 * 1000,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        refetchOnMount: false,
+    });
+};
+
+// Provider Support Tickets
+export type ProviderSupportTicketStatus = 'open' | 'reviewing' | 'pending' | 'resolved' | 'closed' | string;
+export type ProviderSupportTicketCategory =
+    | 'Payments'
+    | 'Appointments'
+    | 'Profile & verification'
+    | 'Services'
+    | 'Technical issue'
+    | 'Other'
+    | string;
+
+export interface ProviderSupportTicketListItem {
+    ticket_id: string;
+    category: ProviderSupportTicketCategory;
+    subject: string;
+    status: ProviderSupportTicketStatus;
+    created_at: string;
+    updated_at?: string;
+    messages_count?: number;
+    last_message?: string;
+    last_message_at?: string;
+}
+
+export interface ProviderSupportTicketsListResponse {
+    success: boolean;
+    data: {
+        tickets: ProviderSupportTicketListItem[];
+        pagination: {
+            total: number;
+            page: number;
+            limit: number;
+            pages: number;
+        };
+    };
+}
+
+export interface FetchProviderSupportTicketsParams {
+    page?: number;
+    limit?: number;
+    status?: ProviderSupportTicketStatus;
+}
+
+export const fetchProviderSupportTickets = async (
+    params: FetchProviderSupportTicketsParams
+): Promise<ProviderSupportTicketsListResponse> => {
+    const res = await apiClient.get(API_ENDPOINTS.PROVIDER.SUPPORT.TICKETS, { params });
+    return res.data as ProviderSupportTicketsListResponse;
+};
+
+export const useProviderSupportTickets = (params: FetchProviderSupportTicketsParams) => {
+    return useQuery({
+        queryKey: ['providerSupportTickets', params],
+        queryFn: () => fetchProviderSupportTickets(params),
+        staleTime: 60 * 1000,
+        gcTime: 30 * 60 * 1000,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        refetchOnMount: false,
+        placeholderData: (prev) => prev,
+    });
+};
+
+export interface ProviderSupportTicketMessageItem {
+    id: string;
+    sender_role: 'provider' | 'support' | 'admin' | string;
+    sender_id?: string;
+    message: string;
+    attachments?: string[];
+    created_at: string;
+}
+
+export interface ProviderSupportTicketDetails {
+    ticket_id: string;
+    provider_id?: string;
+    category: ProviderSupportTicketCategory;
+    subject: string;
+    status: ProviderSupportTicketStatus;
+    created_at: string;
+    updated_at?: string;
+    messages: ProviderSupportTicketMessageItem[];
+}
+
+export interface ProviderSupportTicketDetailsResponse {
+    success: boolean;
+    data: ProviderSupportTicketDetails;
+}
+
+export const fetchProviderSupportTicket = async (ticketId: string): Promise<ProviderSupportTicketDetailsResponse> => {
+    const res = await apiClient.get(API_ENDPOINTS.PROVIDER.SUPPORT.TICKET(ticketId));
+    return res.data as ProviderSupportTicketDetailsResponse;
+};
+
+export const useProviderSupportTicket = (ticketId?: string) => {
+    return useQuery({
+        queryKey: ['providerSupportTicket', ticketId],
+        queryFn: () => fetchProviderSupportTicket(String(ticketId)),
+        enabled: !!ticketId,
+        staleTime: 15 * 1000,
+        gcTime: 30 * 60 * 1000,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        refetchOnMount: false,
+        placeholderData: (prev) => prev,
+    });
+};
+
+export interface CreateProviderSupportTicketRequest {
+    category: ProviderSupportTicketCategory;
+    subject: string;
+    message: string;
+    attachments?: string[]; // JSON mode
+    attachment_files?: File[]; // multipart mode
+}
+
+export interface CreateProviderSupportTicketResponse {
+    success: boolean;
+    message?: string;
+    data: {
+        ticket_id: string;
+        status: ProviderSupportTicketStatus;
+        created_at: string;
+    };
+}
+
+export const createProviderSupportTicket = async (
+    payload: CreateProviderSupportTicketRequest
+): Promise<CreateProviderSupportTicketResponse> => {
+    // If files were provided, use multipart; otherwise JSON.
+    if (payload.attachment_files && payload.attachment_files.length) {
+        const formData = new FormData();
+        formData.append('category', String(payload.category));
+        formData.append('subject', payload.subject);
+        formData.append('message', payload.message);
+        payload.attachment_files.slice(0, 5).forEach((f) => formData.append('attachments', f));
+        const res = await apiClient.post(API_ENDPOINTS.PROVIDER.SUPPORT.TICKETS, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        return res.data as CreateProviderSupportTicketResponse;
+    }
+
+    const res = await apiClient.post(API_ENDPOINTS.PROVIDER.SUPPORT.TICKETS, {
+        category: payload.category,
+        subject: payload.subject,
+        message: payload.message,
+        attachments: payload.attachments || [],
+    });
+    return res.data as CreateProviderSupportTicketResponse;
+};
+
+export const useCreateProviderSupportTicket = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: createProviderSupportTicket,
+        onSuccess: (data) => {
+            toast.success(data?.message || 'Support ticket created successfully');
+            queryClient.invalidateQueries({ queryKey: ['providerSupportTickets'] });
+        },
+        onError: (error: any) => {
+            const msg =
+                error?.response?.data?.message ||
+                error?.response?.data?.error ||
+                'Failed to create support ticket.';
+            toast.error(msg);
+        },
+    });
+};
+
+export interface ReplyProviderSupportTicketRequest {
+    ticketId: string;
+    message: string;
+    attachments?: string[]; // JSON mode
+    attachment_files?: File[]; // multipart mode
+}
+
+export interface ReplyProviderSupportTicketResponse {
+    success: boolean;
+    message?: string;
+    data: {
+        ticket_id: string;
+        status: ProviderSupportTicketStatus;
+        updated_at: string;
+    };
+}
+
+export const replyProviderSupportTicket = async (
+    payload: ReplyProviderSupportTicketRequest
+): Promise<ReplyProviderSupportTicketResponse> => {
+    if (payload.attachment_files && payload.attachment_files.length) {
+        const formData = new FormData();
+        formData.append('message', payload.message);
+        payload.attachment_files.slice(0, 5).forEach((f) => formData.append('attachments', f));
+        const res = await apiClient.post(API_ENDPOINTS.PROVIDER.SUPPORT.MESSAGES(payload.ticketId), formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+        });
+        return res.data as ReplyProviderSupportTicketResponse;
+    }
+
+    const res = await apiClient.post(API_ENDPOINTS.PROVIDER.SUPPORT.MESSAGES(payload.ticketId), {
+        message: payload.message,
+        attachments: payload.attachments || [],
+    });
+    return res.data as ReplyProviderSupportTicketResponse;
+};
+
+export const useReplyProviderSupportTicket = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: replyProviderSupportTicket,
+        onSuccess: (data, vars) => {
+            toast.success(data?.message || 'Message sent successfully');
+            queryClient.invalidateQueries({ queryKey: ['providerSupportTicket', vars.ticketId] });
+            queryClient.invalidateQueries({ queryKey: ['providerSupportTickets'] });
+        },
+        onError: (error: any) => {
+            const msg =
+                error?.response?.data?.message ||
+                error?.response?.data?.error ||
+                'Failed to send message.';
+            toast.error(msg);
+        },
+    });
+};
+
+// Full Provider Profile Update (multipart/form-data)
+export interface UpdateProviderFullProfileFields {
+    full_name?: string;
+    email?: string;
+    phone_number?: string;
+    provider_name?: string;
+    work_email?: string;
+    work_phone?: string;
+    about?: string;
+    street?: string;
+    city?: string;
+    state?: string;
+    country?: string;
+    postal_code?: string;
+    website?: string;
+    instagram?: string;
+    facebook?: string;
+    twitter?: string;
+    profile_picture?: File;
+    banner_image?: File;
+    logo?: File;
+    gallery?: File[]; // up to 10
+    // Can be sent as array or JSON string (backend supports both)
+    accreditations?: unknown[] | string;
+}
+
+export interface UpdateProviderFullProfileResponse {
+    success: boolean;
+    message?: string;
+    data?: any;
+}
+
+export const updateProviderFullProfile = async (
+    payload: UpdateProviderFullProfileFields
+): Promise<UpdateProviderFullProfileResponse> => {
+    const formData = new FormData();
+
+    const appendIfDefined = (key: string, value: unknown) => {
+        if (value === undefined) return;
+        if (value === null) return;
+        formData.append(key, String(value));
+    };
+
+    appendIfDefined('full_name', payload.full_name);
+    appendIfDefined('email', payload.email);
+    appendIfDefined('phone_number', payload.phone_number);
+    appendIfDefined('provider_name', payload.provider_name);
+    appendIfDefined('work_email', payload.work_email);
+    appendIfDefined('work_phone', payload.work_phone);
+    appendIfDefined('about', payload.about);
+    appendIfDefined('street', payload.street);
+    appendIfDefined('city', payload.city);
+    appendIfDefined('state', payload.state);
+    appendIfDefined('country', payload.country);
+    appendIfDefined('postal_code', payload.postal_code);
+    appendIfDefined('website', payload.website);
+    appendIfDefined('instagram', payload.instagram);
+    appendIfDefined('facebook', payload.facebook);
+    appendIfDefined('twitter', payload.twitter);
+    if (payload.accreditations !== undefined) {
+        const v =
+            typeof payload.accreditations === 'string'
+                ? payload.accreditations
+                : JSON.stringify(payload.accreditations);
+        formData.append('accreditations', v);
+    }
+
+    if (payload.profile_picture) formData.append('profile_picture', payload.profile_picture);
+    if (payload.banner_image) formData.append('banner_image', payload.banner_image);
+    if (payload.logo) formData.append('logo', payload.logo);
+    if (payload.gallery?.length) {
+        payload.gallery.slice(0, 10).forEach((f) => formData.append('gallery', f));
+    }
+
+    const res = await apiClient.put(API_ENDPOINTS.PROVIDER.PROFILE.ME, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return res.data as UpdateProviderFullProfileResponse;
+};
+
+export const useUpdateProviderFullProfile = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: updateProviderFullProfile,
+        onSuccess: (data) => {
+            toast.success(data?.message || 'Provider profile updated successfully');
+            queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+        },
+        onError: (error: any) => {
+            const msg =
+                error?.response?.data?.message ||
+                error?.response?.data?.error ||
+                'Failed to update profile.';
+            toast.error(msg);
+        },
+    });
+};
+
+// Locations (Public) - Country -> State dropdowns
+export interface LocationCountry {
+    name: string;
+    code: string;
+}
+
+export interface LocationsCountriesResponse {
+    success: boolean;
+    data: LocationCountry[];
+}
+
+export interface LocationState {
+    name: string;
+    code: string;
+}
+
+export interface LocationsStatesResponse {
+    success: boolean;
+    data: LocationState[];
+}
+
+export const fetchCountries = async (): Promise<LocationsCountriesResponse> => {
+    const res = await apiClient.get(API_ENDPOINTS.COMMON.LOCATIONS.COUNTRIES);
+    return res.data as LocationsCountriesResponse;
+};
+
+export const useCountries = () => {
+    return useQuery({
+        queryKey: ['locationsCountries'],
+        queryFn: fetchCountries,
+        staleTime: 24 * 60 * 60 * 1000,
+    });
+};
+
+export const fetchStates = async (params: { country?: string; country_code?: string }): Promise<LocationsStatesResponse> => {
+    const res = await apiClient.get(API_ENDPOINTS.COMMON.LOCATIONS.STATES, { params });
+    return res.data as LocationsStatesResponse;
+};
+
+export const useStates = (params: { country?: string; country_code?: string }) => {
+    return useQuery({
+        queryKey: ['locationsStates', params],
+        queryFn: () => fetchStates(params),
+        enabled: !!(params.country || params.country_code),
+        staleTime: 24 * 60 * 60 * 1000,
+    });
+};
+
+// Provider address update (Provider-only)
+export interface UpdateProviderAddressRequest {
+    street: string;
+    city: string;
+    state: string;
+    country: string;
+    postal_code: string;
+}
+
+export interface UpdateProviderAddressResponse {
+    success: boolean;
+    message?: string;
+    data?: {
+        address?: UpdateProviderAddressRequest;
+    };
+}
+
+export const updateProviderAddress = async (
+    payload: UpdateProviderAddressRequest
+): Promise<UpdateProviderAddressResponse> => {
+    const res = await apiClient.put(API_ENDPOINTS.PROVIDER.ADDRESS.UPDATE, payload);
+    return res.data as UpdateProviderAddressResponse;
+};
+
+export const useUpdateProviderAddress = () => {
+    return useMutation({
+        mutationFn: updateProviderAddress,
+        onSuccess: (data) => {
+            toast.success(data?.message || 'Address updated successfully');
+        },
+        onError: (error: any) => {
+            const msg =
+                error?.response?.data?.message ||
+                error?.response?.data?.error ||
+                'Failed to update address.';
+            toast.error(msg);
+        },
+    });
+};
+
 export const uploadProviderProfilePicture = async (file: File): Promise<any> => {
     const formData = new FormData();
     formData.append('profile_picture', file);
@@ -678,8 +1175,8 @@ export const uploadProviderProfilePicture = async (file: File): Promise<any> => 
         });
         return response.data;
     } catch (error: any) {
-         console.error('Upload provider profile picture error:', error);
-         throw error;
+        console.error('Upload provider profile picture error:', error);
+        throw error;
     }
 };
 
@@ -748,12 +1245,12 @@ export const useUpdateProviderProfile = () => {
             toast.success('Profile updated successfully');
         },
         onError: (error: any) => {
-             console.error('Update profile mutation error:', error);
-             let errorMessage = 'Failed to update profile.';
-             if (error.response?.data?.message) {
-                 errorMessage = error.response.data.message;
-             }
-             toast.error(errorMessage);
+            console.error('Update profile mutation error:', error);
+            let errorMessage = 'Failed to update profile.';
+            if (error.response?.data?.message) {
+                errorMessage = error.response.data.message;
+            }
+            toast.error(errorMessage);
         }
     });
 };
@@ -789,12 +1286,50 @@ export const useUpdateProviderWorkingHours = () => {
             toast.success('Working hours updated successfully');
         },
         onError: (error: any) => {
-             console.error('Update working hours mutation error:', error);
-             let errorMessage = 'Failed to update working hours.';
-             if (error.response?.data?.message) {
-                 errorMessage = error.response.data.message;
-             }
-             toast.error(errorMessage);
+            console.error('Update working hours mutation error:', error);
+            let errorMessage = 'Failed to update working hours.';
+            if (error.response?.data?.message) {
+                errorMessage = error.response.data.message;
+            }
+            toast.error(errorMessage);
+        }
+    });
+};
+
+// Complete Onboarding
+export const completeOnboarding = async (): Promise<any> => {
+    try {
+        const response = await apiClient.post(API_ENDPOINTS.PROVIDER.PROFILE.COMPLETE_ONBOARDING);
+        return response.data;
+    } catch (error: any) {
+        console.error('Complete onboarding error:', error);
+        throw error;
+    }
+};
+
+export const useCompleteOnboarding = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: completeOnboarding,
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+            // Update local user data if needed
+            const currentUser = localStorage.getItem('user');
+            if (currentUser) {
+                const parsedUser = JSON.parse(currentUser);
+                // Assuming the backend returns the updated profile/user object
+                const updatedUser = { ...parsedUser, ...data.data };
+                localStorage.setItem('user', JSON.stringify(updatedUser));
+                queryClient.setQueryData(['user'], updatedUser);
+            }
+        },
+        onError: (error: any) => {
+            console.error('Complete onboarding mutation error:', error);
+            let errorMessage = 'Failed to complete onboarding.';
+            if (error.response?.data?.message) {
+                errorMessage = error.response.data.message;
+            }
+            toast.error(errorMessage);
         }
     });
 };
@@ -810,7 +1345,7 @@ export interface UpdateNotificationSettingsRequest {
 
 export const updateProviderNotificationSettings = async (data: UpdateNotificationSettingsRequest): Promise<any> => {
     try {
-        const response = await apiClient.put('/api/v1/providers/me/notification-settings', data);
+        const response = await apiClient.put(API_ENDPOINTS.PROVIDER.PROFILE.NOTIFICATION_SETTINGS, data);
         return response.data;
     } catch (error: any) {
         console.error('Update notification settings error:', error);
@@ -827,12 +1362,12 @@ export const useUpdateProviderNotificationSettings = () => {
             toast.success('Notification settings updated successfully');
         },
         onError: (error: any) => {
-             console.error('Update notification settings mutation error:', error);
-             let errorMessage = 'Failed to update notification settings.';
-             if (error.response?.data?.message) {
-                 errorMessage = error.response.data.message;
-             }
-             toast.error(errorMessage);
+            console.error('Update notification settings mutation error:', error);
+            let errorMessage = 'Failed to update notification settings.';
+            if (error.response?.data?.message) {
+                errorMessage = error.response.data.message;
+            }
+            toast.error(errorMessage);
         }
     });
 };
@@ -1087,7 +1622,7 @@ export const useCreateProviderService = () => {
             // Optimistically update to the new value
             queryClient.setQueryData<ProviderServicesResponse>(['providerServices'], (old) => {
                 if (!old) return old;
-                
+
                 // Create a temporary mock object
                 const optimisticService: ProviderServiceItem = {
                     id: `temp-${Date.now()}`,
@@ -1100,7 +1635,7 @@ export const useCreateProviderService = () => {
                     uses: newServiceData.uses || newServiceData.description, // Fallback
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString(),
-                    metadata: {} 
+                    metadata: {}
                 };
 
                 return {
@@ -1119,7 +1654,7 @@ export const useCreateProviderService = () => {
             if (context?.previousServices) {
                 queryClient.setQueryData(['providerServices'], context.previousServices);
             }
-            
+
             let errorMessage = 'Failed to create service.';
             if ((err as any).response?.data?.message) {
                 errorMessage = (err as any).response.data.message;
@@ -1232,5 +1767,323 @@ export const useDeleteProviderService = () => {
         onSuccess: () => {
             toast.success('Service deleted successfully');
         }
+    });
+};
+
+// Bank and Payouts
+export interface BankItem {
+    id: number;
+    name: string;
+    slug: string;
+    code: string;
+    longcode: string;
+    gateway: string;
+    pay_with_bank: boolean;
+    active: boolean;
+    is_deleted: boolean;
+    country: string;
+    currency: string;
+    type: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
+export interface BanksResponse {
+    success: boolean;
+    message: string;
+    data: BankItem[];
+}
+
+export const fetchBanks = async (): Promise<BanksResponse> => {
+    const res = await apiClient.get(API_ENDPOINTS.PROVIDER.PAYMENTS.GET_BANKS);
+    return res.data as BanksResponse;
+};
+
+export const useBanks = () => {
+    return useQuery({
+        queryKey: ['banks'],
+        queryFn: fetchBanks,
+        staleTime: 24 * 60 * 60 * 1000, // Cache for 24 hours
+    });
+};
+
+export interface VerifyBankAccountRequest {
+    account_number: string;
+    bank_code: string;
+}
+
+export interface VerifyBankAccountResponse {
+    success: boolean;
+    message: string;
+    data: {
+        account_number: string;
+        account_name: string;
+        bank_id: number;
+    };
+}
+
+export const verifyBankAccount = async (payload: VerifyBankAccountRequest): Promise<VerifyBankAccountResponse> => {
+    const res = await apiClient.post(API_ENDPOINTS.PROVIDER.PAYMENTS.VERIFY_ACCOUNT, payload);
+    return res.data as VerifyBankAccountResponse;
+};
+
+export const useVerifyBankAccount = () => {
+    return useMutation({
+        mutationFn: verifyBankAccount,
+    });
+};
+
+export interface SaveBankAccountRequest {
+    account_number: string;
+    account_name: string;
+    bank_code: string;
+    bank_name: string;
+}
+
+export const saveBankAccount = async (payload: SaveBankAccountRequest): Promise<any> => {
+    const res = await apiClient.put(API_ENDPOINTS.PROVIDER.PAYMENTS.SAVE_ACCOUNT, payload);
+    return res.data;
+};
+
+export const useSaveBankAccount = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: saveBankAccount,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+            toast.success('Bank details saved successfully');
+        },
+        onError: (error: any) => {
+            console.error('Save bank account error:', error);
+            let errorMessage = 'Failed to save bank details.';
+            if (error.response?.data?.message) {
+                errorMessage = error.response.data.message;
+            }
+            toast.error(errorMessage);
+        }
+    });
+};
+
+// Provider Transactions (Payments)
+export type ProviderTransactionPaymentStatus = 'success' | 'failed' | 'pending' | string;
+
+export interface ProviderTransactionPatient {
+    id?: string;
+    _id?: string;
+    full_name?: string;
+    name?: string;
+    email?: string;
+    phone_number?: string;
+    phone?: string;
+}
+
+export interface ProviderTransactionService {
+    id?: string;
+    _id?: string;
+    name?: string;
+    category?: string;
+    price?: number;
+}
+
+export interface ProviderTransactionPayment {
+    amount?: number;
+    status?: ProviderTransactionPaymentStatus;
+    method?: string;
+    channel?: string;
+    payment_method?: string;
+    paystack_reference?: string;
+    reference?: string;
+    paidAt?: string;
+    paid_at?: string;
+    created_at?: string;
+}
+
+export interface ProviderTransaction {
+    id?: string;
+    _id?: string;
+    appointment_id?: string;
+    provider_id?: string;
+    appointment?: {
+        date?: string;
+        start_time?: string;
+        end_time?: string;
+        status?: string;
+    };
+    created_at?: string;
+    updated_at?: string;
+    paid_at?: string;
+    patient?: ProviderTransactionPatient;
+    patient_info?: ProviderTransactionPatient;
+    service?: ProviderTransactionService;
+    service_info?: ProviderTransactionService;
+    payment?: ProviderTransactionPayment;
+    amount?: number;
+    status?: string;
+    metadata?: Record<string, unknown>;
+}
+
+export interface ProviderTransactionsSummaryByServiceItem {
+    service_id?: string;
+    service_name?: string;
+    name?: string;
+    total_amount: number;
+    total_count: number;
+}
+
+export interface ProviderTransactionsSummary {
+    total_amount: number;
+    total_count: number;
+    by_service?: ProviderTransactionsSummaryByServiceItem[];
+}
+
+export interface ProviderTransactionsResponse {
+    success: boolean;
+    data: {
+        transactions: ProviderTransaction[];
+        summary: ProviderTransactionsSummary;
+    };
+    pagination: {
+        page: number;
+        limit: number;
+        total: number;
+        pages: number;
+    };
+}
+
+export interface FetchProviderTransactionsParams {
+    page?: number;
+    limit?: number;
+    service_id?: string;
+    start_date?: string; // YYYY-MM-DD
+    end_date?: string; // YYYY-MM-DD
+    search?: string;
+}
+
+export const fetchProviderTransactions = async (
+    params: FetchProviderTransactionsParams
+): Promise<ProviderTransactionsResponse> => {
+    const res = await apiClient.get(API_ENDPOINTS.PROVIDER.PAYMENTS.TRANSACTIONS, {
+        params,
+    });
+    return res.data as ProviderTransactionsResponse;
+};
+
+export const useProviderTransactions = (params: FetchProviderTransactionsParams) => {
+    const queryClient = useQueryClient();
+    return useQuery({
+        queryKey: ['providerTransactions', params],
+        queryFn: () => fetchProviderTransactions(params),
+        staleTime: 2 * 60 * 1000, // reduce refetches when navigating back
+        gcTime: 30 * 60 * 1000,
+        refetchOnWindowFocus: false,
+        refetchOnReconnect: false,
+        refetchOnMount: false,
+        placeholderData: (prev) => prev,
+    });
+};
+
+// Provider Reports
+export type ProviderReportStatus = 'open' | 'pending' | 'resolved' | 'closed' | string;
+
+export interface ProviderReportPatientBasic {
+    id?: string;
+    _id?: string;
+    name?: string;
+    full_name?: string;
+    email?: string;
+    phone?: string;
+    phone_number?: string;
+}
+
+export interface ProviderReportItem {
+    id?: string;
+    _id?: string;
+    report_id?: string;
+    category?: string;
+    status?: ProviderReportStatus;
+    title?: string;
+    description?: string;
+    message?: string;
+    anonymous?: boolean;
+    patient: ProviderReportPatientBasic | null;
+    created_at?: string;
+    updated_at?: string;
+}
+
+export interface ProviderReportsResponse {
+    success: boolean;
+    data: ProviderReportItem[];
+    pagination: {
+        total: number;
+        page: number;
+        limit: number;
+        pages: number;
+    };
+}
+
+export interface FetchProviderReportsParams {
+    page?: number;
+    limit?: number;
+    status?: string;
+    category?: string;
+}
+
+export const fetchProviderReports = async (params: FetchProviderReportsParams): Promise<ProviderReportsResponse> => {
+    const res = await apiClient.get(API_ENDPOINTS.PROVIDER.REPORTS.GET_ALL, { params });
+    return res.data as ProviderReportsResponse;
+};
+
+export const useProviderReports = (params: FetchProviderReportsParams) => {
+    return useQuery({
+        queryKey: ['providerReports', params],
+        queryFn: () => fetchProviderReports(params),
+        staleTime: 30 * 1000,
+        placeholderData: (prev) => prev,
+    });
+};
+
+// Patient -> Report Provider
+export type ProviderReportCategory =
+    | 'Service quality'
+    | 'Fraud/Scam'
+    | 'Abuse/Harassment'
+    | 'No show'
+    | 'Other';
+
+export interface ReportProviderRequest {
+    category?: ProviderReportCategory;
+    message: string;
+    anonymous?: boolean;
+}
+
+export interface ReportProviderResponse {
+    success: boolean;
+    message?: string;
+    data?: any;
+}
+
+export const reportProvider = async (
+    providerId: string,
+    payload: ReportProviderRequest
+): Promise<ReportProviderResponse> => {
+    const res = await apiClient.post(API_ENDPOINTS.PATIENT.PROVIDERS.REPORTS.CREATE(providerId), payload);
+    return res.data as ReportProviderResponse;
+};
+
+export const useReportProvider = () => {
+    return useMutation({
+        mutationFn: ({ providerId, payload }: { providerId: string; payload: ReportProviderRequest }) =>
+            reportProvider(providerId, payload),
+        onSuccess: (data) => {
+            toast.success(data?.message || 'Report submitted successfully');
+        },
+        onError: (error: any) => {
+            // Backend enforces: must have appointment + spam guard (1 open/reviewing per provider per 24h)
+            const msg =
+                error?.response?.data?.message ||
+                error?.response?.data?.error ||
+                'Failed to submit report. Please try again.';
+            toast.error(msg);
+        },
     });
 };

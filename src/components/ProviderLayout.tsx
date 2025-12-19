@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet, useLocation, Link } from 'react-router-dom';
+import { Outlet, useLocation, Link, useNavigate } from 'react-router-dom';
 import { FaRegCalendarAlt, FaStar, FaCog, FaChevronLeft, FaChevronRight, FaPlus } from 'react-icons/fa';
 import { MdDashboard, MdPayment, MdMedicalServices, MdOutlineSupportAgent, MdPeople } from 'react-icons/md';
 import { TbReport } from 'react-icons/tb';
 import { IoNotificationsOutline } from 'react-icons/io5';
-import { FiSearch } from 'react-icons/fi';
+import { FiLogOut, FiSearch } from 'react-icons/fi';
 import { useAuth } from '../contexts/AuthContext';
 import { useProviderSearch } from '../contexts/ProviderSearchContext';
 import logo from '/icons/Logomark (1).png'
@@ -21,7 +21,8 @@ const NAV_ITEMS = [
 
 const ProviderLayout: React.FC = () => {
   const location = useLocation();
-  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const { searchQuery, setSearchQuery, isSearching } = useProviderSearch();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const isPatientsPage = location.pathname === '/provider/patients';
@@ -29,7 +30,7 @@ const ProviderLayout: React.FC = () => {
   return (
     <div className="flex h-screen bg-[#F9FAFB]">
       {/* Sidebar */}
-      <aside 
+      <aside
         className={`${isCollapsed ? 'w-20' : 'w-64'} bg-white border-r border-gray-200 flex flex-col fixed h-full z-20 transition-all duration-300 ease-in-out`}
       >
         <div className="p-6 flex items-center justify-between">
@@ -58,11 +59,10 @@ const ProviderLayout: React.FC = () => {
                   <Link
                     to={item.path}
                     title={isCollapsed ? item.label : ''}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
-                      isActive
-                        ? 'bg-[#06202E] text-white'
-                        : 'text-gray-600 hover:bg-gray-50'
-                    } ${isCollapsed ? 'justify-center px-2' : ''}`}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${isActive
+                      ? 'bg-[#06202E] text-white'
+                      : 'text-gray-600 hover:bg-gray-50'
+                      } ${isCollapsed ? 'justify-center px-2' : ''}`}
                   >
                     <span className="min-w-[20px]">{item.icon}</span>
                     <span className={`transition-opacity duration-300 whitespace-nowrap ${isCollapsed ? 'opacity-0 w-0 hidden' : 'opacity-100'}`}>
@@ -97,6 +97,20 @@ const ProviderLayout: React.FC = () => {
                 Settings
               </span>
             </Link>
+            <button
+              type="button"
+              title={isCollapsed ? 'Logout' : ''}
+              onClick={() => {
+                logout();
+                navigate('/', { replace: true });
+              }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 ${isCollapsed ? 'justify-center px-2' : ''}`}
+            >
+              <span className="min-w-[20px]"><FiLogOut size={18} /></span>
+              <span className={`transition-opacity duration-300 whitespace-nowrap ${isCollapsed ? 'opacity-0 w-0 hidden' : 'opacity-100'}`}>
+                Logout
+              </span>
+            </button>
           </div>
 
           <div className={`flex items-center gap-3 px-4 py-2 ${isCollapsed ? 'justify-center px-0' : ''}`}>
@@ -133,7 +147,10 @@ const ProviderLayout: React.FC = () => {
             {/* Left: Page title */}
             <div className="min-w-0">
               <h1 className="text-xl font-semibold text-[#16202E] truncate">
-                {NAV_ITEMS.find((i) => i.path === location.pathname)?.label || 'Overview'}
+                {NAV_ITEMS.find((i) => i.path === location.pathname)?.label ||
+                  (location.pathname.startsWith('/provider/support') ? 'Support' : null) ||
+                  (location.pathname.startsWith('/provider/settings') ? 'Settings' : null) ||
+                  'Overview'}
               </h1>
             </div>
 
@@ -141,11 +158,11 @@ const ProviderLayout: React.FC = () => {
             <div className="flex justify-center">
               <div className="relative w-full max-w-[720px]">
                 <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400">
-                    {isSearching ? (
-                        <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                        <FiSearch size={18} />
-                    )}
+                  {isSearching ? (
+                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <FiSearch size={18} />
+                  )}
                 </div>
                 <input
                   type="text"

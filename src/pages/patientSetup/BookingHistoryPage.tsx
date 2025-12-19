@@ -721,16 +721,6 @@ export default function BookingHistoryPage() {
                                                         >
                                                             <FiEye className="w-4 h-4" />
                                                         </button>
-                                                        <button
-                                                            onClick={() => {
-                                                                setSelectedAppointment(appointment);
-                                                                confirmDelete();
-                                                            }}
-                                                            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
-                                                            title="Delete"
-                                                        >
-                                                            <RiDeleteBinLine className="w-4 h-4" />
-                                                        </button>
                                                     </div>
                                                 </td>
                                             </tr>

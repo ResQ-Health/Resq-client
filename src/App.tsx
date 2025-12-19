@@ -38,6 +38,9 @@ import ProviderServicesPage from './pages/provider/ProviderServicesPage'
 import ProviderPaymentsPage from './pages/provider/ProviderPaymentsPage'
 import ProviderPlaceholderPage from './pages/provider/ProviderPlaceholderPage'
 import ProviderSettingsPage from './pages/provider/ProviderSettingsPage'
+import ProviderReportsPage from './pages/provider/ProviderReportsPage'
+import ProviderReviewsPage from './pages/provider/ProviderReviewsPage'
+import ProviderSupportPage from './pages/provider/ProviderSupportPage'
 import { ProviderSearchProvider } from './contexts/ProviderSearchContext'
 
 function App() {
@@ -57,9 +60,9 @@ function App() {
         <Route path="/provider/patients" element={<ProviderPatientsPage />} />
         <Route path="/provider/services" element={<ProviderServicesPage />} />
         <Route path="/provider/payments" element={<ProviderPaymentsPage />} />
-        <Route path="/provider/reports" element={<ProviderPlaceholderPage title="Reports" />} />
-        <Route path="/provider/reviews" element={<ProviderPlaceholderPage title="Reviews" />} />
-        <Route path="/provider/support" element={<ProviderPlaceholderPage title="Support" />} />
+        <Route path="/provider/reports" element={<ProviderReportsPage />} />
+        <Route path="/provider/reviews" element={<ProviderReviewsPage />} />
+        <Route path="/provider/support" element={<ProviderSupportPage />} />
         <Route path="/provider/settings" element={<ProviderSettingsPage />} />
       </Route>
 

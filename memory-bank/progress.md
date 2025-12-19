@@ -4,36 +4,37 @@
 - **Patient Onboarding**: Registration, Login, Verification, Password Reset.
 - **Provider Onboarding**: 
   - Registration & Login.
-  - Profile Management (Basic info, Address, Services, Social links).
-  - Working Hours Management (with API integration).
-  - Notification Settings (Immediate updates).
-  - Success Modal & Redirection.
+  - Profile Management.
+  - Working Hours Management.
+  - Notification Settings.
+  - Onboarding Completion & Redirection.
 - **Provider Dashboard**:
-  - Layout with Sidebar and Header.
-  - Overview Page with Stats Cards and Charts (Revenue, Services, Visits).
-  - **Calendar**: 
-    - View appointments (Month, Week, Day).
-    - Appointment Details Modal.
-    - Integration with `/api/v1/providers/appointments`.
-    - **Robust Data Handling**: Added protection against malformed API data.
+  - Layout & Navigation.
+  - Overview Page (UI mostly done).
+  - **Calendar**: Integrated with API.
+  - **Payments**: 
+    - Bank list fetching implemented.
+    - Account verification implemented.
+    - History view (mock data for now).
 - **Core Infrastructure**:
-  - API Configuration (`axios` setup).
-  - Authentication Context (`AuthContext`).
-  - Route Protection (`ProtectedRoute`).
+  - API Configuration.
+  - Authentication Context.
+  - Route Protection.
 
 ## In Progress
-- **Provider Dashboard**: Real data integration for dashboard stats (Overview).
-- **Provider Features**: Services, Payments, Reports management.
+- **Provider Dashboard**: Real data integration for dashboard stats.
+- **Provider Features**: Services, Reports.
 
 ## Upcoming
 - **Patient Features**: Search Provider, Booking Flow, Reviews.
 - **Admin Dashboard**: Super admin capabilities.
 
 ## Known Issues
-- **API Connection**: `ECONNREFUSED` errors indicate the backend server might not be running or reachable on port 6000 locally.
-- **API Timeout**: Requests are timing out after 10000ms, likely due to connection issues.
+- **API Connection**: `ECONNREFUSED` errors if backend is down.
+- **API Timeout**: Requests timing out after 10s if connection is poor.
 
 ## Testing Status
-- Provider Onboarding flow tested and refined.
+- Provider Onboarding flow tested.
 - Provider Dashboard UI implemented.
-- Provider Calendar integrated with API (visual verification needed with running backend).
+- Provider Calendar integrated.
+- Provider Payments (Bank Verification) implemented.
