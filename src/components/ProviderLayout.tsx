@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Outlet, useLocation, Link } from 'react-router-dom';
+import { Outlet, useLocation, Link, useNavigate } from 'react-router-dom';
 import { FaRegCalendarAlt, FaStar, FaCog, FaChevronLeft, FaChevronRight, FaPlus } from 'react-icons/fa';
 import { MdDashboard, MdPayment, MdMedicalServices, MdOutlineSupportAgent, MdPeople } from 'react-icons/md';
 import { TbReport } from 'react-icons/tb';
 import { IoNotificationsOutline } from 'react-icons/io5';
-import { FiSearch } from 'react-icons/fi';
+import { FiLogOut, FiSearch } from 'react-icons/fi';
 import { useAuth } from '../contexts/AuthContext';
 import { useProviderSearch } from '../contexts/ProviderSearchContext';
 import logo from '/icons/Logomark (1).png'
@@ -21,7 +21,8 @@ const NAV_ITEMS = [
 
 const ProviderLayout: React.FC = () => {
   const location = useLocation();
-  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
   const { searchQuery, setSearchQuery, isSearching } = useProviderSearch();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const isPatientsPage = location.pathname === '/provider/patients';
@@ -59,8 +60,8 @@ const ProviderLayout: React.FC = () => {
                     to={item.path}
                     title={isCollapsed ? item.label : ''}
                     className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${isActive
-                        ? 'bg-[#06202E] text-white'
-                        : 'text-gray-600 hover:bg-gray-50'
+                      ? 'bg-[#06202E] text-white'
+                      : 'text-gray-600 hover:bg-gray-50'
                       } ${isCollapsed ? 'justify-center px-2' : ''}`}
                   >
                     <span className="min-w-[20px]">{item.icon}</span>
@@ -96,6 +97,20 @@ const ProviderLayout: React.FC = () => {
                 Settings
               </span>
             </Link>
+            <button
+              type="button"
+              title={isCollapsed ? 'Logout' : ''}
+              onClick={() => {
+                logout();
+                navigate('/', { replace: true });
+              }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 ${isCollapsed ? 'justify-center px-2' : ''}`}
+            >
+              <span className="min-w-[20px]"><FiLogOut size={18} /></span>
+              <span className={`transition-opacity duration-300 whitespace-nowrap ${isCollapsed ? 'opacity-0 w-0 hidden' : 'opacity-100'}`}>
+                Logout
+              </span>
+            </button>
           </div>
 
           <div className={`flex items-center gap-3 px-4 py-2 ${isCollapsed ? 'justify-center px-0' : ''}`}>
