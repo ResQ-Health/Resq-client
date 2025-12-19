@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAllProviders } from '../../services/providerService';
 import { createReview, likeReview, saveReview } from '../../services/providerService';
+import { useReportProvider } from '../../services/providerService';
 import { useToggleFavoriteProvider, useFavoriteStatus } from '../../services/userService';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
@@ -17,6 +18,7 @@ const ProviderPage = () => {
     const { data, isLoading, isError } = useAllProviders();
     const toggleFavoriteMutation = useToggleFavoriteProvider();
     const { data: favoriteStatusData } = useFavoriteStatus(id);
+    const reportProviderMutation = useReportProvider();
     const [providerData, setProviderData] = useState<any>(null);
     const [selectedService, setSelectedService] = useState('');
     const [selectedTimeSlot, setSelectedTimeSlot] = useState('');
@@ -34,6 +36,10 @@ const ProviderPage = () => {
     const [showAddReviewModal, setShowAddReviewModal] = useState(false);
     const [showSignInModal, setShowSignInModal] = useState(false);
     const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+    const [showReportModal, setShowReportModal] = useState(false);
+    const [reportCategory, setReportCategory] = useState<string>('');
+    const [reportMessage, setReportMessage] = useState('');
+    const [reportAnonymous, setReportAnonymous] = useState(false);
     const [selectedRating, setSelectedRating] = useState(5);
     const [reviewText, setReviewText] = useState('');
     const [showBookingModal, setShowBookingModal] = useState(false);
@@ -1003,19 +1009,40 @@ const ProviderPage = () => {
                             </div>
                             <p className="text-sm">{providerData.openStatus}</p>
                         </div>
-                        <button
-                            onClick={handleToggleFavorite}
-                            className="text-white hover:text-red-400 mr-[470px] transition-colors"
-                        >
-                            <svg className="w-8 h-8" fill={isFavorite ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                            </svg>
-                        </button>
+                        <div className="flex items-center gap-4 mr-[420px]">
+                            <button
+                                onClick={() => {
+                                    if (!isAuthenticated) {
+                                        setShowSignInModal(true);
+                                        return;
+                                    }
+                                    const userType = (user?.user_type || '').toLowerCase();
+                                    if (userType !== 'patient') {
+                                        toast.error('Only patients can report a provider.');
+                                        return;
+                                    }
+                                    setShowReportModal(true);
+                                }}
+                                className="bg-white/15 hover:bg-white/20 border border-white/25 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                            >
+                                Report
+                            </button>
+
+                            <button
+                                onClick={handleToggleFavorite}
+                                className="text-white hover:text-red-400 transition-colors"
+                                aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+                            >
+                                <svg className="w-8 h-8" fill={isFavorite ? 'currentColor' : 'none'} stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
                 {/* Overlapping Availability Card */}
-                <div className="absolute top-[40px] z-50 right-16 w-96">
+                <div className="absolute top-[40px] z-[30] right-16 w-96">
                     <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
                         <h3 className="text-xl font-semibold text-gray-900 mb-4 text-center">Availability</h3>
                         <div className="border-b border-gray-200 mb-4"></div>
@@ -1026,13 +1053,18 @@ const ProviderPage = () => {
                                 <select
                                     value={selectedService}
                                     onChange={(e) => setSelectedService(e.target.value)}
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-700"
+                                    disabled={!providerData.services || providerData.services.length === 0}
+                                    className={`w-full px-4 py-3 border border-gray-300 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-700 ${(!providerData.services || providerData.services.length === 0) ? 'bg-gray-100 cursor-not-allowed' : ''}`}
                                 >
-                                    {providerData.services.map((service: string) => (
-                                        <option key={service} value={service}>
-                                            {service}
-                                        </option>
-                                    ))}
+                                    {(!providerData.services || providerData.services.length === 0) ? (
+                                        <option value="">No services available</option>
+                                    ) : (
+                                        providerData.services.map((service: string) => (
+                                            <option key={service} value={service}>
+                                                {service}
+                                            </option>
+                                        ))
+                                    )}
                                 </select>
                                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
                                     <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
@@ -1041,83 +1073,28 @@ const ProviderPage = () => {
                         </div>
 
                         {/* Time Slots */}
-                        <div className="space-y-6">
-                            {/* Today */}
-                            <div>
-                                <h4 className="text-base font-medium text-gray-900 mb-3">Today</h4>
-                                <div className="grid grid-cols-3 gap-2">
-                                    {slotsForDate(todayISO).slice(0, 6).map((slot: string) => (
-                                        <button
-                                            key={`today-${slot}`}
-                                            onClick={() => {
-                                                setSelectedDate(todayISO);
-                                                handleTimeSlotSelect(slot);
-                                                setShowBookingModal(true);
-                                                setBookingSelectedService(selectedService);
-                                                setSelectedTime(slot);
-                                            }}
-                                            className={`px-2 py-2 rounded-full text-xs border transition-colors text-center ${selectedDate === todayISO && selectedTime && timeStringToMinutes(selectedTime) === timeStringToMinutes(slot)
-                                                ? 'bg-[#06202E] text-white border-[#06202E]'
-                                                : 'border-gray-200 text-gray-700 hover:border-blue-500 hover:text-blue-600'
-                                                }`}
-                                        >
-                                            {slot}
-                                        </button>
-                                    ))}
-                                    {slotsForDate(todayISO).length === 0 && (
-                                        <div className="col-span-3 text-sm text-gray-500 italic">No slots available</div>
-                                    )}
-                                </div>
+                        {(!providerData.services || providerData.services.length === 0) ? (
+                            <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 p-4 rounded-lg text-center my-6">
+                                <p className="font-medium">No services available</p>
+                                <p className="text-sm mt-1">This provider has not listed any services yet. Booking is currently unavailable.</p>
                             </div>
-
-                            {/* Tomorrow */}
-                            <div>
-                                <h4 className="text-base font-medium text-gray-900 mb-3">
-                                    {new Date(tomorrowISO).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'long' })}, Tomorrow
-                                </h4>
-                                <div className="grid grid-cols-3 gap-2">
-                                    {slotsForDate(tomorrowISO).slice(0, 6).map((slot: string) => (
-                                        <button
-                                            key={`tomorrow-${slot}`}
-                                            onClick={() => {
-                                                setSelectedDate(tomorrowISO);
-                                                handleTimeSlotSelect(slot);
-                                                setShowBookingModal(true);
-                                                setBookingSelectedService(selectedService);
-                                                setSelectedTime(slot);
-                                            }}
-                                            className={`px-2 py-2 rounded-full text-xs border transition-colors text-center ${selectedDate === tomorrowISO && selectedTime && timeStringToMinutes(selectedTime) === timeStringToMinutes(slot)
-                                                ? 'bg-[#06202E] text-white border-[#06202E]'
-                                                : 'border-gray-200 text-gray-700 hover:border-blue-500 hover:text-blue-600'
-                                                }`}
-                                        >
-                                            {slot}
-                                        </button>
-                                    ))}
-                                    {slotsForDate(tomorrowISO).length === 0 && (
-                                        <div className="col-span-3 text-sm text-gray-500 italic">No slots available</div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Next Available Day */}
-                            {nextAvailableFromTomorrowISO && (
+                        ) : (
+                            <div className="space-y-6">
+                                {/* Today */}
                                 <div>
-                                    <h4 className="text-base font-medium text-gray-900 mb-3">
-                                        {new Date(nextAvailableFromTomorrowISO).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'long' })}
-                                    </h4>
+                                    <h4 className="text-base font-medium text-gray-900 mb-3">Today</h4>
                                     <div className="grid grid-cols-3 gap-2">
-                                        {slotsForDate(nextAvailableFromTomorrowISO).slice(0, 6).map((slot: string) => (
+                                        {slotsForDate(todayISO).slice(0, 6).map((slot: string) => (
                                             <button
-                                                key={`next-${slot}`}
+                                                key={`today-${slot}`}
                                                 onClick={() => {
-                                                    setSelectedDate(nextAvailableFromTomorrowISO);
+                                                    setSelectedDate(todayISO);
                                                     handleTimeSlotSelect(slot);
                                                     setShowBookingModal(true);
                                                     setBookingSelectedService(selectedService);
                                                     setSelectedTime(slot);
                                                 }}
-                                                className={`px-2 py-2 rounded-full text-xs border transition-colors text-center ${selectedDate === nextAvailableFromTomorrowISO && selectedTime && timeStringToMinutes(selectedTime) === timeStringToMinutes(slot)
+                                                className={`px-2 py-2 rounded-full text-xs border transition-colors text-center ${selectedDate === todayISO && selectedTime && timeStringToMinutes(selectedTime) === timeStringToMinutes(slot)
                                                     ? 'bg-[#06202E] text-white border-[#06202E]'
                                                     : 'border-gray-200 text-gray-700 hover:border-blue-500 hover:text-blue-600'
                                                     }`}
@@ -1125,10 +1102,72 @@ const ProviderPage = () => {
                                                 {slot}
                                             </button>
                                         ))}
+                                        {slotsForDate(todayISO).length === 0 && (
+                                            <div className="col-span-3 text-sm text-gray-500 italic">No slots available</div>
+                                        )}
                                     </div>
                                 </div>
-                            )}
-                        </div>
+
+                                {/* Tomorrow */}
+                                <div>
+                                    <h4 className="text-base font-medium text-gray-900 mb-3">
+                                        {new Date(tomorrowISO).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'long' })}, Tomorrow
+                                    </h4>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {slotsForDate(tomorrowISO).slice(0, 6).map((slot: string) => (
+                                            <button
+                                                key={`tomorrow-${slot}`}
+                                                onClick={() => {
+                                                    setSelectedDate(tomorrowISO);
+                                                    handleTimeSlotSelect(slot);
+                                                    setShowBookingModal(true);
+                                                    setBookingSelectedService(selectedService);
+                                                    setSelectedTime(slot);
+                                                }}
+                                                className={`px-2 py-2 rounded-full text-xs border transition-colors text-center ${selectedDate === tomorrowISO && selectedTime && timeStringToMinutes(selectedTime) === timeStringToMinutes(slot)
+                                                    ? 'bg-[#06202E] text-white border-[#06202E]'
+                                                    : 'border-gray-200 text-gray-700 hover:border-blue-500 hover:text-blue-600'
+                                                    }`}
+                                            >
+                                                {slot}
+                                            </button>
+                                        ))}
+                                        {slotsForDate(tomorrowISO).length === 0 && (
+                                            <div className="col-span-3 text-sm text-gray-500 italic">No slots available</div>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Next Available Day */}
+                                {nextAvailableFromTomorrowISO && (
+                                    <div>
+                                        <h4 className="text-base font-medium text-gray-900 mb-3">
+                                            {new Date(nextAvailableFromTomorrowISO).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'long' })}
+                                        </h4>
+                                        <div className="grid grid-cols-3 gap-2">
+                                            {slotsForDate(nextAvailableFromTomorrowISO).slice(0, 6).map((slot: string) => (
+                                                <button
+                                                    key={`next-${slot}`}
+                                                    onClick={() => {
+                                                        setSelectedDate(nextAvailableFromTomorrowISO);
+                                                        handleTimeSlotSelect(slot);
+                                                        setShowBookingModal(true);
+                                                        setBookingSelectedService(selectedService);
+                                                        setSelectedTime(slot);
+                                                    }}
+                                                    className={`px-2 py-2 rounded-full text-xs border transition-colors text-center ${selectedDate === nextAvailableFromTomorrowISO && selectedTime && timeStringToMinutes(selectedTime) === timeStringToMinutes(slot)
+                                                        ? 'bg-[#06202E] text-white border-[#06202E]'
+                                                        : 'border-gray-200 text-gray-700 hover:border-blue-500 hover:text-blue-600'
+                                                        }`}
+                                                >
+                                                    {slot}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* See all appointments button */}
                         <button
@@ -1137,7 +1176,11 @@ const ProviderPage = () => {
                                 setBookingSelectedService(selectedService);
                                 setShowDateTimeError(false);
                             }}
-                            className="w-full mt-8 bg-[#06202E] text-white py-3 px-4 rounded-lg hover:bg-[#06202E]/90 transition-colors font-medium text-sm"
+                            disabled={!providerData.services || providerData.services.length === 0}
+                            className={`w-full mt-8 py-3 px-4 rounded-lg font-medium text-sm transition-colors ${(!providerData.services || providerData.services.length === 0)
+                                ? 'bg-gray-300 text-gray-500 cursor-not-allowed hover:bg-gray-300'
+                                : 'bg-[#06202E] text-white hover:bg-[#06202E]/90'
+                                }`}
                         >
                             See all appointments
                         </button>
@@ -1171,7 +1214,7 @@ const ProviderPage = () => {
             </div>
 
             {/* Main Content */}
-            <div className="max-w-[1000px] bg-white px-8 py-8">
+            <div className="max-w-[850px] w-full bg-white px-8 py-8">
                 {/* About Section */}
                 <section id="About" className="mb-16">
                     <div className="flex items-start border-b border-gray-200 pb-8">
@@ -1217,43 +1260,51 @@ const ProviderPage = () => {
                             </div>
 
                             <div className="relative">
-                                <div className="relative h-64 bg-gray-200 rounded-lg overflow-hidden">
-                                    <img
-                                        src={providerData.practiceInfo?.gallery[currentGalleryImage]}
-                                        alt={`Gallery image ${currentGalleryImage + 1}`}
-                                        className="w-full h-full object-cover"
-                                    />
-                                </div>
-
-                                {/* Navigation Arrows */}
-                                <button
-                                    onClick={prevGalleryImage}
-                                    className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-80 rounded-full p-2 hover:bg-opacity-100 transition-all"
-                                >
-                                    <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                                    </svg>
-                                </button>
-                                <button
-                                    onClick={nextGalleryImage}
-                                    className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-80 rounded-full p-2 hover:bg-opacity-100 transition-all"
-                                >
-                                    <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                    </svg>
-                                </button>
-
-                                {/* Pagination Dots */}
-                                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
-                                    {providerData.practiceInfo?.gallery?.map((_: string, index: number) => (
-                                        <button
-                                            key={index}
-                                            onClick={() => setCurrentGalleryImage(index)}
-                                            className={`w-2 h-2 rounded-full transition-colors ${index === currentGalleryImage ? 'bg-white' : 'bg-white bg-opacity-50'
-                                                }`}
+                                {providerData.practiceInfo?.gallery && providerData.practiceInfo.gallery.length > 0 ? (
+                                    <div className="relative h-64 bg-gray-200 rounded-lg overflow-hidden">
+                                        <img
+                                            src={providerData.practiceInfo.gallery[currentGalleryImage]}
+                                            alt={`Gallery image ${currentGalleryImage + 1}`}
+                                            className="w-full h-full object-cover"
                                         />
-                                    ))}
-                                </div>
+                                        {/* Navigation Arrows */}
+                                        <button
+                                            onClick={prevGalleryImage}
+                                            className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-80 rounded-full p-2 hover:bg-opacity-100 transition-all"
+                                        >
+                                            <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                            </svg>
+                                        </button>
+                                        <button
+                                            onClick={nextGalleryImage}
+                                            className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-white bg-opacity-80 rounded-full p-2 hover:bg-opacity-100 transition-all"
+                                        >
+                                            <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                            </svg>
+                                        </button>
+
+                                        {/* Pagination Dots */}
+                                        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
+                                            {providerData.practiceInfo.gallery.map((_: string, index: number) => (
+                                                <button
+                                                    key={index}
+                                                    onClick={() => setCurrentGalleryImage(index)}
+                                                    className={`w-2 h-2 rounded-full transition-colors ${index === currentGalleryImage ? 'bg-white' : 'bg-white bg-opacity-50'
+                                                        }`}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="h-32 flex flex-col items-center justify-center bg-gray-50 rounded-lg border border-dashed border-gray-300 text-gray-500">
+                                        <svg className="w-10 h-10 mb-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                        </svg>
+                                        <p>No images available</p>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -1339,7 +1390,11 @@ const ProviderPage = () => {
                                             }
 
                                             if (allServices.length === 0) {
-                                                return <div className="text-gray-500 text-sm py-4">No services available</div>;
+                                                return (
+                                                    <div className="text-gray-500 text-sm py-4 bg-gray-50 rounded-lg text-center">
+                                                        <p>No services available</p>
+                                                    </div>
+                                                );
                                             }
 
                                             return allServices.map((service, index) => (
@@ -1370,24 +1425,35 @@ const ProviderPage = () => {
                                         })()
                                     ) : (
                                         // Show services for active tab
-                                        providerData.practiceInfo?.services[activeServiceTab as keyof typeof providerData.practiceInfo.services]?.map((service: { name: string; price: string }, index: number) => (
-                                            <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100">
-                                                <span className="text-gray-700">{service.name}</span>
-                                                <div className="flex items-center space-x-4">
-                                                    <span className="text-gray-900 font-medium">{service.price}</span>
-                                                    <button
-                                                        onClick={() => {
-                                                            setShowBookingModal(true);
-                                                            setBookingSelectedService(service.name);
-                                                            setShowDateTimeError(false);
-                                                        }}
-                                                        className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition-colors"
-                                                    >
-                                                        Book
-                                                    </button>
+                                        (() => {
+                                            const servicesForTab = providerData.practiceInfo?.services[activeServiceTab as keyof typeof providerData.practiceInfo.services];
+                                            if (!servicesForTab || servicesForTab.length === 0) {
+                                                return (
+                                                    <div className="text-gray-500 text-sm py-4 bg-gray-50 rounded-lg text-center">
+                                                        <p>No services available</p>
+                                                    </div>
+                                                );
+                                            }
+
+                                            return servicesForTab.map((service: { name: string; price: string }, index: number) => (
+                                                <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100">
+                                                    <span className="text-gray-700">{service.name}</span>
+                                                    <div className="flex items-center space-x-4">
+                                                        <span className="text-gray-900 font-medium">{service.price}</span>
+                                                        <button
+                                                            onClick={() => {
+                                                                setShowBookingModal(true);
+                                                                setBookingSelectedService(service.name);
+                                                                setShowDateTimeError(false);
+                                                            }}
+                                                            className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition-colors"
+                                                        >
+                                                            Book
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        ))
+                                            ));
+                                        })()
                                     )}
                                 </div>
                             </div>
@@ -2300,6 +2366,132 @@ const ProviderPage = () => {
                                         Book Appointment
                                     </button>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Report Provider Modal (Patient only) */}
+            {showReportModal && (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 backdrop-blur-sm px-4">
+                    <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-gray-100 overflow-hidden">
+                        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+                            <div>
+                                <h3 className="text-lg font-semibold text-[#16202E]">Report {providerData?.name}</h3>
+                                <p className="text-sm text-gray-500">Submit a report about this provider.</p>
+                            </div>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setShowReportModal(false);
+                                    setReportCategory('');
+                                    setReportMessage('');
+                                    setReportAnonymous(false);
+                                }}
+                                className="px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-50"
+                            >
+                                Close
+                            </button>
+                        </div>
+
+                        <div className="px-6 py-5 space-y-4">
+                            <div>
+                                <label className="block text-sm text-gray-600 mb-2">Category (optional)</label>
+                                <select
+                                    value={reportCategory}
+                                    onChange={(e) => setReportCategory(e.target.value)}
+                                    className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#06202E]/10"
+                                >
+                                    <option value="">Select category</option>
+                                    <option value="Service quality">Service quality</option>
+                                    <option value="Fraud/Scam">Fraud/Scam</option>
+                                    <option value="Abuse/Harassment">Abuse/Harassment</option>
+                                    <option value="No show">No show</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm text-gray-600 mb-2">Message (required)</label>
+                                <textarea
+                                    value={reportMessage}
+                                    onChange={(e) => setReportMessage(e.target.value)}
+                                    rows={5}
+                                    placeholder="Describe what happened (min 10 characters)"
+                                    className="w-full border border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#06202E]/10"
+                                />
+                                <div className="text-xs text-gray-500 mt-1">
+                                    {reportMessage.trim().length}/10 minimum
+                                </div>
+                            </div>
+
+                            <label className="flex items-center gap-2 text-sm text-gray-700 select-none">
+                                <input
+                                    type="checkbox"
+                                    className="accent-[#06202E]"
+                                    checked={reportAnonymous}
+                                    onChange={(e) => setReportAnonymous(e.target.checked)}
+                                />
+                                Submit anonymously (provider won’t see your details)
+                            </label>
+
+                            <div className="flex justify-end gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowReportModal(false);
+                                        setReportCategory('');
+                                        setReportMessage('');
+                                        setReportAnonymous(false);
+                                    }}
+                                    className="px-5 py-3 rounded-lg text-sm font-medium border border-gray-200 text-gray-700 hover:bg-gray-50"
+                                    disabled={reportProviderMutation.isPending}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={reportProviderMutation.isPending}
+                                    onClick={() => {
+                                        if (!id) {
+                                            toast.error('Missing provider id');
+                                            return;
+                                        }
+                                        const userType = (user?.user_type || '').toLowerCase();
+                                        if (userType !== 'patient') {
+                                            toast.error('Only patients can report a provider.');
+                                            return;
+                                        }
+                                        const msg = reportMessage.trim();
+                                        if (msg.length < 10) {
+                                            toast.error('Message must be at least 10 characters');
+                                            return;
+                                        }
+
+                                        reportProviderMutation.mutate(
+                                            {
+                                                providerId: id,
+                                                payload: {
+                                                    message: msg,
+                                                    anonymous: reportAnonymous,
+                                                    ...(reportCategory ? { category: reportCategory as any } : {}),
+                                                },
+                                            },
+                                            {
+                                                onSuccess: () => {
+                                                    setShowReportModal(false);
+                                                    setReportCategory('');
+                                                    setReportMessage('');
+                                                    setReportAnonymous(false);
+                                                },
+                                            }
+                                        );
+                                    }}
+                                    className="px-5 py-3 rounded-lg text-sm font-medium bg-[#06202E] text-white hover:bg-[#0a2e42] disabled:opacity-70 disabled:cursor-not-allowed"
+                                >
+                                    {reportProviderMutation.isPending ? 'Submitting…' : 'Submit report'}
+                                </button>
                             </div>
                         </div>
                     </div>

@@ -412,8 +412,8 @@ const ProviderCalendarPage: React.FC = () => {
             time: apt.start_time,
             endTime: apt.end_time,
             date: parseISO(apt.appointment_date),
-            type: 'medical', 
-            patient: {
+      type: 'medical', 
+      patient: {
                 fullName: patientName || 'Unknown Patient',
                 phone: patientPhone || '',
                 email: patientEmail || '',
@@ -421,22 +421,22 @@ const ProviderCalendarPage: React.FC = () => {
                 gender: patientGender || '',
                 address: patientAddress || '',
                 identificationNumber: apt.formData?.identificationNumber || '',
-            },
+      },
             appointmentId: apt.id,
             status: (apt.status || 'pending').charAt(0).toUpperCase() + (apt.status || 'pending').slice(1),
-            generalInfo: {
+      generalInfo: {
                 comments: apt.formData?.comments || apt.notes || '',
                 visitedBefore: apt.formData?.visitedBefore || false,
                 forWhom: apt.formData?.forWhom || 'Self',
-            },
-            bookerInfo: {
+      },
+      bookerInfo: {
                 fullName: apt.patient_name || '', // Assuming root fields are booker/account holder
                 email: apt.patient_email || '',
                 phone: apt.patient_phone || '',
-                profilePicture: {
+        profilePicture: {
                 url: '', // Not provided in new API response
-                },
-            },
+        },
+      },
             paymentStatus: apt.payment?.status || 'pending',
         };
     });

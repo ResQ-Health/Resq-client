@@ -29,9 +29,13 @@ export const PublicRoute: React.FC<PublicRouteProps> = ({
 
         // Otherwise, redirect based on user type
         const userType = user?.user_type?.toLowerCase();
-        const targetPath = (userType === 'provider' || userType === 'diagnosticprovider') 
-            ? '/welcome-provider' 
-            : '/patient/my-account';
+        let targetPath = '/patient/my-account';
+
+        if (userType === 'provider' || userType === 'diagnosticprovider') {
+            targetPath = user?.is_onboarding_complete 
+                ? '/provider/dashboard' 
+                : '/welcome-provider';
+        }
 
         return <Navigate to={targetPath} state={{ from: location }} replace />;
     }

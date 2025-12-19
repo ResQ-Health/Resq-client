@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MdOutlineContentCopy, MdOutlineRemoveRedEye, MdOutlineEmail, MdOutlineNotificationsNone, MdOutlineSms } from "react-icons/md";
 import { HiEyeSlash } from "react-icons/hi2";
-import { useProviderProfile, useUploadProviderProfilePicture, useUpdateProviderWorkingHours, useUpdateProviderProfile, useUpdateProviderNotificationSettings } from '../../services/providerService';
+import { useProviderProfile, useUploadProviderProfilePicture, useUpdateProviderWorkingHours, useUpdateProviderProfile, useUpdateProviderNotificationSettings, useCompleteOnboarding } from '../../services/providerService';
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 
@@ -68,6 +68,7 @@ const WelcomeProviderPage = () => {
   const updateWorkingHoursMutation = useUpdateProviderWorkingHours();
   const updateProfileMutation = useUpdateProviderProfile();
   const updateNotificationSettingsMutation = useUpdateProviderNotificationSettings();
+  const completeOnboardingMutation = useCompleteOnboarding();
 
   // Profile form data and errors
   const [profileData, setProfileData] = useState({ fullname: '', email: '', phone: '', role: '' });
@@ -102,6 +103,12 @@ const WelcomeProviderPage = () => {
   useEffect(() => {
     // Attempt to prefill from auth context first
     if (user) {
+      // If user is already onboarded, redirect to dashboard immediately
+      if (user.is_onboarding_complete) {
+        navigate('/provider/dashboard', { replace: true });
+        return;
+      }
+
       setProfileData(prev => ({
         ...prev,
         fullname: user.full_name || prev.fullname,
@@ -119,6 +126,13 @@ const WelcomeProviderPage = () => {
       onSuccess: (data) => {
         if (data?.data) {
           const userData = data.data;
+
+          // Check if onboarding is already complete based on fresh API data
+          if (userData.is_onboarding_complete) {
+            navigate('/provider/dashboard', { replace: true });
+            return;
+          }
+
           const initialData = {
             fullname: userData.provider?.provider_name || userData.provider_name || userData.full_name || '',
             email: userData.provider?.work_email || userData.work_email || userData.email || '',
@@ -279,7 +293,11 @@ const WelcomeProviderPage = () => {
   };
 
   const handleFinish = () => {
-    setShowSuccessModal(true);
+    completeOnboardingMutation.mutate(undefined, {
+      onSuccess: () => {
+        setShowSuccessModal(true);
+      }
+    });
   };
 
   const [profileErrors, setProfileErrors] = useState<{ [key: string]: string }>({});
@@ -654,7 +672,7 @@ const WelcomeProviderPage = () => {
             <div className="flex flex-row justify-between mt-10 w-full">
               <button
                 type="button"
-                className="bg-[#06202E] text-white w-[186px] h-[40px] px-8 rounded-lg font-medium"
+                className="bg-[#06202E] text-white w-[186px] h-[40px] px-8 rounded-lg font-medium disabled:opacity-70 disabled:cursor-wait"
                 style={{
                   fontFamily: 'Plus Jakarta Sans',
                   fontWeight: 400,
@@ -662,8 +680,9 @@ const WelcomeProviderPage = () => {
                   lineHeight: '25.6px',
                 }}
                 onClick={handleFinish}
+                disabled={completeOnboardingMutation.isPending}
               >
-                Finish
+                {completeOnboardingMutation.isPending ? 'Finishing...' : 'Finish'}
               </button>
               <button
                 type="button"

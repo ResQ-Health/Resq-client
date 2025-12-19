@@ -105,6 +105,10 @@ export const API_ENDPOINTS = {
             ME: '/api/v1/auth/me', // User Profile (Shared)
             OAUTH_LOGIN: '/api/v1/auth/oauth/login',
         },
+        LOCATIONS: {
+            COUNTRIES: '/api/v1/locations/countries',
+            STATES: '/api/v1/locations/states',
+        },
     },
 
     // Patient-Specific Endpoints
@@ -121,6 +125,9 @@ export const API_ENDPOINTS = {
         PROVIDERS: {
             GET_ALL: '/api/v1/providers/all', // Patients searching for providers
             AVAILABILITY: (id: string) => `/api/v1/providers/${id}/availability`,
+            REPORTS: {
+                CREATE: (providerId: string) => `/api/v1/providers/${providerId}/reports`,
+            },
         },
         PAYMENTS: {
             INITIALIZE: '/api/v1/payments/initialize',
@@ -151,6 +158,11 @@ export const API_ENDPOINTS = {
             ME: '/api/v1/providers/profile/me',
             PROFILE_PICTURE: '/api/v1/providers/me/profile-picture',
             WORKING_HOURS: '/api/v1/providers/me/working-hours',
+            NOTIFICATION_SETTINGS: '/api/v1/providers/me/notification-settings',
+            COMPLETE_ONBOARDING: '/api/v1/providers/onboard/complete',
+        },
+        ADDRESS: {
+            UPDATE: '/api/v1/providers/me/address',
         },
         APPOINTMENTS: {
             CREATE: '/api/v1/appointments', // Provider creating appointment manually
@@ -166,6 +178,23 @@ export const API_ENDPOINTS = {
             CREATE: '/api/v1/providers/services',
             UPDATE: (id: string) => `/api/v1/providers/services/${id}`,
             DELETE: (id: string) => `/api/v1/providers/services/${id}`,
+        },
+        PAYMENTS: {
+            GET_BANKS: '/api/v1/providers/banks',
+            VERIFY_ACCOUNT: '/api/v1/providers/bank-account/verify',
+            SAVE_ACCOUNT: '/api/v1/providers/bank-account',
+            TRANSACTIONS: '/api/v1/providers/me/transactions',
+        },
+        REPORTS: {
+            GET_ALL: '/api/v1/providers/me/reports',
+        },
+        REVIEWS: {
+            GET_ALL: '/api/v1/providers/me/reviews',
+        },
+        SUPPORT: {
+            TICKETS: '/api/v1/providers/me/support/tickets',
+            TICKET: (ticketId: string) => `/api/v1/providers/me/support/tickets/${ticketId}`,
+            MESSAGES: (ticketId: string) => `/api/v1/providers/me/support/tickets/${ticketId}/messages`,
         }
     }
 } as const;

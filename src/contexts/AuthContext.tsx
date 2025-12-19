@@ -9,6 +9,7 @@ interface User {
     user_type: string;
     is_admin: boolean;
     email_verified: boolean;
+    is_onboarding_complete?: boolean;
     created_at: string;
     profile_picture?: {
         url: string;
