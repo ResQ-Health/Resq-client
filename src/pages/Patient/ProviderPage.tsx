@@ -33,6 +33,8 @@ const ProviderPage = () => {
     const [activeTab, setActiveTab] = useState('About');
     const [showAllServices, setShowAllServices] = useState(false);
     const [expandedServiceKey, setExpandedServiceKey] = useState<string | null>(null);
+    const [showFullPolicy, setShowFullPolicy] = useState(false);
+    const [policyPage, setPolicyPage] = useState(1);
     const [showReviewsModal, setShowReviewsModal] = useState(false);
     const [showAddReviewModal, setShowAddReviewModal] = useState(false);
     const [showSignInModal, setShowSignInModal] = useState(false);
@@ -1829,6 +1831,17 @@ const ProviderPage = () => {
                             const policyText = String(providerData?.policy || '').trim();
                             const hasPolicy = policyText.length > 0;
 
+                            // Pagination (policy can be very long)
+                            const blocks = policyText
+                                .split(/\n\s*\n/g)
+                                .map((s) => s.trim())
+                                .filter(Boolean);
+                            const blocksPerPage = 6;
+                            const totalPages = Math.max(1, Math.ceil(blocks.length / blocksPerPage));
+                            const safePage = Math.min(Math.max(1, policyPage), totalPages);
+                            const pageStart = (safePage - 1) * blocksPerPage;
+                            const pageBlocks = blocks.slice(pageStart, pageStart + blocksPerPage);
+
                             const lines = policyText
                                 .split('\n')
                                 .map((l) => l.replace(/\t/g, '    ').trimEnd());
@@ -1846,6 +1859,52 @@ const ProviderPage = () => {
                             const isBullet = (line: string) => /^(-|\*|•)\s+/.test(line.trim());
                             const isNumbered = (line: string) => /^\d+[\).\]]\s+/.test(line.trim());
 
+                            const renderDocumentLines = (docLines: string[]) => (
+                                <div className="max-w-none space-y-3">
+                                    {docLines.map((line, idx) => {
+                                        const t = line.trim();
+                                        if (!t) {
+                                            return <div key={idx} className="h-3" />;
+                                        }
+
+                                        if (isHeading(t)) {
+                                            return (
+                                                <div key={idx} className="pt-4">
+                                                    <div className="text-base font-bold text-gray-900">
+                                                        {t.replace(/:$/, '')}
+                                                    </div>
+                                                    <div className="mt-2 h-px bg-gray-100" />
+                                                </div>
+                                            );
+                                        }
+
+                                        if (isBullet(t)) {
+                                            const content = t.replace(/^(-|\*|•)\s+/, '');
+                                            return (
+                                                <div key={idx} className="flex gap-3 text-sm text-gray-800 leading-7">
+                                                    <div className="mt-[10px] h-1.5 w-1.5 rounded-full bg-[#06202E] shrink-0" />
+                                                    <div className="whitespace-pre-wrap">{content}</div>
+                                                </div>
+                                            );
+                                        }
+
+                                        if (isNumbered(t)) {
+                                            return (
+                                                <div key={idx} className="text-sm text-gray-800 leading-7 whitespace-pre-wrap">
+                                                    {t}
+                                                </div>
+                                            );
+                                        }
+
+                                        return (
+                                            <div key={idx} className="text-sm text-gray-800 leading-7 whitespace-pre-wrap">
+                                                {t}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            );
+
                             return (
                                 <div className="space-y-4">
                                     <div className="flex items-start justify-between gap-4">
@@ -1855,6 +1914,19 @@ const ProviderPage = () => {
                                                 {providerData?.name ? `${providerData.name} • ` : ''}Please read carefully before booking.
                                             </p>
                                         </div>
+
+                                        {hasPolicy && (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    setShowFullPolicy((v) => !v);
+                                                    setPolicyPage(1);
+                                                }}
+                                                className="text-sm text-[#06202E] hover:text-[#06202E]/80 underline whitespace-nowrap"
+                                            >
+                                                {showFullPolicy ? 'Show less' : 'See all policy'}
+                                            </button>
+                                        )}
                                     </div>
 
                                     {!hasPolicy ? (
@@ -1880,49 +1952,47 @@ const ProviderPage = () => {
 
                                             {/* “Document” body */}
                                             <div className="px-8 py-8">
-                                                <div className="max-w-none space-y-3">
-                                                    {lines.map((line, idx) => {
-                                                        const t = line.trim();
-                                                        if (!t) {
-                                                            return <div key={idx} className="h-3" />;
-                                                        }
+                                                {!showFullPolicy ? (
+                                                    <div className="text-sm text-gray-800 leading-7 whitespace-pre-wrap">
+                                                        {policyText.length > 380 ? `${policyText.substring(0, 380)}…` : policyText}
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        {renderDocumentLines(
+                                                            // Render only current page blocks as lines
+                                                            (pageBlocks.length ? pageBlocks : [policyText])
+                                                                .join('\n\n')
+                                                                .split('\n')
+                                                                .map((l) => l.replace(/\t/g, '    ').trimEnd())
+                                                        )}
 
-                                                        if (isHeading(t)) {
-                                                            return (
-                                                                <div key={idx} className="pt-4">
-                                                                    <div className="text-base font-bold text-gray-900">
-                                                                        {t.replace(/:$/, '')}
-                                                                    </div>
-                                                                    <div className="mt-2 h-px bg-gray-100" />
+                                                        {totalPages > 1 && (
+                                                            <div className="mt-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-t border-gray-100 pt-4">
+                                                                <div className="text-xs text-gray-500">
+                                                                    Page {safePage} of {totalPages}
                                                                 </div>
-                                                            );
-                                                        }
-
-                                                        if (isBullet(t)) {
-                                                            const content = t.replace(/^(-|\*|•)\s+/, '');
-                                                            return (
-                                                                <div key={idx} className="flex gap-3 text-sm text-gray-800 leading-7">
-                                                                    <div className="mt-[10px] h-1.5 w-1.5 rounded-full bg-[#06202E] shrink-0" />
-                                                                    <div className="whitespace-pre-wrap">{content}</div>
+                                                                <div className="flex items-center gap-2">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setPolicyPage((p) => Math.max(1, p - 1))}
+                                                                        disabled={safePage <= 1}
+                                                                        className="px-3 py-2 text-xs rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                                                                    >
+                                                                        Prev
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setPolicyPage((p) => Math.min(totalPages, p + 1))}
+                                                                        disabled={safePage >= totalPages}
+                                                                        className="px-3 py-2 text-xs rounded-lg border border-gray-200 bg-white hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                                                                    >
+                                                                        Next
+                                                                    </button>
                                                                 </div>
-                                                            );
-                                                        }
-
-                                                        if (isNumbered(t)) {
-                                                            return (
-                                                                <div key={idx} className="text-sm text-gray-800 leading-7 whitespace-pre-wrap">
-                                                                    {t}
-                                                                </div>
-                                                            );
-                                                        }
-
-                                                        return (
-                                                            <div key={idx} className="text-sm text-gray-800 leading-7 whitespace-pre-wrap">
-                                                                {t}
                                                             </div>
-                                                        );
-                                                    })}
-                                                </div>
+                                                        )}
+                                                    </>
+                                                )}
                                             </div>
                                         </div>
                                     )}
