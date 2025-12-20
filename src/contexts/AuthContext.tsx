@@ -10,6 +10,14 @@ interface User {
     is_admin: boolean;
     email_verified: boolean;
     is_onboarding_complete?: boolean;
+    // Some backend responses use provider.profile_complete instead of is_onboarding_complete
+    provider?: {
+        id?: string;
+        profile_complete?: boolean;
+        [key: string]: unknown;
+    };
+    // Some responses may place profile_complete at root (legacy)
+    profile_complete?: boolean;
     created_at: string;
     profile_picture?: {
         url: string;
@@ -53,9 +61,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         if (storedToken && storedUser) {
             try {
-                const userData = JSON.parse(storedUser);
+                const userData: User = JSON.parse(storedUser);
+                // Normalize onboarding flag for providers so routing works consistently
+                const normalizedUser: User = {
+                    ...userData,
+                    is_onboarding_complete:
+                        userData.is_onboarding_complete ??
+                        userData.provider?.profile_complete ??
+                        userData.profile_complete,
+                };
                 setToken(storedToken);
-                setUser(userData);
+                setUser(normalizedUser);
+                // Keep localStorage normalized as well (helps PublicRoute on reload)
+                localStorage.setItem('user', JSON.stringify(normalizedUser));
             } catch (error) {
                 // Clear invalid data
                 localStorage.removeItem('authToken');
@@ -79,10 +97,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }, []);
 
     const login = (newToken: string, userData: User) => {
+        // Normalize onboarding flag for providers (backend may return provider.profile_complete)
+        const normalizedUser: User = {
+            ...userData,
+            is_onboarding_complete:
+                userData.is_onboarding_complete ??
+                userData.provider?.profile_complete ??
+                userData.profile_complete,
+        };
         setToken(newToken);
-        setUser(userData);
+        setUser(normalizedUser);
         localStorage.setItem('authToken', newToken);
-        localStorage.setItem('user', JSON.stringify(userData));
+        localStorage.setItem('user', JSON.stringify(normalizedUser));
     };
 
     const logout = () => {

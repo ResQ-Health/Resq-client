@@ -65,21 +65,28 @@ function SignInProvider() {
 
     loginMutation.mutate(formData, {
       onSuccess: (data) => {
-        login(data.data.token, data.data);
+        const isOnboardingComplete =
+          data?.data?.is_onboarding_complete ??
+          data?.data?.provider?.profile_complete ??
+          data?.data?.profile_complete;
+
+        // Normalize onboarding flag into auth context so routing stays consistent across the app
+        login(data.data.token, {
+          ...data.data,
+          is_onboarding_complete: isOnboardingComplete,
+        });
 
         // Check user type to ensure they are a provider
-        if (data.data.user_type !== 'DiagnosticProvider' && data.data.user_type !== 'DiagnosticProvider') {
+        if (data.data.user_type !== 'DiagnosticProvider') {
           toast.error('This account is not authorized as a Provider.');
           // Ideally logout immediately, but for now just warn?
           // Or maybe redirection logic handles it?
         }
 
         if (data.data.email_verified) {
-          // Navigate to provider dashboard or equivalent
-          // For now, let's assume /welcome-provider or similar if not fully onboarded
-          navigate('/welcome-provider');
+          navigate(isOnboardingComplete ? '/provider/dashboard' : '/welcome-provider', { replace: true });
         } else {
-          navigate('/verify-provider');
+          navigate('/verify-provider', { replace: true });
         }
       },
       onError: (error) => {
@@ -103,12 +110,28 @@ function SignInProvider() {
         phoneNumber: user.phoneNumber || '',
       }, {
         onSuccess: (data) => {
-          // Check user type to ensure they are a provider? 
-          // OAuth might create a new user, defaulting to 'Patient' if not specified? 
-          // The backend should handle this, or we might need to pass context.
+          // If backend returns a token + user payload, store it so routing works correctly
+          if (data?.data?.token) {
+            const isOnboardingComplete =
+              data?.data?.is_onboarding_complete ??
+              data?.data?.provider?.profile_complete ??
+              data?.data?.profile_complete;
 
-          // For now, standard navigation
-          navigate('/welcome-provider');
+            login(data.data.token, {
+              ...data.data,
+              is_onboarding_complete: isOnboardingComplete,
+            } as any);
+
+            // If user is a provider, route based on onboarding; otherwise fallback to default
+            const userType = (data?.data?.user_type || '').toLowerCase();
+            if (userType === 'provider' || userType === 'diagnosticprovider') {
+              navigate(isOnboardingComplete ? '/provider/dashboard' : '/welcome-provider', { replace: true });
+              return;
+            }
+          }
+
+          // Fallback if backend doesn't return enough info
+          navigate('/welcome-provider', { replace: true });
         },
         onError: (error: any) => {
           console.error('OAuth login error:', error);

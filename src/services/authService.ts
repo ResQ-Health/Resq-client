@@ -83,6 +83,17 @@ export interface LoginResponse {
         user_type: string;
         is_admin: boolean;
         email_verified: boolean;
+        // Provider onboarding flags / details (optional because patient login won't include these)
+        is_onboarding_complete?: boolean;
+        profile_complete?: boolean;
+        provider?: {
+            id?: string;
+            profile_complete?: boolean;
+            provider_name?: string;
+            work_email?: string;
+            work_phone?: string;
+            [key: string]: any;
+        };
         created_at: string;
         token: string;
     };

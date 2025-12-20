@@ -32,7 +32,12 @@ export const PublicRoute: React.FC<PublicRouteProps> = ({
         let targetPath = '/patient/my-account';
 
         if (userType === 'provider' || userType === 'diagnosticprovider') {
-            targetPath = user?.is_onboarding_complete 
+            const isOnboardingComplete =
+                user?.is_onboarding_complete ??
+                user?.provider?.profile_complete ??
+                user?.profile_complete;
+
+            targetPath = isOnboardingComplete
                 ? '/provider/dashboard' 
                 : '/welcome-provider';
         }
