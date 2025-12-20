@@ -140,14 +140,6 @@ const ProviderSupportPage: React.FC = () => {
     },
   ];
 
-  if (providerProfileQuery.isLoading && !providerProfileQuery.data) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <LoadingSpinner fullScreen={false} size="lg" />
-      </div>
-    );
-  }
-
   const tickets = ticketsQuery.data?.data?.tickets ?? [];
   const pagination = ticketsQuery.data?.data?.pagination;
   const isInitialTicketsLoad = ticketsQuery.isLoading;
@@ -163,6 +155,14 @@ const ProviderSupportPage: React.FC = () => {
       String(t.status).toLowerCase().includes(q)
     );
   }, [ticketSearch, tickets]);
+
+  if (providerProfileQuery.isLoading && !providerProfileQuery.data) {
+    return (
+      <div className="min-h-[60vh] flex items-center justify-center">
+        <LoadingSpinner fullScreen={false} size="lg" />
+      </div>
+    );
+  }
 
   const validateTicketFiles = (files: File[]) => {
     const max = 5;
