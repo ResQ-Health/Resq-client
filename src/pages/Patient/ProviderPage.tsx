@@ -784,6 +784,36 @@ const ProviderPage = () => {
         }
     };
 
+    // Auto-rotate practice gallery images
+    useEffect(() => {
+        const gallery = providerData?.practiceInfo?.gallery;
+        const length = Array.isArray(gallery) ? gallery.length : 0;
+        if (length <= 1) return;
+
+        // Respect reduced motion preferences
+        if (typeof window !== 'undefined') {
+            const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+            if (prefersReducedMotion) return;
+        }
+
+        const intervalMs = 4500;
+        const id = window.setInterval(() => {
+            // Pause when tab is not active
+            if (typeof document !== 'undefined' && document.hidden) return;
+            setCurrentGalleryImage((prev) => (prev + 1) % length);
+        }, intervalMs);
+
+        return () => window.clearInterval(id);
+    }, [providerData?.practiceInfo?.gallery]);
+
+    // Ensure current index stays within bounds when gallery changes
+    useEffect(() => {
+        const gallery = providerData?.practiceInfo?.gallery;
+        const length = Array.isArray(gallery) ? gallery.length : 0;
+        if (length === 0) return;
+        setCurrentGalleryImage((prev) => (prev >= length ? 0 : prev));
+    }, [providerData?.practiceInfo?.gallery]);
+
     // Parse YYYY-MM-DD as a local date to avoid UTC day shifts
     const parseLocalDate = (iso: string) => {
         const [y, m, d] = iso.split('-').map((v) => parseInt(v, 10));
