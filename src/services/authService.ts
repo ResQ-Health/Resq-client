@@ -83,6 +83,8 @@ export interface LoginResponse {
         user_type: string;
         is_admin: boolean;
         email_verified: boolean;
+        // Patient onboarding flags (new API)
+        onboarding_missing_sections?: string[];
         // Provider onboarding flags / details (optional because patient login won't include these)
         is_onboarding_complete?: boolean;
         profile_complete?: boolean;

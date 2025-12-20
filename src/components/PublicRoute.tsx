@@ -40,6 +40,9 @@ export const PublicRoute: React.FC<PublicRouteProps> = ({
             targetPath = isOnboardingComplete
                 ? '/provider/dashboard' 
                 : '/welcome-provider';
+        } else {
+            // Patient: if onboarding is complete, send straight to booking history
+            targetPath = user?.is_onboarding_complete ? '/booking-history' : '/patient/my-account';
         }
 
         return <Navigate to={targetPath} state={{ from: location }} replace />;

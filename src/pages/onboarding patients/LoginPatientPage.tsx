@@ -70,15 +70,13 @@ function LoginPatientPage() {
 
         // Navigate based on email verification status
         if (data.data.email_verified) {
-          // Since `personal_details` does not exist, check alternative onboarding criteria
-          // Assuming 'full_name' indicates onboarding completed (update this logic as per actual requirements)
-          const hasCompletedOnboarding = !!data.data.full_name;
+          const hasCompletedOnboarding = !!data.data.is_onboarding_complete;
 
           if (hasCompletedOnboarding) {
             localStorage.setItem('justLoggedIn', 'false'); // Explicitly prevent toast
             navigate('/booking-history');
           } else {
-            navigate('/patientSetup/Myaccount');
+            navigate('/patient/my-account');
           }
         } else {
           navigate('/verify');
@@ -118,20 +116,23 @@ function LoginPatientPage() {
         phoneNumber: phoneNumber,
       }, {
         onSuccess: (data) => {
-          // Google Sign-In users don't need OTP verification
+          // Store into auth context if token is present (React Query hook stores localStorage, but context drives routing)
+          if (data?.data?.token) {
+            login(data.data.token, data.data as any);
+          }
 
-          // Check if onboarding is complete
-          const hasCompletedOnboarding = data.data.personal_details?.first_name && data.data.personal_details?.last_name;
+          // Navigate based on email verification status + onboarding flag
+          if (data?.data?.email_verified === false) {
+            navigate('/verify');
+            return;
+          }
 
-          // If profile is complete, don't set "justLoggedIn" flag to avoid the toast
-          // and navigate directly to booking history
+          const hasCompletedOnboarding = !!data?.data?.is_onboarding_complete;
           if (hasCompletedOnboarding) {
             localStorage.setItem('justLoggedIn', 'false'); // Explicitly prevent toast
             navigate('/booking-history');
           } else {
-            // Set flag to indicate user just logged in (for redirect logic in my-account)
             localStorage.setItem('justLoggedIn', 'true');
-            // Navigate to my account page - it will check onboarding and redirect if needed
             navigate('/patient/my-account');
           }
         },

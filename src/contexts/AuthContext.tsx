@@ -10,6 +10,7 @@ interface User {
     is_admin: boolean;
     email_verified: boolean;
     is_onboarding_complete?: boolean;
+    onboarding_missing_sections?: string[];
     // Some backend responses use provider.profile_complete instead of is_onboarding_complete
     provider?: {
         id?: string;
