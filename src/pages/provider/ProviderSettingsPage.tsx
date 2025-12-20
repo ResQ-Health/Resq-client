@@ -345,6 +345,8 @@ const ProviderSettingsPage: React.FC = () => {
   const [bannerImageFile, setBannerImageFile] = useState<File | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [galleryFiles, setGalleryFiles] = useState<File[]>([]);
+  // Cache-buster so newly uploaded banner shows immediately without a hard refresh
+  const [bannerUrlVersion, setBannerUrlVersion] = useState<number>(0);
 
   // Validation errors (inline)
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -669,8 +671,10 @@ const ProviderSettingsPage: React.FC = () => {
 
   const bannerPreviewUrl = useMemo(() => {
     if (bannerImageFile) return URL.createObjectURL(bannerImageFile);
-    return bannerImageUrl;
-  }, [bannerImageFile, bannerImageUrl]);
+    if (!bannerImageUrl) return '';
+    const sep = bannerImageUrl.includes('?') ? '&' : '?';
+    return `${bannerImageUrl}${sep}v=${bannerUrlVersion || 0}`;
+  }, [bannerImageFile, bannerImageUrl, bannerUrlVersion]);
 
   const logoPreviewUrl = useMemo(() => {
     if (logoFile) return URL.createObjectURL(logoFile);
@@ -971,7 +975,13 @@ const ProviderSettingsPage: React.FC = () => {
           )
         );
 
-        setBannerImageUrl(provider.banner_image_url || bannerImageUrl);
+        if (provider.banner_image_url) {
+          setBannerImageUrl(provider.banner_image_url);
+          // Cache-bust so browser doesn't keep showing the old banner after upload
+          setBannerUrlVersion(Date.now());
+        } else {
+          setBannerImageUrl(bannerImageUrl);
+        }
         setLogoImageUrl(provider.logo_image_url || logoImageUrl);
         setGalleryImageUrls(Array.isArray(provider.gallery_image_urls) ? provider.gallery_image_urls : galleryImageUrls);
 
@@ -1125,6 +1135,8 @@ const ProviderSettingsPage: React.FC = () => {
                       return;
                     }
                     setBannerImageFile(file);
+                    // Bump version so if backend reuses the same URL, we still see the new image immediately after save.
+                    setBannerUrlVersion(Date.now());
                     clearError('bannerImageFile');
                   }}
                 />
