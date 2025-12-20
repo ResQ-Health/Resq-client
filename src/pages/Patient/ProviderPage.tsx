@@ -33,6 +33,7 @@ const ProviderPage = () => {
     const [activeTab, setActiveTab] = useState('About');
     const [showAllServices, setShowAllServices] = useState(false);
     const [expandedServiceKey, setExpandedServiceKey] = useState<string | null>(null);
+    const [showFullPolicy, setShowFullPolicy] = useState(false);
     const [showReviewsModal, setShowReviewsModal] = useState(false);
     const [showAddReviewModal, setShowAddReviewModal] = useState(false);
     const [showSignInModal, setShowSignInModal] = useState(false);
@@ -1825,14 +1826,73 @@ const ProviderPage = () => {
 
                     {/* Booking Policy Section - Outside Grid */}
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
-                        <h4 className="text-lg font-bold text-gray-900 mb-3">Booking Policy</h4>
-                        <div className="space-y-3">
-                            <div className="flex items-start space-x-3">
-                                <p className="text-gray-700 text-sm">
-                                    {providerData.policy || 'No booking policy provided.'}
-                                </p>
-                            </div>
-                        </div>
+                        {(() => {
+                            const policyText = String(providerData?.policy || '').trim();
+                            const hasPolicy = policyText.length > 0;
+                            const preview =
+                                policyText.length > 380 ? `${policyText.substring(0, 380)}…` : policyText;
+
+                            const sections = policyText
+                                .split(/\n\s*\n/g)
+                                .map((s) => s.trim())
+                                .filter(Boolean);
+
+                            return (
+                                <div className="space-y-4">
+                                    <div className="flex items-start justify-between gap-4">
+                                        <div className="flex items-start gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center text-[#06202E]">
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 4H7a2 2 0 01-2-2V4a2 2 0 012-2h7l5 5v13a2 2 0 01-2 2z" />
+                                                </svg>
+                                            </div>
+                                            <div>
+                                                <h4 className="text-lg font-bold text-gray-900">Booking policy</h4>
+                                                <p className="text-sm text-gray-500">
+                                                    Important information about cancellations, rescheduling, and payments.
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {hasPolicy && policyText.length > 380 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowFullPolicy((v) => !v)}
+                                                className="text-sm text-[#06202E] hover:text-[#06202E]/80 underline whitespace-nowrap"
+                                            >
+                                                {showFullPolicy ? 'Show less' : 'Read full policy'}
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {!hasPolicy ? (
+                                        <div className="text-gray-500 text-sm bg-gray-50 border border-gray-100 rounded-lg p-4">
+                                            No booking policy provided.
+                                        </div>
+                                    ) : (
+                                        <>
+                                            {!showFullPolicy ? (
+                                                <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                                                    {preview}
+                                                </div>
+                                            ) : (
+                                                <div className="border border-gray-100 rounded-xl bg-gray-50 p-4">
+                                                    <div className="max-h-[360px] overflow-y-auto space-y-4 pr-2">
+                                                        {(sections.length ? sections : [policyText]).map((block, idx) => (
+                                                            <div key={idx} className="bg-white border border-gray-100 rounded-lg p-4">
+                                                                <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
+                                                                    {block}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </>
+                                    )}
+                                </div>
+                            );
+                        })()}
                     </div>
                 </section>
             </div>
