@@ -239,6 +239,7 @@ const ProviderPage = () => {
                 ? p.about.trim()
                 : ((typeof p?.description === 'string' && p.description.trim()) ? p.description.trim() : `${p.provider_name || 'This provider'} healthcare provider`),
             policy: typeof p?.policy === 'string' ? p.policy : '',
+            logoUrl: p?.logo_image_url || p?.logo || p?.profile_picture?.url || '',
             image: p.banner_image_url || p.logo || '/hospital.jpg',
             services: serviceNames,
             reviews: Array.isArray(p?.reviews)
@@ -1296,9 +1297,29 @@ const ProviderPage = () => {
                 <section id="About" className="mb-16">
                     <div className="flex items-start border-b border-gray-200 pb-8">
                         <div className="flex-1 p-6">
-                            <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                                About {providerData.name}
-                            </h2>
+                            <div className="flex items-start gap-4 mb-4">
+                                <div className="w-14 h-14 rounded-2xl bg-gray-100 border border-gray-200 overflow-hidden flex items-center justify-center shrink-0">
+                                    {providerData.logoUrl ? (
+                                        <img
+                                            src={providerData.logoUrl}
+                                            alt={`${providerData.name} logo`}
+                                            className="w-full h-full object-cover"
+                                        />
+                                    ) : (
+                                        <span className="text-[#06202E] font-semibold text-sm">
+                                            {String(providerData.name || 'P').slice(0, 1).toUpperCase()}
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="min-w-0">
+                                    <h2 className="text-2xl font-bold text-gray-900">
+                                        About {providerData.name}
+                                    </h2>
+                                    <div className="text-sm text-gray-500 mt-1 truncate">
+                                        {providerData.practiceInfo?.contactDetails?.address || providerData.address}
+                                    </div>
+                                </div>
+                            </div>
 
                             <div className="flex gap-6">
                                 <div className="flex-1">
@@ -1323,13 +1344,15 @@ const ProviderPage = () => {
                                 </div>
                             </div>
                         </div>
-                        <div className="w-48 h-44 bg-gray-200 rounded-lg flex-shrink-0">
-                            <img
-                                src={providerData.image}
-                                alt={providerData.name}
-                                className="w-full h-full object-cover rounded-lg"
-                            />
-                        </div>
+                        {providerData.logoUrl && (
+                            <div className="w-36 h-36 rounded-2xl bg-gray-100 border border-gray-200 overflow-hidden flex-shrink-0">
+                                <img
+                                    src={providerData.logoUrl}
+                                    alt={`${providerData.name} logo`}
+                                    className="w-full h-full object-cover"
+                                />
+                            </div>
+                        )}
                     </div>
                 </section>
 
