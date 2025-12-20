@@ -25,6 +25,40 @@ const currentYearRange = () => {
   // Use string literals (not Date -> ISO) to avoid timezone day-shifts
   return { year: y, start: `${y}-01-01`, end: `${y}-12-31` };
 };
+const addMonths = (d: Date, months: number) => {
+  const next = new Date(d);
+  next.setMonth(next.getMonth() + months);
+  return next;
+};
+const addYears = (d: Date, years: number) => {
+  const next = new Date(d);
+  next.setFullYear(next.getFullYear() + years);
+  return next;
+};
+type TimeRangePreset = 'all' | '1m' | '3m' | '6m' | '1y' | '5y' | '10y' | 'custom';
+const getPresetRange = (preset: TimeRangePreset) => {
+  const now = new Date();
+  const today = toDateInput(now);
+
+  if (preset === 'all') return { start: '', end: '' };
+  if (preset === 'custom') return null;
+
+  if (preset === '1y') {
+    // 1 year = current calendar year (from beginning of year to end)
+    const { start, end } = currentYearRange();
+    return { start, end };
+  }
+
+  const start =
+    preset === '1m' ? toDateInput(addMonths(now, -1)) :
+      preset === '3m' ? toDateInput(addMonths(now, -3)) :
+        preset === '6m' ? toDateInput(addMonths(now, -6)) :
+          preset === '5y' ? toDateInput(addYears(now, -5)) :
+            preset === '10y' ? toDateInput(addYears(now, -10)) :
+              '';
+
+  return { start, end: today };
+};
 const toPrettyDateTime = (iso?: string) => {
   if (!iso) return '';
   const dt = new Date(iso);
@@ -70,6 +104,7 @@ const ProviderPaymentsPage: React.FC = () => {
   const [serviceIdDraft, setServiceIdDraft] = useState('');
   const [startDateDraft, setStartDateDraft] = useState(() => currentYearRange().start); // default: from start of year
   const [endDateDraft, setEndDateDraft] = useState(() => currentYearRange().end); // default: to end of year
+  const [timeRangePreset, setTimeRangePreset] = useState<TimeRangePreset>('1y');
 
   // Applied filters (used by query)
   const [serviceId, setServiceId] = useState('');
@@ -91,6 +126,30 @@ const ProviderPaymentsPage: React.FC = () => {
   const debouncedSearch = useDebouncedValue(historyQuery.trim(), 400);
   const { year: currentYear, start: currentYearStart, end: currentYearEnd } = useMemo(() => currentYearRange(), []);
   const isDefaultYearRange = startDate === currentYearStart && endDate === currentYearEnd;
+  const periodLabel = useMemo(() => {
+    switch (timeRangePreset) {
+      case 'all': return 'All time';
+      case '1m': return 'Last 1 month';
+      case '3m': return 'Last 3 months';
+      case '6m': return 'Last 6 months';
+      case '1y': return `1 year (${currentYear})`;
+      case '5y': return 'Last 5 years';
+      case '10y': return 'Last 10 years';
+      case 'custom': return 'Custom range';
+      default: return '';
+    }
+  }, [timeRangePreset, currentYear]);
+
+  // When preset changes, update applied + draft dates (except custom)
+  useEffect(() => {
+    const range = getPresetRange(timeRangePreset);
+    if (!range) return; // custom
+    setStartDateDraft(range.start);
+    setEndDateDraft(range.end);
+    setStartDate(range.start);
+    setEndDate(range.end);
+    setPage(1);
+  }, [timeRangePreset]);
 
   const transactionsQuery = useProviderTransactions({
     page,
@@ -550,16 +609,13 @@ const ProviderPaymentsPage: React.FC = () => {
                     Showing <span className="font-medium text-[#16202E]">{startDate}</span> –{' '}
                     <span className="font-medium text-[#16202E]">{endDate}</span>
                   </span>
-                  {isDefaultYearRange && (
-                    <span className="text-gray-400">•</span>
-                  )}
-                  {isDefaultYearRange && (
-                    <span className="text-gray-500">1-year payment history ({currentYear})</span>
-                  )}
+                  <span className="text-gray-400">•</span>
+                  <span className="text-gray-500">{periodLabel}</span>
                   <button
                     type="button"
                     onClick={() => {
                       // See all = remove date filter
+                      setTimeRangePreset('all');
                       setStartDateDraft('');
                       setEndDateDraft('');
                       setStartDate('');
@@ -579,6 +635,7 @@ const ProviderPaymentsPage: React.FC = () => {
                     type="button"
                     onClick={() => {
                       // Back to default year range
+                      setTimeRangePreset('1y');
                       setStartDateDraft(currentYearStart);
                       setEndDateDraft(currentYearEnd);
                       setStartDate(currentYearStart);
@@ -618,6 +675,27 @@ const ProviderPaymentsPage: React.FC = () => {
 
           {/* Filters + Apply */}
           <div className="flex flex-wrap items-center gap-4 justify-end">
+            {/* Time range filter */}
+            <div className="relative">
+              <select
+                value={timeRangePreset}
+                onChange={(e) => {
+                  setTimeRangePreset(e.target.value as TimeRangePreset);
+                }}
+                className="appearance-none bg-white border border-gray-200 rounded-lg px-4 py-3 pr-10 text-sm min-w-[220px] focus:outline-none focus:ring-2 focus:ring-[#06202E]/10"
+              >
+                <option value="1y">1 year (this year)</option>
+                <option value="6m">Last 6 months</option>
+                <option value="3m">Last 3 months</option>
+                <option value="1m">Last 1 month</option>
+                <option value="5y">Last 5 years</option>
+                <option value="10y">Last 10 years</option>
+                <option value="all">All time</option>
+                <option value="custom">Custom (from / to)</option>
+              </select>
+              <FiChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500" />
+            </div>
+
             {/* Service filter */}
             <div className="relative">
               <select
@@ -639,14 +717,20 @@ const ProviderPaymentsPage: React.FC = () => {
               <input
                 type="date"
                 value={startDateDraft}
-                onChange={(e) => setStartDateDraft(e.target.value)}
+                onChange={(e) => {
+                  setStartDateDraft(e.target.value);
+                  setTimeRangePreset('custom');
+                }}
                 className="bg-white border border-gray-200 rounded-lg px-4 py-3 text-sm min-w-[170px] focus:outline-none focus:ring-2 focus:ring-[#06202E]/10"
               />
               <span className="text-gray-400">–</span>
               <input
                 type="date"
                 value={endDateDraft}
-                onChange={(e) => setEndDateDraft(e.target.value)}
+                onChange={(e) => {
+                  setEndDateDraft(e.target.value);
+                  setTimeRangePreset('custom');
+                }}
                 className="bg-white border border-gray-200 rounded-lg px-4 py-3 text-sm min-w-[170px] focus:outline-none focus:ring-2 focus:ring-[#06202E]/10"
               />
             </div>
