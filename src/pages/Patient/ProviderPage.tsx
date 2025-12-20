@@ -33,7 +33,6 @@ const ProviderPage = () => {
     const [activeTab, setActiveTab] = useState('About');
     const [showAllServices, setShowAllServices] = useState(false);
     const [expandedServiceKey, setExpandedServiceKey] = useState<string | null>(null);
-    const [showFullPolicy, setShowFullPolicy] = useState(false);
     const [showReviewsModal, setShowReviewsModal] = useState(false);
     const [showAddReviewModal, setShowAddReviewModal] = useState(false);
     const [showSignInModal, setShowSignInModal] = useState(false);
@@ -1825,70 +1824,107 @@ const ProviderPage = () => {
                     </div>
 
                     {/* Booking Policy Section - Outside Grid */}
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mt-6">
+                    <div className="bg-[#F6F8FA] border border-gray-200 rounded-2xl p-6 mt-6">
                         {(() => {
                             const policyText = String(providerData?.policy || '').trim();
                             const hasPolicy = policyText.length > 0;
-                            const preview =
-                                policyText.length > 380 ? `${policyText.substring(0, 380)}…` : policyText;
 
-                            const sections = policyText
-                                .split(/\n\s*\n/g)
-                                .map((s) => s.trim())
-                                .filter(Boolean);
+                            const lines = policyText
+                                .split('\n')
+                                .map((l) => l.replace(/\t/g, '    ').trimEnd());
+
+                            const isHeading = (line: string) => {
+                                const t = line.trim();
+                                if (!t) return false;
+                                if (t.length > 70) return false;
+                                // Examples in API: "Introduction", "Appointment Booking", "Cancellation and Rescheduling", "How to Book:"
+                                if (t.endsWith(':')) return true;
+                                if (/^[A-Z][A-Za-z\s&/-]{2,}$/.test(t) && t.split(' ').length <= 6) return true;
+                                return false;
+                            };
+
+                            const isBullet = (line: string) => /^(-|\*|•)\s+/.test(line.trim());
+                            const isNumbered = (line: string) => /^\d+[\).\]]\s+/.test(line.trim());
 
                             return (
                                 <div className="space-y-4">
                                     <div className="flex items-start justify-between gap-4">
-                                        <div className="flex items-start gap-3">
-                                            <div className="w-10 h-10 rounded-xl bg-gray-50 border border-gray-100 flex items-center justify-center text-[#06202E]">
-                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 4H7a2 2 0 01-2-2V4a2 2 0 012-2h7l5 5v13a2 2 0 01-2 2z" />
-                                                </svg>
-                                            </div>
-                                            <div>
-                                                <h4 className="text-lg font-bold text-gray-900">Booking policy</h4>
-                                                <p className="text-sm text-gray-500">
-                                                    Important information about cancellations, rescheduling, and payments.
-                                                </p>
-                                            </div>
+                                        <div>
+                                            <h4 className="text-xl font-bold text-[#06202E]">Booking policy</h4>
+                                            <p className="text-sm text-gray-600 mt-1">
+                                                {providerData?.name ? `${providerData.name} • ` : ''}Please read carefully before booking.
+                                            </p>
                                         </div>
-
-                                        {hasPolicy && policyText.length > 380 && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setShowFullPolicy((v) => !v)}
-                                                className="text-sm text-[#06202E] hover:text-[#06202E]/80 underline whitespace-nowrap"
-                                            >
-                                                {showFullPolicy ? 'Show less' : 'Read full policy'}
-                                            </button>
-                                        )}
                                     </div>
 
                                     {!hasPolicy ? (
-                                        <div className="text-gray-500 text-sm bg-gray-50 border border-gray-100 rounded-lg p-4">
+                                        <div className="bg-white border border-gray-200 rounded-xl p-5 text-gray-600 text-sm">
                                             No booking policy provided.
                                         </div>
                                     ) : (
-                                        <>
-                                            {!showFullPolicy ? (
-                                                <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                                                    {preview}
-                                                </div>
-                                            ) : (
-                                                <div className="border border-gray-100 rounded-xl bg-gray-50 p-4">
-                                                    <div className="max-h-[360px] overflow-y-auto space-y-4 pr-2">
-                                                        {(sections.length ? sections : [policyText]).map((block, idx) => (
-                                                            <div key={idx} className="bg-white border border-gray-100 rounded-lg p-4">
-                                                                <div className="text-sm text-gray-700 leading-relaxed whitespace-pre-wrap">
-                                                                    {block}
-                                                                </div>
-                                                            </div>
-                                                        ))}
+                                        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm">
+                                            {/* “Document” header */}
+                                            <div className="px-8 py-6 border-b border-gray-100">
+                                                <div className="flex items-center justify-between gap-4">
+                                                    <div>
+                                                        <div className="text-sm font-semibold text-gray-900">Policy document</div>
+                                                        <div className="text-xs text-gray-500 mt-1">
+                                                            This policy may include payment, cancellations, and rescheduling rules.
+                                                        </div>
+                                                    </div>
+                                                    <div className="text-xs text-gray-500">
+                                                        Updated by provider
                                                     </div>
                                                 </div>
-                                            )}
-                                        </>
+                                            </div>
+
+                                            {/* “Document” body */}
+                                            <div className="px-8 py-8">
+                                                <div className="max-w-none space-y-3">
+                                                    {lines.map((line, idx) => {
+                                                        const t = line.trim();
+                                                        if (!t) {
+                                                            return <div key={idx} className="h-3" />;
+                                                        }
+
+                                                        if (isHeading(t)) {
+                                                            return (
+                                                                <div key={idx} className="pt-4">
+                                                                    <div className="text-base font-bold text-gray-900">
+                                                                        {t.replace(/:$/, '')}
+                                                                    </div>
+                                                                    <div className="mt-2 h-px bg-gray-100" />
+                                                                </div>
+                                                            );
+                                                        }
+
+                                                        if (isBullet(t)) {
+                                                            const content = t.replace(/^(-|\*|•)\s+/, '');
+                                                            return (
+                                                                <div key={idx} className="flex gap-3 text-sm text-gray-800 leading-7">
+                                                                    <div className="mt-[10px] h-1.5 w-1.5 rounded-full bg-[#06202E] shrink-0" />
+                                                                    <div className="whitespace-pre-wrap">{content}</div>
+                                                                </div>
+                                                            );
+                                                        }
+
+                                                        if (isNumbered(t)) {
+                                                            return (
+                                                                <div key={idx} className="text-sm text-gray-800 leading-7 whitespace-pre-wrap">
+                                                                    {t}
+                                                                </div>
+                                                            );
+                                                        }
+
+                                                        return (
+                                                            <div key={idx} className="text-sm text-gray-800 leading-7 whitespace-pre-wrap">
+                                                                {t}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        </div>
                                     )}
                                 </div>
                             );
