@@ -153,24 +153,69 @@ const ProviderPage = () => {
             consultation: [],
         };
 
+        // Normalize services from API: services can be objects (preferred) or strings (legacy)
         const rawServices = p?.services || [];
+        const normalizedServices: Array<{
+            id?: string;
+            name: string;
+            category?: string;
+            description?: string;
+            uses?: string;
+            price_number?: number;
+            price?: string;
+        }> = [];
+
         if (Array.isArray(rawServices)) {
             rawServices.forEach((s: any) => {
-                const category = (s?.category || '').toLowerCase();
-                const serviceItem = {
-                    name: s?.name || String(s),
-                    price: typeof s?.price === 'number' ? `₦${s.price.toLocaleString()}` : (s?.price || '')
-                };
-
-                if (category === 'scans' || category === 'scan' || category.includes('scan')) {
-                    servicesByCat.scans.push(serviceItem);
-                } else if (category === 'tests' || category === 'test' || category.includes('test')) {
-                    servicesByCat.tests.push(serviceItem);
-                } else {
-                    servicesByCat.consultation.push(serviceItem);
+                if (!s) return;
+                if (typeof s === 'string') {
+                    normalizedServices.push({ id: s, name: s });
+                    return;
+                }
+                if (typeof s === 'object') {
+                    const priceNumber = typeof s?.price === 'number' ? s.price : undefined;
+                    normalizedServices.push({
+                        id: s?.id || s?._id || s?.service_id,
+                        name: s?.name || s?.serviceName || s?.service || String(s),
+                        category: s?.category,
+                        description: s?.description,
+                        uses: s?.uses,
+                        price_number: priceNumber,
+                        price: typeof priceNumber === 'number' ? `₦${priceNumber.toLocaleString()}` : (s?.price ? String(s.price) : ''),
+                    });
                 }
             });
         }
+
+        normalizedServices.forEach((svc) => {
+            const category = String(svc?.category || '').toLowerCase();
+            const serviceItem = {
+                id: svc.id,
+                name: svc.name,
+                description: svc.description,
+                uses: svc.uses,
+                price: svc.price || '',
+                price_number: svc.price_number,
+                category: svc.category,
+            };
+
+            if (category === 'scans' || category === 'scan' || category.includes('scan')) {
+                servicesByCat.scans.push(serviceItem);
+            } else if (category === 'tests' || category === 'test' || category.includes('test')) {
+                servicesByCat.tests.push(serviceItem);
+            } else {
+                servicesByCat.consultation.push(serviceItem);
+            }
+        });
+
+        // Flat list of service names for dropdowns / selection
+        const serviceNames = Array.from(
+            new Set(
+                normalizedServices
+                    .map((s) => s?.name)
+                    .filter(Boolean)
+            )
+        );
 
 
         const mapped = {
@@ -182,17 +227,13 @@ const ProviderPage = () => {
                 reviews: typeof p?.ratings?.count === 'number' ? p.ratings.count : 0,
             },
             openStatus: 'Open',
-            description: `${p.provider_name} healthcare provider`,
+            // Use the provider's real "about" field (fallback to older shapes)
+            description: (typeof p?.about === 'string' && p.about.trim())
+                ? p.about.trim()
+                : ((typeof p?.description === 'string' && p.description.trim()) ? p.description.trim() : `${p.provider_name || 'This provider'} healthcare provider`),
             policy: typeof p?.policy === 'string' ? p.policy : '',
             image: p.banner_image_url || p.logo || '/hospital.jpg',
-            services: (p?.services || []).map((s: any) => {
-                if (typeof s === 'string') {
-                    return s;
-                } else if (s && typeof s === 'object') {
-                    return s.name || s.serviceName || s.service || String(s);
-                }
-                return String(s);
-            }).filter(Boolean),
+            services: serviceNames,
             reviews: Array.isArray(p?.reviews)
                 ? p.reviews
                     .map((r: any) => {
@@ -262,12 +303,12 @@ const ProviderPage = () => {
                     address: addressStr || 'Address not available',
                     phone: p.work_phone || '',
                     email: p.work_email || '',
-                    website: p.website || '',
+                    website: p?.social_links?.website || p.website || '',
                 },
                 socialMedia: {
-                    facebook: p?.social_links?.facebook || '#',
-                    instagram: p?.social_links?.instagram || '#',
-                    twitter: p?.social_links?.twitter || '#',
+                    facebook: p?.social_links?.facebook || '',
+                    instagram: p?.social_links?.instagram || '',
+                    twitter: p?.social_links?.twitter || '',
                 },
                 openingHours,
                 accreditations: Array.isArray(p?.accreditations) ? p.accreditations : [],
@@ -279,9 +320,8 @@ const ProviderPage = () => {
         // Initialize booking selected service to first available from the API response
         let initialService = '';
         if (mapped.services && mapped.services.length > 0) {
-            const firstSvc = mapped.services[0];
-            // Extract name if object, otherwise use string directly
-            initialService = typeof firstSvc === 'string' ? firstSvc : (firstSvc.name || firstSvc.serviceName || firstSvc.title || String(firstSvc));
+            // mapped.services is a string[] (service names)
+            initialService = mapped.services[0] || '';
         }
 
         setBookingSelectedService(initialService);
@@ -295,8 +335,8 @@ const ProviderPage = () => {
             // Re-calculate the default initial service to fallback to if draft has no service
             let initialService = '';
             if (providerData.services && providerData.services.length > 0) {
-                const firstSvc = providerData.services[0];
-                initialService = typeof firstSvc === 'string' ? firstSvc : (firstSvc.name || firstSvc.serviceName || firstSvc.title || String(firstSvc));
+                // providerData.services is a string[] (service names)
+                initialService = providerData.services[0] || '';
             }
 
             // Restore from localStorage if available and matches this provider
@@ -1220,7 +1260,7 @@ const ProviderPage = () => {
                     <div className="flex items-start border-b border-gray-200 pb-8">
                         <div className="flex-1 p-6">
                             <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                                Welcome to {providerData.name} - Family General Practice in the Centre of Lagos
+                                About {providerData.name}
                             </h2>
 
                             <div className="flex gap-6">
@@ -1435,9 +1475,16 @@ const ProviderPage = () => {
                                                 );
                                             }
 
-                                            return servicesForTab.map((service: { name: string; price: string }, index: number) => (
+                                            return servicesForTab.map((service: any, index: number) => (
                                                 <div key={index} className="flex items-center justify-between py-2 border-b border-gray-100">
-                                                    <span className="text-gray-700">{service.name}</span>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-gray-700">{service.name}</span>
+                                                        {(service.description || service.uses) && (
+                                                            <span className="text-xs text-gray-500 mt-1 line-clamp-2">
+                                                                {service.description || service.uses}
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                     <div className="flex items-center space-x-4">
                                                         <span className="text-gray-900 font-medium">{service.price}</span>
                                                         <button
@@ -1446,7 +1493,7 @@ const ProviderPage = () => {
                                                                 setBookingSelectedService(service.name);
                                                                 setShowDateTimeError(false);
                                                             }}
-                                                            className="bg-blue-600 text-white px-3 py-1 rounded text-sm hover:bg-blue-700 transition-colors"
+                                                            className="bg-[#06202E] text-white px-3 py-1 rounded text-sm hover:bg-[#06202E]/90 transition-colors"
                                                         >
                                                             Book
                                                         </button>
@@ -1512,21 +1559,42 @@ const ProviderPage = () => {
                             <div className="mb-8">
                                 <h4 className="text-md font-medium text-gray-900 mb-4">Social media</h4>
                                 <div className="flex space-x-4">
-                                    <a href={providerData.practiceInfo?.socialMedia.facebook} className="text-blue-600 hover:text-blue-800">
+                                    {!!providerData.practiceInfo?.socialMedia.facebook && (
+                                        <a
+                                            href={providerData.practiceInfo.socialMedia.facebook}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-[#06202E] hover:text-[#06202E]/80"
+                                        >
                                         <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                                             <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
                                         </svg>
-                                    </a>
-                                    <a href={providerData.practiceInfo?.socialMedia.instagram} className="text-pink-600 hover:text-pink-800">
+                                        </a>
+                                    )}
+                                    {!!providerData.practiceInfo?.socialMedia.instagram && (
+                                        <a
+                                            href={providerData.practiceInfo.socialMedia.instagram}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-[#06202E] hover:text-[#06202E]/80"
+                                        >
                                         <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                                             <path d="M12.017 0C5.396 0 .029 5.367.029 11.987c0 6.62 5.367 11.987 11.988 11.987 6.62 0 11.987-5.367 11.987-11.987C24.014 5.367 18.637.001 12.017.001zM8.449 16.988c-1.297 0-2.448-.49-3.323-1.297C4.198 14.895 3.708 13.744 3.708 12.447s.49-2.448 1.297-3.323c.875-.807 2.026-1.297 3.323-1.297s2.448.49 3.323 1.297c.807.875 1.297 2.026 1.297 3.323s-.49 2.448-1.297 3.323c-.875.807-2.026 1.297-3.323 1.297zm7.718-1.297c-.875.807-2.026 1.297-3.323 1.297s-2.448-.49-3.323-1.297c-.807-.875-1.297-2.026-1.297-3.323s.49-2.448 1.297-3.323c.875-.807 2.026-1.297 3.323-1.297s2.448.49 3.323 1.297c.807.875 1.297 2.026 1.297 3.323s-.49 2.448-1.297 3.323z" />
                                         </svg>
-                                    </a>
-                                    <a href={providerData.practiceInfo?.socialMedia.twitter} className="text-blue-400 hover:text-blue-600">
+                                        </a>
+                                    )}
+                                    {!!providerData.practiceInfo?.socialMedia.twitter && (
+                                        <a
+                                            href={providerData.practiceInfo.socialMedia.twitter}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-[#06202E] hover:text-[#06202E]/80"
+                                        >
                                         <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                                             <path d="M23.953 4.57a10 10 0 01-2.825.775 4.958 4.958 0 002.163-2.723c-.951.555-2.005.959-3.127 1.184a4.92 4.92 0 00-8.384 4.482C7.69 8.095 4.067 6.13 1.64 3.162a4.822 4.822 0 00-.666 2.475c0 1.71.87 3.213 2.188 4.096a4.904 4.904 0 01-2.228-.616v.06a4.923 4.923 0 003.946 4.827 4.996 4.996 0 01-2.212.085 4.936 4.936 0 004.604 3.417 9.867 9.867 0 01-6.102 2.105c-.39 0-.779-.023-1.17-.067a13.995 13.995 0 007.557 2.209c9.053 0 13.998-7.496 13.998-13.985 0-.21 0-.42-.015-.63A9.935 9.935 0 0024 4.59z" />
                                         </svg>
-                                    </a>
+                                        </a>
+                                    )}
                                 </div>
                             </div>
 
