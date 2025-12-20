@@ -20,6 +20,11 @@ const formatNaira = (n: number) => `₦${n.toLocaleString()}`;
 
 const toYmd = (d: Date) => d.toISOString().slice(0, 10);
 const toDateInput = (d: Date) => toYmd(d);
+const currentYearRange = () => {
+  const y = new Date().getFullYear();
+  // Use string literals (not Date -> ISO) to avoid timezone day-shifts
+  return { year: y, start: `${y}-01-01`, end: `${y}-12-31` };
+};
 const toPrettyDateTime = (iso?: string) => {
   if (!iso) return '';
   const dt = new Date(iso);
@@ -63,8 +68,8 @@ const ProviderPaymentsPage: React.FC = () => {
   // Transactions filters (draft)
   const [historyQuery, setHistoryQuery] = useState('');
   const [serviceIdDraft, setServiceIdDraft] = useState('');
-  const [startDateDraft, setStartDateDraft] = useState(() => toDateInput(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000))); // last 30 days
-  const [endDateDraft, setEndDateDraft] = useState(() => toDateInput(new Date()));
+  const [startDateDraft, setStartDateDraft] = useState(() => currentYearRange().start); // default: from start of year
+  const [endDateDraft, setEndDateDraft] = useState(() => currentYearRange().end); // default: to end of year
 
   // Applied filters (used by query)
   const [serviceId, setServiceId] = useState('');
@@ -84,6 +89,8 @@ const ProviderPaymentsPage: React.FC = () => {
   const receiptRef = useRef<HTMLDivElement>(null);
 
   const debouncedSearch = useDebouncedValue(historyQuery.trim(), 400);
+  const { year: currentYear, start: currentYearStart, end: currentYearEnd } = useMemo(() => currentYearRange(), []);
+  const isDefaultYearRange = startDate === currentYearStart && endDate === currentYearEnd;
 
   const transactionsQuery = useProviderTransactions({
     page,
@@ -538,13 +545,55 @@ const ProviderPaymentsPage: React.FC = () => {
             <h3 className="text-2xl font-semibold text-[#16202E]">Payment History</h3>
             <div className="text-sm text-gray-500 mt-1">
               {startDate && endDate ? (
-                <>
-                  Showing <span className="font-medium text-[#16202E]">{startDate}</span> –{' '}
-                  <span className="font-medium text-[#16202E]">{endDate}</span>
-                </>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span>
+                    Showing <span className="font-medium text-[#16202E]">{startDate}</span> –{' '}
+                    <span className="font-medium text-[#16202E]">{endDate}</span>
+                  </span>
+                  {isDefaultYearRange && (
+                    <span className="text-gray-400">•</span>
+                  )}
+                  {isDefaultYearRange && (
+                    <span className="text-gray-500">1-year payment history ({currentYear})</span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // See all = remove date filter
+                      setStartDateDraft('');
+                      setEndDateDraft('');
+                      setStartDate('');
+                      setEndDate('');
+                      setPage(1);
+                    }}
+                    className="text-sm font-medium text-[#06202E] hover:underline"
+                  >
+                    See all
+                  </button>
+                </div>
               ) : (
-                'Showing all dates'
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span>Showing all dates</span>
+                  <span className="text-gray-400">•</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Back to default year range
+                      setStartDateDraft(currentYearStart);
+                      setEndDateDraft(currentYearEnd);
+                      setStartDate(currentYearStart);
+                      setEndDate(currentYearEnd);
+                      setPage(1);
+                    }}
+                    className="text-sm font-medium text-[#06202E] hover:underline"
+                  >
+                    View {currentYear} only
+                  </button>
+                </div>
               )}
+            </div>
+            <div className="text-xs text-gray-400 mt-1">
+              Default is the full year. You can change the date range anytime using the filters.
             </div>
           </div>
         </div>
