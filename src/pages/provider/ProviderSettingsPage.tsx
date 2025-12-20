@@ -1129,7 +1129,47 @@ const ProviderSettingsPage: React.FC = () => {
                   }}
                 />
                 {bannerPreviewUrl ? (
-                  <img src={bannerPreviewUrl} alt="Banner" className="w-full h-[140px] object-cover rounded-lg" />
+                  <div className="w-full">
+                    <div
+                      className="relative group w-full cursor-pointer"
+                      onClick={() => document.getElementById('provider-settings-banner-input')?.click()}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          document.getElementById('provider-settings-banner-input')?.click();
+                        }
+                      }}
+                    >
+                      <img src={bannerPreviewUrl} alt="Banner" className="w-full h-[140px] object-cover rounded-lg" />
+                      <div className="absolute inset-0 rounded-lg bg-black/0 group-hover:bg-black/10 transition-colors" />
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          document.getElementById('provider-settings-banner-input')?.click();
+                        }}
+                        className="absolute bottom-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white/95 border border-gray-200 text-sm text-gray-700 hover:bg-white"
+                      >
+                        <FaCloudUploadAlt className="text-gray-500" />
+                        Change banner
+                      </button>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between gap-3">
+                      <p className="text-xs text-gray-500">
+                        Recommended: wide banner image (e.g. 1200×400), up to 10 MB
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => document.getElementById('provider-settings-banner-input')?.click()}
+                        className="shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 hover:bg-gray-50"
+                      >
+                        <FaCloudUploadAlt className="text-gray-500" />
+                        Change
+                      </button>
+                    </div>
+                  </div>
                 ) : (
                   <button
                     type="button"
