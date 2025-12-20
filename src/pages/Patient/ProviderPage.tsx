@@ -1042,7 +1042,7 @@ const ProviderPage = () => {
                 </div>
 
                 {/* Overlapping Availability Card */}
-                <div className="absolute top-[40px] z-[30] right-16 w-96">
+                <div className="absolute top-[40px] z-[30] right-10 w-96">
                     <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-6">
                         <h3 className="text-xl font-semibold text-gray-900 mb-4 text-center">Availability</h3>
                         <div className="border-b border-gray-200 mb-4"></div>
@@ -1202,7 +1202,7 @@ const ProviderPage = () => {
                                     }
                                 }}
                                 className={`py-4 px-2 border-b-2 font-medium text-sm transition-colors ${activeTab === tab
-                                    ? 'border-blue-500 text-blue-600'
+                                    ? 'border-[#06202E] text-[#06202E]'
                                     : 'border-transparent text-gray-500 hover:text-gray-700'
                                     }`}
                             >
@@ -1233,7 +1233,7 @@ const ProviderPage = () => {
                                     </p>
                                     <button
                                         onClick={() => setShowFullDescription(!showFullDescription)}
-                                        className="text-blue-600 hover:text-blue-800 font-medium"
+                                        className="text-[#06202E] hover:text-[#06202E]/80 font-medium"
                                     >
                                         {showFullDescription ? 'Show less' : 'Show more'}
                                     </button>
