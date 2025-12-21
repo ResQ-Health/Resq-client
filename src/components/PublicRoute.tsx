@@ -38,7 +38,7 @@ export const PublicRoute: React.FC<PublicRouteProps> = ({
                 user?.profile_complete;
 
             targetPath = isOnboardingComplete
-                ? '/provider/dashboard' 
+                ? '/provider/dashboard'
                 : '/welcome-provider';
         } else {
             // Patient: if onboarding is complete, send straight to booking history

@@ -159,6 +159,7 @@ export const API_ENDPOINTS = {
             PROFILE_PICTURE: '/api/v1/providers/me/profile-picture',
             WORKING_HOURS: '/api/v1/providers/me/working-hours',
             NOTIFICATION_SETTINGS: '/api/v1/providers/me/notification-settings',
+            AUTO_CONFIRM: '/api/v1/providers/me/auto-confirm',
             COMPLETE_ONBOARDING: '/api/v1/providers/onboard/complete',
         },
         ADDRESS: {

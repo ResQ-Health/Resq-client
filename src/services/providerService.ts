@@ -1372,6 +1372,76 @@ export const useUpdateProviderNotificationSettings = () => {
     });
 };
 
+// Get Auto Confirm Setting
+export interface GetAutoConfirmResponse {
+    success: boolean;
+    data: {
+        auto_confirm_appointments: boolean;
+    };
+}
+
+export const getProviderAutoConfirm = async (): Promise<GetAutoConfirmResponse> => {
+    try {
+        const response = await apiClient.get(API_ENDPOINTS.PROVIDER.PROFILE.AUTO_CONFIRM);
+        return response.data as GetAutoConfirmResponse;
+    } catch (error: any) {
+        console.error('Get auto confirm error:', error);
+        throw error;
+    }
+};
+
+export const useProviderAutoConfirm = () => {
+    return useQuery({
+        queryKey: ['providerAutoConfirm'],
+        queryFn: getProviderAutoConfirm,
+        staleTime: 5 * 60 * 1000, // 5 minutes
+    });
+};
+
+// Update Auto Confirm Settings
+export interface UpdateAutoConfirmRequest {
+    auto_confirm_appointments: boolean;
+}
+
+export interface UpdateAutoConfirmResponse {
+    success: boolean;
+    message: string;
+    data: {
+        auto_confirm_appointments: boolean;
+    };
+}
+
+export const updateProviderAutoConfirm = async (data: UpdateAutoConfirmRequest): Promise<UpdateAutoConfirmResponse> => {
+    try {
+        const response = await apiClient.put(API_ENDPOINTS.PROVIDER.PROFILE.AUTO_CONFIRM, data);
+        return response.data as UpdateAutoConfirmResponse;
+    } catch (error: any) {
+        console.error('Update auto confirm error:', error);
+        throw error;
+    }
+};
+
+export const useUpdateProviderAutoConfirm = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: updateProviderAutoConfirm,
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: ['providerAutoConfirm'] });
+            queryClient.invalidateQueries({ queryKey: ['providerProfileMe'] });
+            queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+            toast.success(data?.message || 'Auto confirm setting updated successfully');
+        },
+        onError: (error: any) => {
+            console.error('Update auto confirm mutation error:', error);
+            let errorMessage = 'Failed to update auto confirm setting.';
+            if (error.response?.data?.message) {
+                errorMessage = error.response.data.message;
+            }
+            toast.error(errorMessage);
+        }
+    });
+};
+
 // --- Provider Login Logic ---
 
 export const loginProvider = async (data: LoginRequest): Promise<LoginResponse> => {

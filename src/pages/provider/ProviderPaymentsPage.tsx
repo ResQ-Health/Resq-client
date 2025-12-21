@@ -35,13 +35,12 @@ const addYears = (d: Date, years: number) => {
   next.setFullYear(next.getFullYear() + years);
   return next;
 };
-type TimeRangePreset = 'all' | '1m' | '3m' | '6m' | '1y' | '5y' | '10y' | 'custom';
+type TimeRangePreset = 'all' | '1m' | '3m' | '6m' | '1y' | '5y' | '10y';
 const getPresetRange = (preset: TimeRangePreset) => {
   const now = new Date();
   const today = toDateInput(now);
 
   if (preset === 'all') return { start: '', end: '' };
-  if (preset === 'custom') return null;
 
   if (preset === '1y') {
     // 1 year = current calendar year (from beginning of year to end)
@@ -135,21 +134,34 @@ const ProviderPaymentsPage: React.FC = () => {
       case '1y': return `1 year (${currentYear})`;
       case '5y': return 'Last 5 years';
       case '10y': return 'Last 10 years';
-      case 'custom': return 'Custom range';
       default: return '';
     }
   }, [timeRangePreset, currentYear]);
 
-  // When preset changes, update applied + draft dates (except custom)
+  // When preset changes, update applied + draft dates
   useEffect(() => {
     const range = getPresetRange(timeRangePreset);
-    if (!range) return; // custom
+    if (!range) return;
     setStartDateDraft(range.start);
     setEndDateDraft(range.end);
     setStartDate(range.start);
     setEndDate(range.end);
     setPage(1);
   }, [timeRangePreset]);
+
+  // Clear all filters function
+  const handleClearFilters = () => {
+    const { start, end } = currentYearRange();
+    setTimeRangePreset('1y');
+    setStartDateDraft(start);
+    setEndDateDraft(end);
+    setStartDate(start);
+    setEndDate(end);
+    setServiceIdDraft('');
+    setServiceId('');
+    setHistoryQuery('');
+    setPage(1);
+  };
 
   const transactionsQuery = useProviderTransactions({
     page,
@@ -691,7 +703,6 @@ const ProviderPaymentsPage: React.FC = () => {
                 <option value="5y">Last 5 years</option>
                 <option value="10y">Last 10 years</option>
                 <option value="all">All time</option>
-                <option value="custom">Custom (from / to)</option>
               </select>
               <FiChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500" />
             </div>
@@ -719,7 +730,6 @@ const ProviderPaymentsPage: React.FC = () => {
                 value={startDateDraft}
                 onChange={(e) => {
                   setStartDateDraft(e.target.value);
-                  setTimeRangePreset('custom');
                 }}
                 className="bg-white border border-gray-200 rounded-lg px-4 py-3 text-sm min-w-[170px] focus:outline-none focus:ring-2 focus:ring-[#06202E]/10"
               />
@@ -729,11 +739,18 @@ const ProviderPaymentsPage: React.FC = () => {
                 value={endDateDraft}
                 onChange={(e) => {
                   setEndDateDraft(e.target.value);
-                  setTimeRangePreset('custom');
                 }}
                 className="bg-white border border-gray-200 rounded-lg px-4 py-3 text-sm min-w-[170px] focus:outline-none focus:ring-2 focus:ring-[#06202E]/10"
               />
             </div>
+
+            <button
+              type="button"
+              onClick={handleClearFilters}
+              className="bg-white border border-gray-300 text-gray-700 px-6 py-3 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors"
+            >
+              Clear filters
+            </button>
 
             <button
               type="button"

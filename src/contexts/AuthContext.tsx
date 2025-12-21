@@ -115,21 +115,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const logout = () => {
         // Clear React Query cache
         queryClient.clear();
-        
+
         // Clear all user-specific localStorage items
         localStorage.removeItem('authToken');
         localStorage.removeItem('user');
         localStorage.removeItem('bookingDraft');
         localStorage.removeItem('justLoggedIn');
         localStorage.removeItem('onboarding_completed');
-        
+
         // Clear all receipt sent flags (they follow pattern: receipt_sent_${appointmentId})
         Object.keys(localStorage).forEach(key => {
             if (key.startsWith('receipt_sent_')) {
                 localStorage.removeItem(key);
             }
         });
-        
+
         // Clear state
         setToken(null);
         setUser(null);

@@ -242,14 +242,15 @@ const DashboardPage: React.FC = () => {
   }));
 
   // Top Services Logic
-  const rawTopServices = data?.data?.top_services;
-  const currentTopServices = rawTopServices
-    ? (Array.isArray(rawTopServices) ? rawTopServices : (rawTopServices as any)[topServicesRange] || [])
+  // Always use revenue_by_service based on the selected range - show ALL services
+  const rawRevenueByService = financials?.revenue_by_service;
+  
+  const currentTopServices = rawRevenueByService
+    ? (rawRevenueByService[topServicesRange] || [])
     : [];
 
   const topServices = currentTopServices
-    .map((s: any) => ({ name: s.service_name || s.name || s.service || 'Service', count: Number(s.count ?? 0) }))
-    .slice(0, 3);
+    .map((s: any) => ({ name: s.service_name || s.name || s.service || 'Service', count: Number(s.count ?? 0) }));
 
   // Calculate Patient Visit Stats
   const rawPatientVisits = data?.data?.patient_visits;
