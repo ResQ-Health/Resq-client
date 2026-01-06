@@ -310,8 +310,10 @@ const ProviderPage = () => {
         setIsSubmittingReport(true);
         reportProviderMutation.mutate({
             providerId: id,
-            reason: reportReason,
-            description: reportDescription
+            payload: {
+                category: reportReason as any,
+                message: reportDescription
+            }
         }, {
             onSuccess: () => {
                 toast.success('Report submitted successfully. We will review it shortly.');

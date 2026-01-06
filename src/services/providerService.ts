@@ -799,7 +799,7 @@ export interface FetchProviderSupportTicketsParams {
 export const fetchProviderSupportTickets = async (
     params: FetchProviderSupportTicketsParams
 ): Promise<ProviderSupportTicketsListResponse> => {
-    const res = await apiClient.get(API_ENDPOINTS.PROVIDER.SUPPORT.TICKETS, { params });
+    const res = await apiClient.get(API_ENDPOINTS.PROVIDER.SUPPORT.GET_ALL_TICKETS, { params });
     return res.data as ProviderSupportTicketsListResponse;
 };
 
@@ -888,13 +888,13 @@ export const createProviderSupportTicket = async (
         formData.append('subject', payload.subject);
         formData.append('message', payload.message);
         payload.attachment_files.slice(0, 5).forEach((f) => formData.append('attachments', f));
-        const res = await apiClient.post(API_ENDPOINTS.PROVIDER.SUPPORT.TICKETS, formData, {
+        const res = await apiClient.post(API_ENDPOINTS.PROVIDER.SUPPORT.CREATE_TICKET, formData, {
             headers: { 'Content-Type': 'multipart/form-data' },
         });
         return res.data as CreateProviderSupportTicketResponse;
     }
 
-    const res = await apiClient.post(API_ENDPOINTS.PROVIDER.SUPPORT.TICKETS, {
+    const res = await apiClient.post(API_ENDPOINTS.PROVIDER.SUPPORT.CREATE_TICKET, {
         category: payload.category,
         subject: payload.subject,
         message: payload.message,
@@ -1143,7 +1143,7 @@ export interface UpdateProviderAddressResponse {
 export const updateProviderAddress = async (
     payload: UpdateProviderAddressRequest
 ): Promise<UpdateProviderAddressResponse> => {
-    const res = await apiClient.put(API_ENDPOINTS.PROVIDER.ADDRESS.UPDATE, payload);
+    const res = await apiClient.put(API_ENDPOINTS.PROVIDER.PROFILE.UPDATE_ADDRESS, payload);
     return res.data as UpdateProviderAddressResponse;
 };
 
@@ -1575,7 +1575,7 @@ export const createPatient = async (payload: CreatePatientRequest): Promise<Crea
 };
 
 export const updatePatient = async (payload: UpdatePatientRequest): Promise<CreatePatientResponse> => {
-    const res = await apiClient.post(API_ENDPOINTS.PROVIDER.PATIENTS.UPDATE, payload);
+    const res = await apiClient.post(API_ENDPOINTS.PROVIDER.PATIENTS.UPDATE(payload.id), payload);
     return res.data as CreatePatientResponse;
 };
 
