@@ -1787,14 +1787,31 @@ const ProviderPage = () => {
                             </div>
 
                             {/* Accreditations */}
-                            <div className="mb-8">
-                                <h4 className="text-md font-medium text-gray-900 mb-4">Accreditations</h4>
-                                <div className="space-y-2">
-                                    {providerData.practiceInfo?.accreditations.map((accreditation: string, index: number) => (
-                                        <div key={index} className="text-gray-700">{accreditation}</div>
-                                    ))}
+                            {providerData.practiceInfo?.accreditations && Array.isArray(providerData.practiceInfo.accreditations) && providerData.practiceInfo.accreditations.length > 0 && (
+                                <div className="mb-8">
+                                    <h4 className="text-md font-medium text-gray-900 mb-4">Accreditations</h4>
+                                    <div className="space-y-2">
+                                        {providerData.practiceInfo.accreditations.map((accreditation: any, index: number) => {
+                                            // Handle both string and object formats
+                                            if (typeof accreditation === 'string') {
+                                                return (
+                                                    <div key={index} className="text-gray-700">{accreditation}</div>
+                                                );
+                                            }
+                                            // Handle object format with name, issuing_body, year, _id
+                                            const name = accreditation?.name || accreditation?.accreditation_name || '';
+                                            const issuer = accreditation?.issuing_body || accreditation?.issuer || accreditation?.body || '';
+                                            const year = accreditation?.year || '';
+                                            const displayText = [name, issuer, year].filter(Boolean).join(' - ');
+                                            return (
+                                                <div key={accreditation?._id || accreditation?.id || index} className="text-gray-700">
+                                                    {displayText || 'Accreditation'}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
 
 
