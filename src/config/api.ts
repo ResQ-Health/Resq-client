@@ -204,8 +204,6 @@ export const API_ENDPOINTS = {
             CONTACT: '/api/v1/support/contact',
             TICKET: (id: string) => `/api/v1/support/ticket/${id}`,
             TICKETS: (id: string) => `/api/v1/support/tickets/${id}`,
-            GET_ALL_TICKETS: '/api/v1/support/tickets',
-            CREATE_TICKET: '/api/v1/support/tickets',
             MESSAGES: (id: string) => `/api/v1/support/messages/${id}`,
         },
     },
