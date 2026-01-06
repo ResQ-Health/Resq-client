@@ -1,25 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { AxiosError } from 'axios';
-import { apiClient, API_ENDPOINTS } from '../config/api';
-import toast from 'react-hot-toast';
+import apiClient, { API_ENDPOINTS } from '../config/api';
+import { toast } from 'react-hot-toast';
 
-// Types for the API
-export interface PersonalDetails {
-    first_name: string;
-    last_name: string;
-    date_of_birth: string;
-    gender: string;
-}
-
-export interface ContactDetails {
-    email_address: string;
-    phone_number: string;
-}
-
-export interface LocationDetails {
-    address: string;
-    city: string;
-    state: string;
+export interface FavoriteProvider {
+    provider_id: string;
+    // Add other fields as necessary
 }
 
 export interface EmergencyContact {
@@ -36,34 +21,18 @@ export interface NextOfKin {
     relationship_to_you: string;
 }
 
-export interface FavoriteProvider {
-    _id?: string;
-    id: string;
-    provider_name: string;
-    work_email?: string;
-    work_phone?: string;
-    address?: {
-        street?: string;
-        city?: string;
-        state?: string;
-        country?: string;
-        postal_code?: string;
-    };
-    services?: any[];
-    ratings?: {
-        average?: number;
-        count?: number;
-    };
-    logo?: string;
-    banner_image_url?: string;
-    [key: string]: any; // Allow other provider fields
+export interface NotificationSettings {
+    email: boolean;
+    push: boolean;
+    sms: boolean;
 }
 
 export interface Metadata {
-    emergency_contact: EmergencyContact;
-    next_of_kin: NextOfKin;
-    same_as_emergency_contact: boolean;
+    emergency_contact?: EmergencyContact;
+    next_of_kin?: NextOfKin;
+    same_as_emergency_contact?: boolean;
     favorite_providers?: FavoriteProvider[];
+    notification_settings?: NotificationSettings;
 }
 
 export interface ProfilePicture {
@@ -74,72 +43,78 @@ export interface PatientProfileData {
     id: string;
     full_name: string;
     email: string;
+    email_verified: boolean;
     phone_number: string;
     user_type: string;
-    email_verified: boolean;
-    created_at: string;
-    profile_picture: ProfilePicture;
-    personal_details: PersonalDetails;
-    contact_details: ContactDetails;
-    location_details: LocationDetails;
-}
-
-export interface PatientProfileRequest {
-    personal_details: PersonalDetails;
-    contact_details: ContactDetails;
-    location_details: LocationDetails;
-    metadata: Metadata;
+    personal_details?: any;
+    contact_details?: any;
+    location_details?: any;
+    location?: any;
+    profile_picture?: ProfilePicture | string;
 }
 
 export interface PatientProfileResponse {
     success: boolean;
+    message: string;
     data: PatientProfileData;
     metadata: Metadata;
-    message?: string;
+}
+
+export interface UpdatePatientProfileResponse {
+    success: boolean;
+    message: string;
+    data: PatientProfileData;
+    metadata: Metadata;
+}
+
+export interface PatientProfileRequest {
+    personal_details?: any;
+    contact_details?: any;
+    location_details?: any;
+    metadata?: Metadata;
 }
 
 // Appointment types
 export interface Appointment {
     id: string;
-    provider_id: string;
-    provider_name: string;
-    patient_id: string;
-    service: {
-        id: string;
-        name: string;
-        category: string;
-        price: number;
-        description?: string;
-    } | null;
-    date: string;
-    start_time: string;
-    end_time: string;
-    appointment_date: string;
-    appointment_time: string;
-    status: 'pending' | 'confirmed' | 'rejected' | 'cancelled' | 'completed' | 'no-show';
-    rating?: number;
-    notes?: string;
-    contact: {
-        name: string;
+    providerId: string;
+    providerName?: string;
+    provider_name?: string; // Add provider_name for compatibility
+    providerImage?: string;
+    serviceName: string;
+    date: string; // ISO date string
+    time: string; // Replaces start_time/end_time
+    start_time?: string; // Added for compatibility
+    end_time?: string; // Added for compatibility
+    status: 'upcoming' | 'completed' | 'cancelled' | 'pending' | 'confirmed' | 'rejected' | 'no-show'; // Added other statuses
+    amount: number;
+    paymentStatus: 'paid' | 'unpaid' | 'pending';
+    paidAt?: string;
+    location?: string;
+    bookingType?: string; // Added for compatibility
+    service?: { 
+        name: string; 
+        duration: number; 
+        price: number; 
+        category?: string; // Added category
+    }; 
+    contact?: { 
+        name?: string; // Added name to contact
+        phone: string; 
         email: string;
-        phone: string;
-        address: string;
-        gender: string;
-        dob: string;
-        bookingType?: 'Self' | 'Other' | string; // Can be nested in contact object
-        communicationPreference?: string; // Can be nested in contact object
-    };
-    bookingType?: 'Self' | 'Other' | string; // Can be at appointment level or nested
-    communicationPreference?: string; // Can be at appointment level or nested
-    payment: {
-        status?: string; // Payment status (completed, pending, etc.)
-        amount: number;
-        paidAt?: string;
-        paystackReference?: string;
-        receipt?: any;
-    };
-    created_at: string;
-    updated_at: string;
+        address?: string;
+        gender?: string;
+        dob?: string;
+        bookingType?: string;
+        communicationPreference?: string;
+    }; 
+    payment?: { 
+        amount: number; 
+        status: string; 
+        method: string; 
+        date: string; 
+        paidAt?: string; // Added paidAt to payment object
+    }; 
 }
 
 export interface PatientAppointmentsResponse {
@@ -159,6 +134,7 @@ export const getPatientProfile = async (): Promise<PatientProfileResponse> => {
     if (!data.data) {
         return {
             success: true,
+            message: 'Profile fetched successfully',
             data: {
                 id: '',
                 full_name: '',
@@ -166,7 +142,6 @@ export const getPatientProfile = async (): Promise<PatientProfileResponse> => {
                 phone_number: '',
                 user_type: '',
                 email_verified: false,
-                created_at: '',
                 profile_picture: { url: '' },
                 personal_details: {
                     first_name: '',
@@ -205,17 +180,33 @@ export const getPatientProfile = async (): Promise<PatientProfileResponse> => {
     return data;
 };
 
-export const updatePatientProfile = async (data: PatientProfileRequest): Promise<PatientProfileResponse> => {
-    const response = await apiClient.put(API_ENDPOINTS.COMMON.AUTH.ME, data);
+export const updatePatientProfile = async (data: PatientProfileRequest): Promise<UpdatePatientProfileResponse> => {
+    const response = await apiClient.put(API_ENDPOINTS.PATIENT.PROFILE.UPDATE, data);
     return response.data;
 };
 
-export const uploadProfilePicture = async (file: File): Promise<PatientProfileResponse> => {
+export const addFavoriteProvider = async (providerId: string): Promise<any> => {
+    const response = await apiClient.post(`${API_ENDPOINTS.PATIENT.FAVORITES.ADD}/${providerId}`);
+    return response.data;
+};
+
+export const removeFavoriteProvider = async (providerId: string): Promise<any> => {
+    const response = await apiClient.delete(`${API_ENDPOINTS.PATIENT.FAVORITES.REMOVE}/${providerId}`);
+    return response.data;
+};
+
+export const checkFavoriteStatus = async (providerId: string): Promise<any> => {
+    const response = await apiClient.get(`${API_ENDPOINTS.PATIENT.FAVORITES.CHECK}/${providerId}`);
+    return response.data;
+};
+
+export const uploadProfilePicture = async (file: File): Promise<any> => {
     const formData = new FormData();
     formData.append('profile_picture', file);
-
-    const response = await apiClient.put(API_ENDPOINTS.COMMON.AUTH.ME, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
+    const response = await apiClient.post(API_ENDPOINTS.PATIENT.PROFILE.UPLOAD_PICTURE, formData, {
+        headers: {
+            'Content-Type': 'multipart/form-data',
+        },
     });
     return response.data;
 };
@@ -225,31 +216,8 @@ export const getPatientAppointments = async (): Promise<PatientAppointmentsRespo
     return response.data;
 };
 
-export const deleteAppointment = async (appointmentId: string): Promise<{ success: boolean; message: string }> => {
-    const response = await apiClient.delete(API_ENDPOINTS.PATIENT.APPOINTMENTS.DELETE(appointmentId), {
-        data: { reason: 'user_request' }
-    });
-    return response.data;
-};
-
-// Favorite providers
-export interface ToggleFavoriteResponse {
-    success: boolean;
-    message: string;
-    data?: {
-        is_favorite: boolean;
-    };
-}
-
-export const toggleFavoriteProvider = async (providerId: string): Promise<ToggleFavoriteResponse> => {
-    const response = await apiClient.post(API_ENDPOINTS.PATIENT.FAVORITES.TOGGLE, {
-        provider_id: providerId
-    });
-    return response.data;
-};
-
-export const checkFavoriteStatus = async (providerId: string): Promise<{ success: boolean; data: { is_favorite: boolean } }> => {
-    const response = await apiClient.get(API_ENDPOINTS.PATIENT.FAVORITES.STATUS(providerId));
+export const deleteAppointment = async (appointmentId: string): Promise<any> => {
+    const response = await apiClient.delete(API_ENDPOINTS.PATIENT.APPOINTMENTS.DELETE(appointmentId));
     return response.data;
 };
 
@@ -292,17 +260,19 @@ export const useUpdatePatientProfile = () => {
 
             // Optimistically update to the new value
             const currentData = queryClient.getQueryData(['patientProfile']) as PatientProfileResponse | undefined;
-            queryClient.setQueryData(['patientProfile'], {
-                success: true,
-                data: {
-                    ...currentData?.data,
-                    personal_details: newProfileData.personal_details,
-                    contact_details: newProfileData.contact_details,
-                    location_details: newProfileData.location_details,
-                },
-                metadata: newProfileData.metadata,
-                message: 'Profile updated successfully!',
-            });
+            if (currentData) {
+                queryClient.setQueryData(['patientProfile'], {
+                    ...currentData,
+                    data: {
+                        ...currentData.data,
+                        personal_details: newProfileData.personal_details || currentData.data.personal_details,
+                        contact_details: newProfileData.contact_details || currentData.data.contact_details,
+                        location_details: newProfileData.location_details || currentData.data.location_details,
+                    },
+                    metadata: newProfileData.metadata || currentData.metadata,
+                    message: 'Profile updated successfully!',
+                });
+            }
 
             // Return a context object with the snapshotted value
             return { previousProfile };
@@ -312,56 +282,27 @@ export const useUpdatePatientProfile = () => {
             const storedUser = localStorage.getItem('user');
             if (storedUser) {
                 try {
-                    const currentUser = JSON.parse(storedUser);
+                    const user = JSON.parse(storedUser);
                     const updatedUser = {
-                        ...currentUser,
-                        full_name: data.data?.personal_details 
-                            ? `${data.data.personal_details.first_name || ''} ${data.data.personal_details.last_name || ''}`.trim()
-                            : currentUser.full_name,
-                        phone_number: data.data?.contact_details?.phone_number || currentUser.phone_number,
-                        email: data.data?.contact_details?.email_address || currentUser.email,
-                        profile_picture: data.data?.profile_picture || currentUser.profile_picture,
+                        ...user,
+                        full_name: data.data.full_name,
+                        // Add other fields as necessary
+                        is_onboarding_complete: true // Assuming update implies completion or maintenance of completion
                     };
                     localStorage.setItem('user', JSON.stringify(updatedUser));
-                    
-                    // Dispatch a custom event to notify AuthContext to update
-                    window.dispatchEvent(new CustomEvent('userUpdated', { detail: updatedUser }));
-                } catch (error) {
-                    console.error('Error updating user in localStorage:', error);
+                } catch (e) {
+                    console.error('Error updating local storage user', e);
                 }
             }
-
-            // Invalidate queries to ensure fresh data everywhere
-            queryClient.invalidateQueries({ queryKey: ['patientProfile'] });
             
-            // Keep the optimistic update, just show success message
-            toast.success('Profile updated successfully!');
+            queryClient.invalidateQueries({ queryKey: ['patientProfile'] });
+            queryClient.invalidateQueries({ queryKey: ['user'] });
         },
-        onError: (error: any, _newProfileData, context) => {
-            console.error('Profile update error:', error);
-
-            // If the mutation fails, use the context returned from onMutate to roll back
+        onError: (err, newTodo, context: any) => {
             if (context?.previousProfile) {
                 queryClient.setQueryData(['patientProfile'], context.previousProfile);
             }
-
-            let errorMessage = 'Failed to update profile';
-
-            if (error.response?.status === 400) {
-                errorMessage = error.response.data?.message || 'Invalid data provided';
-            } else if (error.response?.status === 401) {
-                errorMessage = 'Unauthorized. Please login again.';
-            } else if (error.response?.status === 500) {
-                errorMessage = 'Server error. Please try again later.';
-            } else if (error.code === 'NETWORK_ERROR') {
-                errorMessage = 'Network error. Please check your connection.';
-            }
-
-            toast.error(errorMessage);
-        },
-        onSettled: () => {
-            // Don't refetch - let the optimistic update stay
-            // Only refetch if there was an error to ensure data consistency
+            toast.error('Failed to update profile');
         },
     });
 };
@@ -371,59 +312,60 @@ export const useUploadProfilePicture = () => {
 
     return useMutation({
         mutationFn: uploadProfilePicture,
-        onMutate: async (newFile: File) => {
-            const previousProfile = queryClient.getQueryData(['patientProfile']);
-            const optimisticUrl = URL.createObjectURL(newFile);
-
-            // Optimistically update cached profile picture
-            const currentData = queryClient.getQueryData(['patientProfile']) as PatientProfileResponse | undefined;
-            if (currentData?.data) {
-                queryClient.setQueryData(['patientProfile'], {
-                    ...currentData,
-                    data: {
-                        ...currentData.data,
-                        profile_picture: { url: optimisticUrl },
-                    },
-                });
-            }
-
-            return { previousProfile, optimisticUrl };
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['patientProfile'] });
+            toast.success('Profile picture updated successfully');
         },
-        onSuccess: (data) => {
-            queryClient.setQueryData(['patientProfile'], data);
-            toast.success('Profile picture updated');
-        },
-        onError: (error: any, _newFile, context) => {
-            if (context?.previousProfile) {
-                queryClient.setQueryData(['patientProfile'], context.previousProfile);
-            }
+        onError: () => {
             toast.error('Failed to upload profile picture');
-            console.error('Upload error:', error);
         },
     });
 };
 
-export const usePatientAppointments = () => {
-    const isAuthenticated = !!localStorage.getItem('authToken');
+export const useAddFavoriteProvider = () => {
+    const queryClient = useQueryClient();
 
+    return useMutation({
+        mutationFn: addFavoriteProvider,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['favorites'] });
+            queryClient.invalidateQueries({ queryKey: ['patientProfile'] });
+            toast.success('Provider added to favorites');
+        },
+        onError: () => {
+            toast.error('Failed to add provider to favorites');
+        },
+    });
+};
+
+export const useRemoveFavoriteProvider = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: removeFavoriteProvider,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['favorites'] });
+            queryClient.invalidateQueries({ queryKey: ['patientProfile'] });
+            toast.success('Provider removed from favorites');
+        },
+        onError: () => {
+            toast.error('Failed to remove provider from favorites');
+        },
+    });
+};
+
+export const useCheckFavoriteStatus = (providerId: string) => {
+    return useQuery({
+        queryKey: ['favoriteStatus', providerId],
+        queryFn: () => checkFavoriteStatus(providerId),
+        enabled: !!providerId,
+    });
+};
+
+export const usePatientAppointments = () => {
     return useQuery({
         queryKey: ['patientAppointments'],
         queryFn: getPatientAppointments,
-        enabled: isAuthenticated, // Only run query if user is authenticated
-        staleTime: Infinity, // Data never becomes stale automatically - only refetch manually or on page reload
-        gcTime: 10 * 60 * 1000, // 10 minutes - keep in cache for 10 minutes
-        refetchOnWindowFocus: false, // Don't refetch on window focus
-        refetchOnMount: false, // Don't refetch on component mount if data exists
-        refetchOnReconnect: false, // Don't refetch on reconnect
-        refetchInterval: false, // Disable automatic polling
-        retry: (failureCount, error) => {
-            // Don't retry on authentication errors
-            if (error instanceof AxiosError && error.response?.status === 401) {
-                return false;
-            }
-            // Retry up to 2 times for other errors
-            return failureCount < 2;
-        },
     });
 };
 
@@ -433,67 +375,11 @@ export const useDeleteAppointment = () => {
     return useMutation({
         mutationFn: deleteAppointment,
         onSuccess: () => {
-            // Invalidate and refetch appointments to get updated data
             queryClient.invalidateQueries({ queryKey: ['patientAppointments'] });
             toast.success('Appointment deleted successfully');
         },
-        onError: (error: any) => {
-            console.error('Delete appointment error:', error);
-
-            let errorMessage = 'Failed to delete appointment';
-
-            if (error.response?.status === 400) {
-                errorMessage = error.response.data?.message || 'Invalid request';
-            } else if (error.response?.status === 401) {
-                errorMessage = 'Unauthorized. Please login again.';
-            } else if (error.response?.status === 404) {
-                errorMessage = 'Appointment not found';
-            } else if (error.response?.status === 500) {
-                errorMessage = 'Server error. Please try again later.';
-            } else if (error.code === 'NETWORK_ERROR') {
-                errorMessage = 'Network error. Please check your connection.';
-            }
-
-            toast.error(errorMessage);
+        onError: () => {
+            toast.error('Failed to delete appointment');
         },
-    });
-};
-
-export const useToggleFavoriteProvider = () => {
-    return useMutation({
-        mutationFn: toggleFavoriteProvider,
-        onSuccess: (data) => {
-            // Don't show toast for instant updates - just log success
-            console.log('Favorite toggled successfully:', data.message);
-        },
-        onError: (error: any) => {
-            console.error('Toggle favorite error:', error);
-
-            let errorMessage = 'Failed to update favorite status';
-
-            if (error.response?.status === 400) {
-                errorMessage = error.response.data?.message || 'Invalid request';
-            } else if (error.response?.status === 401) {
-                errorMessage = 'Unauthorized. Please login again.';
-            } else if (error.response?.status === 404) {
-                errorMessage = 'Provider not found';
-            } else if (error.response?.status === 500) {
-                errorMessage = 'Server error. Please try again later.';
-            } else if (error.code === 'NETWORK_ERROR') {
-                errorMessage = 'Network error. Please check your connection.';
-            }
-
-            toast.error(errorMessage);
-        },
-    });
-};
-
-export const useFavoriteStatus = (providerId: string | undefined) => {
-    return useQuery({
-        queryKey: ['favoriteStatus', providerId],
-        queryFn: () => checkFavoriteStatus(providerId!),
-        enabled: !!providerId && !!localStorage.getItem('authToken'),
-        staleTime: 5 * 60 * 1000, // 5 minutes
-        gcTime: 10 * 60 * 1000, // 10 minutes
     });
 };

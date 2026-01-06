@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import HospitalCard from '../../components/HospitalCard';
-import { usePatientProfile, useToggleFavoriteProvider } from '../../services/userService';
+import { usePatientProfile, useAddFavoriteProvider, useRemoveFavoriteProvider } from '../../services/userService';
 import { Hospital } from '../../data/hospitals';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { MdFavorite } from 'react-icons/md';
@@ -10,7 +10,7 @@ import { useQueryClient } from '@tanstack/react-query';
 
 export default function FavouritesPage() {
     const { data: profileData, isLoading, error } = usePatientProfile();
-    const toggleFavoriteMutation = useToggleFavoriteProvider();
+    const removeFavoriteMutation = useRemoveFavoriteProvider();
     const queryClient = useQueryClient();
 
     // Transform favorite providers from API to Hospital format
@@ -49,15 +49,16 @@ export default function FavouritesPage() {
     }, [profileData]);
 
     const handleRemoveFavorite = (providerId: string, providerName: string) => {
-        toggleFavoriteMutation.mutateAsync(providerId)
-            .then(() => {
+        removeFavoriteMutation.mutate(providerId, {
+            onSuccess: () => {
                 toast.success(`${providerName} removed from favorites`);
                 // Invalidate the patient profile query to refresh the list
                 queryClient.invalidateQueries({ queryKey: ['patientProfile'] });
-            })
-            .catch(() => {
+            },
+            onError: () => {
                 toast.error(`Failed to remove ${providerName} from favorites`);
-            });
+            }
+        });
     };
 
     if (isLoading) {
@@ -66,58 +67,63 @@ export default function FavouritesPage() {
 
     if (error) {
         return (
-            <div className="w-full py-12 flex flex-col items-center justify-center text-center">
-                <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mb-4">
-                    <MdFavorite className="w-8 h-8 text-red-500" />
-                </div>
-                <h2 className="text-xl font-semibold text-gray-900 mb-2">Failed to load favorites</h2>
-                <p className="text-gray-500 mb-6">Please try refreshing the page.</p>
+            <div className="flex flex-col items-center justify-center h-[50vh]">
+                <p className="text-red-500 mb-4">Error loading favorites</p>
                 <button
                     onClick={() => window.location.reload()}
-                    className="px-4 py-2 bg-[#16202E] text-white rounded-lg hover:bg-[#0F1C26] transition-colors"
+                    className="text-[#06202E] underline"
                 >
-                    Refresh Page
+                    Retry
                 </button>
             </div>
         );
     }
 
     return (
-        <div className="w-full pb-12">
-            {/* Header Section */}
-            <div className="mb-8">
-                <h1 className="text-2xl md:text-3xl font-bold text-[#16202E] tracking-tight">My favourites</h1>
-                <p className="text-gray-500 mt-1">Your favorite healthcare providers</p>
-            </div>
+        <div className="min-h-screen bg-[#F6F8FA] pb-20">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <div className="flex items-center gap-3 mb-8">
+                    <MdFavorite className="w-8 h-8 text-[#06202E]" />
+                    <h1 className="text-2xl font-bold text-[#06202E]">My Favourites</h1>
+                </div>
 
-            {favoriteHospitals.length === 0 ? (
-                <div className="w-full py-20 flex flex-col items-center justify-center text-center bg-white rounded-2xl border border-gray-100 border-dashed">
-                    <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mb-4">
-                        <MdFavorite className="w-8 h-8 text-gray-300" />
+                {favoriteHospitals.length === 0 ? (
+                    <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-12 text-center">
+                        <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <MdFavorite className="w-8 h-8 text-gray-300" />
+                        </div>
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">No favorites yet</h3>
+                        <p className="text-gray-500 mb-6 max-w-md mx-auto">
+                            Save providers you like to access them quickly later. Browse providers to start building your list.
+                        </p>
+                        <Link
+                            to="/search"
+                            className="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-[#06202E] hover:bg-[#0a2e42] transition-colors"
+                        >
+                            Find Providers
+                        </Link>
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-900 mb-1">No favorites yet</h3>
-                    <p className="text-gray-500 max-w-sm mb-6">
-                        Start exploring healthcare providers and add them to your favorites for quick access.
-                    </p>
-                    <Link
-                        to="/search"
-                        className="px-6 py-2.5 bg-[#16202E] text-white font-medium rounded-lg hover:bg-[#0F1C26] transition-colors shadow-sm"
-                    >
-                        Find Providers
-                    </Link>
-                </div>
-            ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {favoriteHospitals.map((hospital) => (
-                        <HospitalCard
-                            key={hospital.id}
-                            hospital={hospital}
-                            variant="horizontal"
-                            onRemove={() => handleRemoveFavorite(hospital.id, hospital.name)}
-                        />
-                    ))}
-                </div>
-            )}
+                ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        {favoriteHospitals.map((hospital) => (
+                            <div key={hospital.id} className="relative group">
+                                <HospitalCard hospital={hospital} />
+                                <button
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        handleRemoveFavorite(hospital.id, hospital.name);
+                                    }}
+                                    className="absolute top-3 right-3 p-2 bg-white rounded-full shadow-md text-red-500 hover:bg-red-50 transition-colors z-10"
+                                    title="Remove from favorites"
+                                >
+                                    <MdFavorite className="w-5 h-5" />
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
         </div>
     );
 }

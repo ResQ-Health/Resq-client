@@ -273,8 +273,11 @@ export default function Myaccount() {
       }
       
       // Ensure profile image from API displays when available
-      if (data.profile_picture?.url) {
-        setProfileImage(data.profile_picture.url);
+      if (data.profile_picture) {
+        const url = typeof data.profile_picture === 'string' 
+          ? data.profile_picture 
+          : data.profile_picture.url;
+        if (url) setProfileImage(url);
       }
       
       // Map API response to form fields
@@ -443,7 +446,9 @@ export default function Myaccount() {
               : user.full_name,
             phone_number: responseData.data.contact_details?.phone_number || user.phone_number,
             email: responseData.data.contact_details?.email_address || user.email,
-            profile_picture: responseData.data.profile_picture || user.profile_picture,
+            profile_picture: typeof responseData.data.profile_picture === 'string'
+              ? { url: responseData.data.profile_picture }
+              : responseData.data.profile_picture || user.profile_picture,
           };
           updateUser(updatedUserData);
         }
