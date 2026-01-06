@@ -20,8 +20,6 @@ import {
   useUpdateProviderNotificationSettings,
   useUpdateProviderWorkingHours,
   useUpdateProviderFullProfile,
-  useUpdateProviderAutoConfirm,
-  useProviderAutoConfirm,
 } from '../../services/providerService';
 import toast from 'react-hot-toast';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
@@ -362,7 +360,6 @@ const ProviderSettingsPage: React.FC = () => {
     'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday'
   >('Monday');
   const [bookingPolicies, setBookingPolicies] = useState('');
-  const [autoConfirmAppointments, setAutoConfirmAppointments] = useState(false);
 
   // Team access (UI-only for now)
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>(TEAM_MEMBERS_MOCK);
@@ -389,8 +386,6 @@ const ProviderSettingsPage: React.FC = () => {
   const updateAddressMutation = useUpdateProviderAddress();
   const updateNotificationSettingsMutation = useUpdateProviderNotificationSettings();
   const updateWorkingHoursMutation = useUpdateProviderWorkingHours();
-  const updateAutoConfirmMutation = useUpdateProviderAutoConfirm();
-  const autoConfirmQuery = useProviderAutoConfirm();
 
   const countriesQuery = useCountries();
   const statesQuery = useStates({ country: countryVal || 'Nigeria' });
@@ -673,13 +668,6 @@ const ProviderSettingsPage: React.FC = () => {
     // Note: Team access currently uses mock data in this UI.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [providerProfileQuery.data, initialFields]);
-
-  // Initialize auto confirm setting from API
-  useEffect(() => {
-    if (autoConfirmQuery.data?.data?.auto_confirm_appointments !== undefined) {
-      setAutoConfirmAppointments(autoConfirmQuery.data.data.auto_confirm_appointments);
-    }
-  }, [autoConfirmQuery.data]);
 
   const bannerPreviewUrl = useMemo(() => {
     if (bannerImageFile) return URL.createObjectURL(bannerImageFile);
@@ -1523,6 +1511,17 @@ const ProviderSettingsPage: React.FC = () => {
                 <div className="text-xs text-gray-500">
                   Accreditations are saved when you click <span className="font-semibold text-[#16202E]">Save</span>.
                 </div>
+
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={handleSaveProviderProfile}
+                    disabled={isSaving || !canSaveByCompletion}
+                    className="bg-[#06202E] text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-[#0a2e42] transition-colors disabled:opacity-70 disabled:cursor-not-allowed"
+                  >
+                    {isSaving ? 'Saving…' : 'Save'}
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1870,39 +1869,6 @@ const ProviderSettingsPage: React.FC = () => {
             </p>
 
             <div className="space-y-6">
-              {/* Auto Confirm Appointments */}
-              <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] items-center gap-6">
-                <div>
-                  <p className="text-sm font-semibold text-[#16202E] mb-1">Auto Confirm Appointments</p>
-                  <p className="text-sm text-gray-500">
-                    Automatically confirm appointments without manual approval
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const newValue = !autoConfirmAppointments;
-                    setAutoConfirmAppointments(newValue);
-                    updateAutoConfirmMutation.mutate({
-                      auto_confirm_appointments: newValue,
-                    });
-                  }}
-                  disabled={updateAutoConfirmMutation.isPending}
-                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-[#06202E] focus:ring-offset-2 ${
-                    autoConfirmAppointments ? 'bg-[#06202E]' : 'bg-gray-200'
-                  } ${updateAutoConfirmMutation.isPending ? 'opacity-50 cursor-not-allowed' : ''}`}
-                  role="switch"
-                  aria-checked={autoConfirmAppointments}
-                  aria-label="Auto confirm appointments"
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                      autoConfirmAppointments ? 'translate-x-5' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
-              </div>
-
               {/* Scheduling Window */}
               <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] items-center gap-6">
                 <div>

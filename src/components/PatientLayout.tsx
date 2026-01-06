@@ -18,7 +18,7 @@ interface PatientLayoutProps {
 export default function PatientLayout({ children }: PatientLayoutProps) {
     const location = useLocation();
     const navigate = useNavigate();
-    const navRefs = useRef<(HTMLAnchorElement | null)[]>([]);
+    const navRefs = useRef<(HTMLAnchorElement | HTMLButtonElement | null)[]>([]);
     const { data: profileData } = usePatientProfile();
     const [sliderStyle, setSliderStyle] = useState({
         left: '0px',
@@ -66,8 +66,13 @@ export default function PatientLayout({ children }: PatientLayoutProps) {
     };
 
     const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, path: string) => {
-        // Allow navigation to my-account even if onboarding not complete
-        if (path.includes('/my-account') || path.includes('/Myaccount')) {
+        // Allow navigation to my-account and settings even if onboarding not complete
+        if (path.includes('/my-account') || path.includes('/Myaccount') || path.includes('/settings')) {
+            // Explicitly navigate to ensure it works
+            if (path.includes('/settings')) {
+                e.preventDefault();
+                navigate('/patient/settings');
+            }
             return;
         }
 
@@ -114,8 +119,33 @@ export default function PatientLayout({ children }: PatientLayoutProps) {
                 <div className="flex gap-12 relative">
                     {NAV_ITEMS.map((item, index) => {
                         const isMyAccount = item.path.includes('/my-account') || item.path.includes('/Myaccount');
-                        const isDisabled = !onboardingComplete && !isMyAccount;
-                        
+                        const isSettings = item.path.includes('/settings');
+                        const isDisabled = !onboardingComplete && !isMyAccount && !isSettings;
+
+                        // For Settings, always allow navigation - use button to avoid Link issues
+                        if (isSettings) {
+                            return (
+                                <button
+                                    key={item.label}
+                                    type="button"
+                                    onClick={() => {
+                                        navigate('/patient/settings', { replace: false });
+                                    }}
+                                    className="flex flex-col items-center cursor-pointer bg-transparent border-none p-0"
+                                    ref={(el) => { navRefs.current[index] = el; }}
+                                >
+                                    <span
+                                        className={`flex items-center gap-2 ${isItemActive(item)
+                                            ? 'text-[#16202E] font-semibold'
+                                            : 'text-gray-400 font-normal'
+                                            }`}
+                                    >
+                                        {item.icon}{item.label}
+                                    </span>
+                                </button>
+                            );
+                        }
+
                         return (
                             <Link
                                 key={item.label}
@@ -125,13 +155,12 @@ export default function PatientLayout({ children }: PatientLayoutProps) {
                                 ref={(el) => { navRefs.current[index] = el; }}
                             >
                                 <span
-                                    className={`flex items-center gap-2 ${
-                                        isItemActive(item) 
-                                            ? 'text-[#16202E] font-semibold' 
-                                            : isDisabled
+                                    className={`flex items-center gap-2 ${isItemActive(item)
+                                        ? 'text-[#16202E] font-semibold'
+                                        : isDisabled
                                             ? 'text-gray-300 font-normal'
                                             : 'text-gray-400 font-normal'
-                                    }`}
+                                        }`}
                                     title={isDisabled ? 'Complete your profile to access this page' : ''}
                                 >
                                     {item.icon}{item.label}

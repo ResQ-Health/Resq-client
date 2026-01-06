@@ -57,6 +57,16 @@ export interface ResetPasswordResponse {
     };
 }
 
+export interface ChangePasswordRequest {
+    oldPassword?: string;
+    newPassword: string;
+}
+
+export interface ChangePasswordResponse {
+    success: boolean;
+    message?: string;
+}
+
 export interface RegisterResponse {
     success: boolean;
     message: string;
@@ -266,6 +276,25 @@ export const resetPassword = async (data: ResetPasswordRequest): Promise<ResetPa
         return response.data;
     } catch (error: any) {
         console.error('Reset password error details:', {
+            message: error.message,
+            code: error.code,
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            response: error.response?.data,
+            isNetworkError: !error.response,
+        });
+
+        // Re-throw the error for React Query to handle
+        throw error;
+    }
+};
+
+export const changePassword = async (data: ChangePasswordRequest): Promise<ChangePasswordResponse> => {
+    try {
+        const response = await apiClient.post(API_ENDPOINTS.COMMON.AUTH.CHANGE_PASSWORD, data);
+        return response.data;
+    } catch (error: any) {
+        console.error('Change password error details:', {
             message: error.message,
             code: error.code,
             status: error.response?.status,
@@ -552,6 +581,34 @@ export const useResetPassword = () => {
     });
 };
 
+export const useChangePassword = () => {
+    return useMutation({
+        mutationFn: changePassword,
+        onSuccess: () => {
+            toast.success('Password changed successfully!');
+        },
+        onError: (error: any) => {
+            console.error('Change password mutation error:', error);
+
+            let errorMessage = 'Failed to change password. Please check your old password and try again.';
+
+            if (error.code === 'ERR_NETWORK') {
+                errorMessage = 'Network error: Unable to connect to the server. Please check your internet connection and try again.';
+            } else if (error.code === 'ECONNABORTED') {
+                errorMessage = 'Request timeout: The server is taking too long to respond. Please try again.';
+            } else if (error.response?.data?.message) {
+                errorMessage = error.response.data.message;
+            } else if (error.response?.data?.error) {
+                errorMessage = error.response.data.error;
+            } else if (error.message) {
+                errorMessage = error.message;
+            }
+
+            toast.error(errorMessage);
+        },
+    });
+};
+
 export const useOAuthLogin = () => {
     const queryClient = useQueryClient();
 
@@ -591,6 +648,38 @@ export const useOAuthLogin = () => {
             }
 
             toast.error(errorMessage);
+        },
+    });
+};
+
+export const deleteAccount = async (): Promise<{ success: boolean; message: string }> => {
+    try {
+        const response = await apiClient.delete(API_ENDPOINTS.COMMON.AUTH.ME);
+        return response.data;
+    } catch (error: any) {
+        console.error('Delete account error details:', {
+            message: error.message,
+            code: error.code,
+            status: error.response?.status,
+            response: error.response?.data,
+        });
+        throw error;
+    }
+};
+
+export const useDeleteAccount = () => {
+    return useMutation({
+        mutationFn: deleteAccount,
+        onSuccess: () => {
+            // Clear storage and redirect
+            localStorage.removeItem('authToken');
+            localStorage.removeItem('user');
+            window.location.href = '/';
+            toast.success('Account deleted successfully');
+        },
+        onError: (error: any) => {
+            console.error('Delete account mutation error:', error);
+            toast.error(error.response?.data?.message || 'Failed to delete account');
         },
     });
 };

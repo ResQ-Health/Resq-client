@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import apiClient, { API_ENDPOINTS } from '../config/api';
+import { apiClient, API_ENDPOINTS } from '../config/api';
 import { toast } from 'react-hot-toast';
 
 export interface FavoriteProvider {
@@ -181,29 +181,26 @@ export const getPatientProfile = async (): Promise<PatientProfileResponse> => {
 };
 
 export const updatePatientProfile = async (data: PatientProfileRequest): Promise<UpdatePatientProfileResponse> => {
-    const response = await apiClient.put(API_ENDPOINTS.PATIENT.PROFILE.UPDATE, data);
+    const response = await apiClient.put(API_ENDPOINTS.COMMON.AUTH.ME, data);
     return response.data;
 };
 
-export const addFavoriteProvider = async (providerId: string): Promise<any> => {
-    const response = await apiClient.post(`${API_ENDPOINTS.PATIENT.FAVORITES.ADD}/${providerId}`);
-    return response.data;
-};
-
-export const removeFavoriteProvider = async (providerId: string): Promise<any> => {
-    const response = await apiClient.delete(`${API_ENDPOINTS.PATIENT.FAVORITES.REMOVE}/${providerId}`);
+export const toggleFavoriteProvider = async (providerId: string): Promise<any> => {
+    const response = await apiClient.post(API_ENDPOINTS.PATIENT.FAVORITES.TOGGLE, {
+        provider_id: providerId
+    });
     return response.data;
 };
 
 export const checkFavoriteStatus = async (providerId: string): Promise<any> => {
-    const response = await apiClient.get(`${API_ENDPOINTS.PATIENT.FAVORITES.CHECK}/${providerId}`);
+    const response = await apiClient.get(API_ENDPOINTS.PATIENT.FAVORITES.STATUS(providerId));
     return response.data;
 };
 
 export const uploadProfilePicture = async (file: File): Promise<any> => {
     const formData = new FormData();
     formData.append('profile_picture', file);
-    const response = await apiClient.post(API_ENDPOINTS.PATIENT.PROFILE.UPLOAD_PICTURE, formData, {
+    const response = await apiClient.put(API_ENDPOINTS.COMMON.AUTH.ME, formData, {
         headers: {
             'Content-Type': 'multipart/form-data',
         },
@@ -322,43 +319,29 @@ export const useUploadProfilePicture = () => {
     });
 };
 
-export const useAddFavoriteProvider = () => {
+export const useToggleFavoriteProvider = () => {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: addFavoriteProvider,
+        mutationFn: toggleFavoriteProvider,
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['favorites'] });
+            queryClient.invalidateQueries({ queryKey: ['favoriteStatus'] });
             queryClient.invalidateQueries({ queryKey: ['patientProfile'] });
-            toast.success('Provider added to favorites');
+            queryClient.invalidateQueries({ queryKey: ['favorites'] });
         },
         onError: () => {
-            toast.error('Failed to add provider to favorites');
+            toast.error('Failed to update favorite status');
         },
     });
 };
 
-export const useRemoveFavoriteProvider = () => {
-    const queryClient = useQueryClient();
-
-    return useMutation({
-        mutationFn: removeFavoriteProvider,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['favorites'] });
-            queryClient.invalidateQueries({ queryKey: ['patientProfile'] });
-            toast.success('Provider removed from favorites');
-        },
-        onError: () => {
-            toast.error('Failed to remove provider from favorites');
-        },
-    });
-};
-
-export const useCheckFavoriteStatus = (providerId: string) => {
+export const useFavoriteStatus = (providerId: string | undefined) => {
     return useQuery({
         queryKey: ['favoriteStatus', providerId],
-        queryFn: () => checkFavoriteStatus(providerId),
-        enabled: !!providerId,
+        queryFn: () => checkFavoriteStatus(providerId!),
+        enabled: !!providerId && !!localStorage.getItem('authToken'),
+        staleTime: 5 * 60 * 1000, // 5 minutes
+        gcTime: 10 * 60 * 1000, // 10 minutes
     });
 };
 

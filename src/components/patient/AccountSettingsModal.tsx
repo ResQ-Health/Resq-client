@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { FiX, FiEye, FiEyeOff } from 'react-icons/fi';
+import { FiX, FiEye, FiEyeOff, FiLock } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
+import { useChangePassword } from '../../services/authService';
+import { toast } from 'react-hot-toast';
 
 interface AccountSettingsModalProps {
     isOpen: boolean;
@@ -9,48 +10,56 @@ interface AccountSettingsModalProps {
 }
 
 const AccountSettingsModal: React.FC<AccountSettingsModalProps> = ({ isOpen, onClose }) => {
-    const navigate = useNavigate();
-    const [passwords, setPasswords] = useState({
+    const changePasswordMutation = useChangePassword();
+    
+    const [formData, setFormData] = useState({
         oldPassword: '',
         newPassword: '',
         confirmPassword: ''
     });
 
-    const [showPasswords, setShowPasswords] = useState({
-        oldPassword: false,
-        newPassword: false,
-        confirmPassword: false
+    const [showPassword, setShowPassword] = useState({
+        old: false,
+        new: false,
+        confirm: false
     });
 
-    const handlePasswordChange = (field: keyof typeof passwords, value: string) => {
-        setPasswords(prev => ({
-            ...prev,
-            [field]: value
-        }));
+    const toggleShow = (field: keyof typeof showPassword) => {
+        setShowPassword(prev => ({ ...prev, [field]: !prev[field] }));
     };
 
-    const togglePasswordVisibility = (field: keyof typeof showPasswords) => {
-        setShowPasswords(prev => ({
-            ...prev,
-            [field]: !prev[field]
-        }));
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
     };
 
-    const handleEditProfile = () => {
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        
+        if (formData.newPassword !== formData.confirmPassword) {
+            toast.error('New passwords do not match');
+            return;
+        }
+
+        if (formData.newPassword.length < 8) {
+            toast.error('Password must be at least 8 characters');
+            return;
+        }
+
+        changePasswordMutation.mutate({
+            oldPassword: formData.oldPassword,
+            newPassword: formData.newPassword
+        }, {
+            onSuccess: () => {
+                setFormData({ oldPassword: '', newPassword: '', confirmPassword: '' });
         onClose();
-        navigate('/patient/my-account');
-    };
-
-    const handleSave = () => {
-        // Save account settings logic here
-        onClose();
+            }
+        });
     };
 
     return (
         <AnimatePresence>
             {isOpen && (
                 <>
-                    {/* Backdrop */}
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -59,142 +68,125 @@ const AccountSettingsModal: React.FC<AccountSettingsModalProps> = ({ isOpen, onC
                         onClick={onClose}
                     />
 
-                    {/* Sidebar */}
                     <motion.div
                         initial={{ x: '100%' }}
                         animate={{ x: 0 }}
                         exit={{ x: '100%' }}
                         transition={{ duration: 0.3, ease: "easeOut" }}
-                        className="fixed top-4 right-4 h-[calc(100vh-2rem)] w-full max-w-md bg-white shadow-2xl z-50 rounded-lg"
+                        className="fixed top-0 right-0 h-full w-full max-w-md bg-white shadow-2xl z-50 overflow-y-auto"
                     >
-                        {/* Header */}
-                        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-                            <h2 className="text-xl font-bold text-gray-900">Account Settings</h2>
-                            <button
-                                onClick={onClose}
-                                className="text-gray-400 hover:text-gray-600 transition-colors"
-                            >
-                                <FiX className="w-6 h-6" />
-                            </button>
-                        </div>
-
-                        {/* Content */}
-                        <div className="p-6 space-y-6">
-                            {/* Edit Profile Section */}
-                            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                        <div className="flex flex-col h-full">
+                            <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-white sticky top-0 z-10">
                                 <div>
-                                    <h3 className="font-semibold text-gray-900">Edit Profile</h3>
-                                    <p className="text-sm text-gray-600">Update your personal information</p>
+                                    <h2 className="text-xl font-bold text-[#06202E]">Change Password</h2>
+                                    <p className="text-sm text-gray-500 mt-1">Update your login credentials</p>
                                 </div>
                                 <button
-                                    onClick={handleEditProfile}
-                                    className="px-4 py-2 text-gray-600 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors text-sm"
+                                    onClick={onClose}
+                                    className="p-2 hover:bg-gray-100 rounded-full transition-colors"
                                 >
-                                    Edit
+                                    <FiX className="w-5 h-5 text-gray-500" />
                                 </button>
                             </div>
 
-                            {/* Change Password Section */}
-                            <div className="space-y-4">
-                                <h3 className="font-semibold text-gray-900">Change password</h3>
+                            <div className="flex-1 p-6">
+                                <form onSubmit={handleSubmit} className="space-y-6">
+                                    <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100 flex gap-3">
+                                        <FiLock className="w-5 h-5 text-[#06202E] mt-0.5 flex-shrink-0" />
+                                        <div className="text-sm text-gray-600">
+                                            Choose a strong password with at least 8 characters.
+                                        </div>
+                                    </div>
 
-                                {/* Old Password */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Input old password
-                                    </label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Current Password</label>
                                     <div className="relative">
                                         <input
-                                            type={showPasswords.oldPassword ? "text" : "password"}
-                                            value={passwords.oldPassword}
-                                            onChange={(e) => handlePasswordChange('oldPassword', e.target.value)}
-                                            placeholder="Enter your old password"
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#06202E]/20 focus:border-[#06202E] pr-10"
+                                                type={showPassword.old ? "text" : "password"}
+                                                name="oldPassword"
+                                                value={formData.oldPassword}
+                                                onChange={handleChange}
+                                                className="w-full pl-4 pr-12 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#06202E]/10 focus:border-[#06202E] transition-all outline-none"
+                                                placeholder="Enter current password"
+                                                required
                                         />
                                         <button
                                             type="button"
-                                            onClick={() => togglePasswordVisibility('oldPassword')}
-                                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                                onClick={() => toggleShow('old')}
+                                                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                                         >
-                                            {showPasswords.oldPassword ? (
-                                                <FiEyeOff className="w-4 h-4" />
-                                            ) : (
-                                                <FiEye className="w-4 h-4" />
-                                            )}
+                                                {showPassword.old ? <FiEyeOff /> : <FiEye />}
                                         </button>
                                     </div>
                                 </div>
 
-                                {/* New Password */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Input new password
-                                    </label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">New Password</label>
                                     <div className="relative">
                                         <input
-                                            type={showPasswords.newPassword ? "text" : "password"}
-                                            value={passwords.newPassword}
-                                            onChange={(e) => handlePasswordChange('newPassword', e.target.value)}
-                                            placeholder="Enter your new password"
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#06202E]/20 focus:border-[#06202E] pr-10"
+                                                type={showPassword.new ? "text" : "password"}
+                                                name="newPassword"
+                                                value={formData.newPassword}
+                                                onChange={handleChange}
+                                                className="w-full pl-4 pr-12 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#06202E]/10 focus:border-[#06202E] transition-all outline-none"
+                                                placeholder="Enter new password"
+                                                required
+                                                minLength={8}
                                         />
                                         <button
                                             type="button"
-                                            onClick={() => togglePasswordVisibility('newPassword')}
-                                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                                onClick={() => toggleShow('new')}
+                                                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                                         >
-                                            {showPasswords.newPassword ? (
-                                                <FiEyeOff className="w-4 h-4" />
-                                            ) : (
-                                                <FiEye className="w-4 h-4" />
-                                            )}
+                                                {showPassword.new ? <FiEyeOff /> : <FiEye />}
                                         </button>
                                     </div>
                                 </div>
 
-                                {/* Confirm New Password */}
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Confirm new password
-                                    </label>
+                                        <label className="block text-sm font-medium text-gray-700 mb-2">Confirm New Password</label>
                                     <div className="relative">
                                         <input
-                                            type={showPasswords.confirmPassword ? "text" : "password"}
-                                            value={passwords.confirmPassword}
-                                            onChange={(e) => handlePasswordChange('confirmPassword', e.target.value)}
-                                            placeholder="Confirm your new password"
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#06202E]/20 focus:border-[#06202E] pr-10"
+                                                type={showPassword.confirm ? "text" : "password"}
+                                                name="confirmPassword"
+                                                value={formData.confirmPassword}
+                                                onChange={handleChange}
+                                                className="w-full pl-4 pr-12 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#06202E]/10 focus:border-[#06202E] transition-all outline-none"
+                                                placeholder="Confirm new password"
+                                                required
+                                                minLength={8}
                                         />
                                         <button
                                             type="button"
-                                            onClick={() => togglePasswordVisibility('confirmPassword')}
-                                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                                onClick={() => toggleShow('confirm')}
+                                                className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                                         >
-                                            {showPasswords.confirmPassword ? (
-                                                <FiEyeOff className="w-4 h-4" />
-                                            ) : (
-                                                <FiEye className="w-4 h-4" />
-                                            )}
+                                                {showPassword.confirm ? <FiEyeOff /> : <FiEye />}
                                         </button>
                                     </div>
                                 </div>
-                            </div>
+                                </form>
                         </div>
 
-                        {/* Footer */}
-                        <div className="absolute bottom-0 left-0 right-0 flex items-center justify-end space-x-3 p-6 border-t border-gray-200 bg-white">
+                            <div className="p-6 border-t border-gray-100 bg-gray-50 flex items-center justify-end space-x-3">
                             <button
                                 onClick={onClose}
-                                className="px-4 py-2 text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                                    className="px-6 py-2.5 text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium text-sm"
+                                    disabled={changePasswordMutation.isPending}
                             >
                                 Cancel
                             </button>
                             <button
-                                onClick={handleSave}
-                                className="px-4 py-2 text-white bg-[#06202E] rounded-lg hover:bg-[#06202E]/90 transition-colors"
+                                    onClick={handleSubmit}
+                                    className="px-6 py-2.5 text-white bg-[#06202E] rounded-lg hover:bg-[#0a2e42] transition-colors font-medium text-sm flex items-center justify-center min-w-[140px]"
+                                    disabled={changePasswordMutation.isPending}
                             >
-                                Save
+                                    {changePasswordMutation.isPending ? (
+                                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                                    ) : null}
+                                    Change Password
                             </button>
+                            </div>
                         </div>
                     </motion.div>
                 </>

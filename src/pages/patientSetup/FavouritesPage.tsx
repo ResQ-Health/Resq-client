@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import HospitalCard from '../../components/HospitalCard';
-import { usePatientProfile, useAddFavoriteProvider, useRemoveFavoriteProvider } from '../../services/userService';
+import { usePatientProfile, useToggleFavoriteProvider } from '../../services/userService';
 import { Hospital } from '../../data/hospitals';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
 import { MdFavorite } from 'react-icons/md';
@@ -10,7 +10,7 @@ import { useQueryClient } from '@tanstack/react-query';
 
 export default function FavouritesPage() {
     const { data: profileData, isLoading, error } = usePatientProfile();
-    const removeFavoriteMutation = useRemoveFavoriteProvider();
+    const toggleFavoriteMutation = useToggleFavoriteProvider();
     const queryClient = useQueryClient();
 
     // Transform favorite providers from API to Hospital format
@@ -49,7 +49,7 @@ export default function FavouritesPage() {
     }, [profileData]);
 
     const handleRemoveFavorite = (providerId: string, providerName: string) => {
-        removeFavoriteMutation.mutate(providerId, {
+        toggleFavoriteMutation.mutate(providerId, {
             onSuccess: () => {
                 toast.success(`${providerName} removed from favorites`);
                 // Invalidate the patient profile query to refresh the list

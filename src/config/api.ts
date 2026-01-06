@@ -19,9 +19,27 @@ apiClient.interceptors.request.use(
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
         }
+
+        // Debug logging in development (excluding sensitive headers)
+        if (import.meta.env.DEV) {
+            const safeHeaders = { ...config.headers };
+            // Redact Authorization header for security
+            if (safeHeaders.Authorization) {
+                safeHeaders.Authorization = 'Bearer [REDACTED]';
+            }
+            console.log('API Request:', {
+                method: config.method,
+                url: config.url,
+                baseURL: config.baseURL,
+                fullURL: `${config.baseURL}${config.url}`,
+                headers: safeHeaders,
+            });
+        }
+
         return config;
     },
     (error) => {
+        console.error('Request interceptor error:', error);
         return Promise.reject(error);
     }
 );
@@ -100,10 +118,6 @@ export const API_ENDPOINTS = {
             REGISTER: '/api/v1/auth/register',
             LOGIN: '/api/v1/auth/login',
         },
-        PROFILE: {
-            UPDATE: '/api/v1/auth/profile',
-            UPLOAD_PICTURE: '/api/v1/auth/profile/picture',
-        },
         APPOINTMENTS: {
             GET_ALL: '/api/v1/appointments/patient',
             BOOK: '/api/v1/appointments/book',
@@ -117,12 +131,12 @@ export const API_ENDPOINTS = {
             },
         },
         PAYMENTS: {
-            INITIALIZE: '/api/v1/payments/initialize',
+            INITIALIZE: '/api/v1/payments/initialize', // For booking payments
             RECEIPT: (id: string) => `/api/v1/payments/receipt/${id}`,
             SEND_RECEIPT: '/api/v1/payments/receipt/send',
             METHODS: {
                 GET_ALL: '/api/v1/payments/methods',
-                INITIALIZE: '/api/v1/payments/methods/initialize',
+                INITIALIZE: '/api/v1/payments/methods/initialize', // For saving cards
                 VERIFY: '/api/v1/payments/methods/verify',
             }
         },
@@ -134,9 +148,6 @@ export const API_ENDPOINTS = {
         FAVORITES: {
             TOGGLE: '/api/v1/auth/favorites/providers/toggle',
             STATUS: (id: string) => `/api/v1/auth/favorites/providers/${id}/status`,
-            ADD: '/api/v1/auth/favorites/providers',
-            REMOVE: '/api/v1/auth/favorites/providers',
-            CHECK: '/api/v1/auth/favorites/providers/check',
         }
     },
 
@@ -146,67 +157,51 @@ export const API_ENDPOINTS = {
             REGISTER: '/api/v1/providers/register',
             LOGIN: '/api/v1/auth/provider/login',
         },
-        PROFILE: {
-            ME: '/api/v1/providers/me',
-            UPDATE: '/api/v1/providers/profile',
-            ADDRESS: '/api/v1/providers/profile/address',
-            UPDATE_ADDRESS: '/api/v1/providers/profile/address',
-            UPDATE_NOTIFICATIONS: '/api/v1/providers/profile/notifications',
-            WORKING_HOURS: '/api/v1/providers/profile/working-hours',
-            UPDATE_WORKING_HOURS: '/api/v1/providers/profile/working-hours',
-            PROFILE_PICTURE: '/api/v1/providers/profile/picture',
-            COMPLETE_ONBOARDING: '/api/v1/providers/profile/complete-onboarding',
-            NOTIFICATION_SETTINGS: '/api/v1/providers/profile/notification-settings',
-            AUTO_CONFIRM: '/api/v1/providers/profile/auto-confirm',
-        },
         DASHBOARD: {
-            STATS: '/api/v1/providers/dashboard/stats',
-            RECENT_ACTIVITY: '/api/v1/providers/dashboard/recent-activity',
-            UPCOMING_APPOINTMENTS: '/api/v1/providers/dashboard/upcoming-appointments',
+            STATS: '/api/v1/providers/me/dashboard-stats',
+        },
+        PROFILE: {
+            ME: '/api/v1/providers/profile/me',
+            PROFILE_PICTURE: '/api/v1/providers/me/profile-picture',
+            WORKING_HOURS: '/api/v1/providers/me/working-hours',
+            NOTIFICATION_SETTINGS: '/api/v1/providers/me/notification-settings',
+            COMPLETE_ONBOARDING: '/api/v1/providers/onboard/complete',
+            AUTO_CONFIRM: '/api/v1/providers/me/auto-confirm',
+        },
+        ADDRESS: {
+            UPDATE: '/api/v1/providers/me/address',
         },
         APPOINTMENTS: {
-            GET_ALL: '/api/v1/appointments/provider',
-            DETAILS: (id: string) => `/api/v1/appointments/${id}`,
-            UPDATE_STATUS: (id: string) => `/api/v1/appointments/${id}/status`,
-            CREATE: '/api/v1/appointments',
+            CREATE: '/api/v1/appointments', // Provider creating appointment manually
+            GET_ALL: '/api/v1/providers/appointments',
         },
         PATIENTS: {
             GET_ALL: '/api/v1/providers/patients',
-            DETAILS: (id: string) => `/api/v1/providers/patients/${id}`,
             CREATE: '/api/v1/providers/patients',
-            UPDATE: (id: string) => `/api/v1/providers/patients/${id}`,
+            UPDATE: '/api/v1/providers/patients',
         },
         SERVICES: {
-            GET_ALL: '/api/v1/services',
-            CREATE: '/api/v1/services',
-            UPDATE: (id: string) => `/api/v1/services/${id}`,
-            DELETE: (id: string) => `/api/v1/services/${id}`,
-            TOGGLE_STATUS: (id: string) => `/api/v1/services/${id}/status`,
+            GET_ALL: '/api/v1/providers/services',
+            CREATE: '/api/v1/providers/services',
+            UPDATE: (id: string) => `/api/v1/providers/services/${id}`,
+            DELETE: (id: string) => `/api/v1/providers/services/${id}`,
         },
         PAYMENTS: {
-            GET_ALL: '/api/v1/payments/provider',
-            STATS: '/api/v1/payments/provider/stats',
-            WITHDRAW: '/api/v1/payments/withdraw',
-            BANKS: '/api/v1/payments/banks',
-            RESOLVE_ACCOUNT: '/api/v1/payments/resolve-account',
-            GET_BANKS: '/api/v1/payments/banks',
-            VERIFY_ACCOUNT: '/api/v1/payments/resolve-account',
-            SAVE_ACCOUNT: '/api/v1/payments/account',
-            TRANSACTIONS: '/api/v1/payments/transactions',
+            GET_BANKS: '/api/v1/providers/banks',
+            VERIFY_ACCOUNT: '/api/v1/providers/bank-account/verify',
+            SAVE_ACCOUNT: '/api/v1/providers/bank-account',
+            TRANSACTIONS: '/api/v1/providers/me/transactions',
         },
         REPORTS: {
-            GET_ALL: '/api/v1/providers/reports',
+            GET_ALL: '/api/v1/providers/me/reports',
         },
         REVIEWS: {
-            GET_ALL: '/api/v1/providers/reviews',
+            GET_ALL: '/api/v1/providers/me/reviews',
         },
         SUPPORT: {
-            CONTACT: '/api/v1/support/contact',
-            TICKET: (id: string) => `/api/v1/support/ticket/${id}`,
-            TICKETS: (id: string) => `/api/v1/support/tickets/${id}`,
-            MESSAGES: (id: string) => `/api/v1/support/messages/${id}`,
-        },
-    },
+            TICKETS: '/api/v1/providers/me/support/tickets',
+            TICKET: (ticketId: string) => `/api/v1/providers/me/support/tickets/${ticketId}`,
+            MESSAGES: (ticketId: string) => `/api/v1/providers/me/support/tickets/${ticketId}/messages`,
+        }
+    }
 } as const;
-
-export default apiClient;

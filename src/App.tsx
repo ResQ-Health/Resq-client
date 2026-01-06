@@ -109,9 +109,11 @@ function App() {
           </PublicRoute>
         } />
         <Route path="/support" element={
-          <PublicRoute>
-            <SupportPage />
-          </PublicRoute>
+          <ProtectedRoute>
+            <PatientLayout>
+              <SupportPage />
+            </PatientLayout>
+          </ProtectedRoute>
         } />
 
         {/* <Route path="/patientSetup/Myaccount" element={<Myaccount />} /> */}
@@ -166,11 +168,9 @@ function App() {
         } />
         <Route path="/patient/settings" element={
           <ProtectedRoute>
-            <OnboardingRoute>
-              <PatientLayout>
-                <SettingsPage />
-              </PatientLayout>
-            </OnboardingRoute>
+            <PatientLayout>
+              <SettingsPage />
+            </PatientLayout>
           </ProtectedRoute>
         } />
 

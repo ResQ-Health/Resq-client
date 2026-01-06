@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import { FiX, FiCheck, FiInfo, FiCalendar } from 'react-icons/fi';
+import React, { useState, useEffect } from 'react';
+import { FiX, FiCheck, FiInfo, FiCalendar, FiCreditCard, FiTrash2, FiPlus } from 'react-icons/fi';
 import { motion, AnimatePresence } from 'framer-motion';
 import paystack from '/paystack.png';
 import visa from '/visa.png';
+import { toast } from 'react-hot-toast';
+import { usePaymentMethods, useInitializePaymentMethod, useVerifyPaymentMethod } from '../../services/paymentService';
 
 interface PaymentSetupModalProps {
     isOpen: boolean;
@@ -10,28 +12,39 @@ interface PaymentSetupModalProps {
 }
 
 const PaymentSetupModal: React.FC<PaymentSetupModalProps> = ({ isOpen, onClose }) => {
-    const [paymentMethod, setPaymentMethod] = useState('add-new-card');
-    const [cardDetails, setCardDetails] = useState({
-        cardNumber: '',
-        cvv: '',
-        expiryDate: '',
-        nameOnCard: ''
-    });
+    const [view, setView] = useState<'list' | 'add'>('list');
+    const [paymentProvider, setPaymentProvider] = useState<'paystack'>('paystack');
+    
+    // API Hooks
+    const { data: methodsData, isLoading: isLoadingMethods } = usePaymentMethods();
+    const initializeMutation = useInitializePaymentMethod();
+    const verifyMutation = useVerifyPaymentMethod();
 
-    const handlePaymentMethodChange = (method: string) => {
-        setPaymentMethod(method);
-    };
+    // Check for transaction reference on mount (if redirected back)
+    useEffect(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const reference = urlParams.get('reference'); // Paystack standard
+        const trxref = urlParams.get('trxref'); // Paystack legacy
 
-    const handleInputChange = (field: keyof typeof cardDetails, value: string) => {
-        setCardDetails(prev => ({
-            ...prev,
-            [field]: value
-        }));
-    };
+        if ((reference || trxref) && isOpen) {
+            verifyMutation.mutate({ reference: (reference || trxref)! }, {
+                onSuccess: () => {
+                    // Clean URL
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                }
+            });
+        }
+    }, [isOpen]);
 
-    const handleAddPaymentMethod = () => {
-        // Add payment method logic here
-        onClose();
+    const handleAddCard = () => {
+        initializeMutation.mutate({ payment_provider: paymentProvider }, {
+            onSuccess: (response) => {
+                if (response.data?.authorization_url) {
+                    // Redirect to Paystack
+                    window.location.href = response.data.authorization_url;
+                }
+            }
+        });
     };
 
     return (
@@ -53,184 +66,133 @@ const PaymentSetupModal: React.FC<PaymentSetupModalProps> = ({ isOpen, onClose }
                         animate={{ x: 0 }}
                         exit={{ x: '100%' }}
                         transition={{ duration: 0.3, ease: "easeOut" }}
-                        className="fixed top-4 right-4 h-[calc(100vh-2rem)] w-full max-w-[590px] bg-white shadow-2xl z-50 rounded-lg"
+                        className="fixed top-0 right-0 h-full w-full max-w-[590px] bg-white shadow-2xl z-50 overflow-y-auto"
                     >
+                        <div className="flex flex-col h-full">
                         {/* Header */}
-                        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-                            <h2 className="text-xl font-bold text-gray-900">Payment Setup</h2>
+                            <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-white sticky top-0 z-10">
+                                <div>
+                                    <h2 className="text-xl font-bold text-[#06202E]">Payment Methods</h2>
+                                    <p className="text-sm text-gray-500 mt-1">Manage your saved cards</p>
+                                </div>
                             <button
                                 onClick={onClose}
-                                className="text-gray-400 hover:text-gray-600 transition-colors"
+                                    className="p-2 hover:bg-gray-100 rounded-full transition-colors"
                             >
-                                <FiX className="w-6 h-6" />
+                                    <FiX className="w-5 h-5 text-gray-500" />
                             </button>
                         </div>
 
                         {/* Content */}
-                        <div className="p-6  space-y-6">
-                            {/* Choose Payment Method */}
-                            <div>
-                                <h3 className="font-semibold text-gray-900 mb-4">Choose your payment method</h3>
-                                <div className="space-y-[32px]">
-                                    {/* Paystack */}
-                                    <label className="flex items-center space-x-3 cursor-pointer">
-                                        <input
-                                            type="radio"
-                                            name="paymentMethod"
-                                            value="paystack"
-                                            checked={paymentMethod === 'paystack'}
-                                            onChange={() => handlePaymentMethodChange('paystack')}
-                                            className="sr-only peer"
-                                        />
-                                        <div className="w-4 h-4 border-2 border-gray-300 rounded-full peer-checked:border-[#06202E] peer-checked:bg-[#06202E] flex items-center justify-center">
-                                            {paymentMethod === 'paystack' && (
-                                                <div className="w-2 h-2 bg-white rounded-full"></div>
+                            <div className="flex-1 p-6 space-y-8">
+                                {view === 'list' && (
+                                    <>
+                                        {/* Saved Cards List */}
+                                        <div className="space-y-4">
+                                            <h3 className="font-semibold text-[#06202E] text-sm uppercase tracking-wide">Saved Cards</h3>
+                                            
+                                            {isLoadingMethods ? (
+                                                <div className="flex justify-center py-8">
+                                                    <div className="w-6 h-6 border-2 border-[#06202E] border-t-transparent rounded-full animate-spin"></div>
+                                                </div>
+                                            ) : methodsData?.data?.length === 0 ? (
+                                                <div className="text-center py-8 bg-gray-50 rounded-xl border border-gray-100 border-dashed">
+                                                    <FiCreditCard className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                                                    <p className="text-gray-500 text-sm">No saved cards yet</p>
+                                                </div>
+                                            ) : (
+                                                methodsData?.data?.map((card) => (
+                                                    <div key={card.id} className="flex items-center justify-between p-4 rounded-xl border border-gray-200 bg-white shadow-sm">
+                                                        <div className="flex items-center gap-4">
+                                                            <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                                                                {card.brand.toLowerCase() === 'visa' ? (
+                                                                    <img src={visa} alt="Visa" className="h-4 object-contain" />
+                                                                ) : (
+                                                                    <FiCreditCard className="w-5 h-5 text-gray-500" />
                                             )}
                                         </div>
-                                        <div className="flex-1">
-                                            <div className="font-medium text-gray-900">Paystack</div>
-                                            <div className="text-[12px] text-gray-600">Description impsum Loremm impsum Loremmimp</div>
+                                                            <div>
+                                                                <div className="font-medium text-[#06202E] capitalize">
+                                                                    {card.brand} •••• {card.last4}
                                         </div>
-                                        <div className=" justify-center">
-                                            <img src={paystack} alt="paystack" className=" w-[75px]" />
+                                                                <div className="text-xs text-gray-500">
+                                                                    Expires {card.expiry_month}/{card.expiry_year}
                                         </div>
-                                    </label>
-
-                                    {/* Credit Card */}
-                                    <label className="flex items-center space-x-3 cursor-pointer">
-                                        <input
-                                            type="radio"
-                                            name="paymentMethod"
-                                            value="credit-card"
-                                            checked={paymentMethod === 'credit-card'}
-                                            onChange={() => handlePaymentMethodChange('credit-card')}
-                                            className="sr-only peer"
-                                        />
-                                        <div className="w-4 h-4 border-2 border-gray-300 rounded-full peer-checked:border-[#06202E] peer-checked:bg-[#06202E] flex items-center justify-center">
-                                            {paymentMethod === 'credit-card' && (
-                                                <div className="w-2 h-2 bg-white rounded-full"></div>
+                                        </div>
+                                        </div>
+                                                        {/* Optional: Add delete/remove button if API supports it */}
+                                        </div>
+                                                ))
                                             )}
                                         </div>
-                                        <div className="flex-1">
-                                            <div className="font-medium text-gray-900">Credit Card</div>
-                                            <div className="text-sm text-gray-600">Description impsum Loremm impsum Loremmimp</div>
-                                        </div>
-                                        <div className=" justify-center">
-                                            <img src={visa} alt="paystack" className=" w-[83px]" />
-                                        </div>
-                                    </label>
 
-                                    {/* Add New Card */}
-                                    <label className="flex items-center  space-x-3 cursor-pointer">
-                                        <input
-                                            type="radio"
-                                            name="paymentMethod"
-                                            value="add-new-card"
-                                            checked={paymentMethod === 'add-new-card'}
-                                            onChange={() => handlePaymentMethodChange('add-new-card')}
-                                            className="sr-only peer"
-                                        />
-                                        <div className="w-4 h-4 border-2 border-gray-300 rounded-full peer-checked:border-[#06202E] peer-checked:bg-[#06202E] flex items-center justify-center">
-                                            {paymentMethod === 'add-new-card' && (
-                                                <div className="w-2 h-2 bg-white rounded-full"></div>
-                                            )}
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="font-medium text-gray-900">Add New Card</div>
-                                            <div className="text-sm text-gray-600">Description impsum Loremm impsum Loremmimp</div>
-                                        </div>
-                                        <div className="w-12 h-8 bg-gray-200 rounded flex items-center justify-center">
-                                            <span className="text-xs font-medium text-gray-600">+</span>
-                                        </div>
-                                    </label>
-                                </div>
-                            </div>
+                                        <button
+                                            onClick={() => setView('add')}
+                                            className="w-full py-3 border-2 border-dashed border-gray-300 rounded-xl text-gray-500 hover:border-[#06202E] hover:text-[#06202E] transition-colors flex items-center justify-center gap-2 font-medium"
+                                        >
+                                            <FiPlus /> Add New Card
+                                        </button>
+                                    </>
+                                )}
 
-                            {/* Card Details Form */}
-                            {paymentMethod === 'add-new-card' && (
-                                <div className="space-y-4  ">
-                                    <h3 className="font-semibold text-gray-900">Card Details</h3>
+                                {view === 'add' && (
+                                    <div className="space-y-6">
+                                        <button 
+                                            onClick={() => setView('list')}
+                                            className="text-sm text-gray-500 hover:text-[#06202E] flex items-center gap-1"
+                                        >
+                                            ← Back to saved cards
+                                        </button>
 
-                                    {/* Credit Card Number */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Credit card number
-                                        </label>
-                                        <div className="relative">
+                                        <h3 className="font-semibold text-[#06202E]">Select Provider</h3>
+
+                                        {/* Paystack Option */}
+                                        <label className={`flex items-center justify-between p-4 rounded-xl border-2 cursor-pointer transition-all ${paymentProvider === 'paystack' ? 'border-[#06202E] bg-blue-50/20' : 'border-gray-100 hover:border-gray-200'}`}>
+                                            <div className="flex items-center gap-4">
                                             <input
-                                                type="text"
-                                                value={cardDetails.cardNumber}
-                                                onChange={(e) => handleInputChange('cardNumber', e.target.value)}
-                                                placeholder="1234 5678 9012 1314"
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#06202E]/20 focus:border-[#06202E]"
-                                            />
-                                            <FiCheck className="absolute right-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-green-600" />
+                                                    type="radio"
+                                                    name="provider"
+                                                    value="paystack"
+                                                    checked={paymentProvider === 'paystack'}
+                                                    onChange={() => setPaymentProvider('paystack')}
+                                                    className="w-5 h-5 text-[#06202E] border-gray-300 focus:ring-[#06202E]"
+                                                />
+                                                <div>
+                                                    <div className="font-medium text-[#06202E]">Paystack</div>
+                                                    <div className="text-sm text-gray-500">Secure checkout</div>
                                         </div>
                                     </div>
-
-                                    {/* CVV */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
-                                            CVV
-                                            <FiInfo className="ml-1 w-4 h-4 text-gray-400" />
+                                            <img src={paystack} alt="Paystack" className="h-6 object-contain" />
                                         </label>
-                                        <div className="relative">
-                                            <input
-                                                type="text"
-                                                value={cardDetails.cvv}
-                                                onChange={(e) => handleInputChange('cvv', e.target.value)}
-                                                placeholder="123"
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#06202E]/20 focus:border-[#06202E]"
-                                            />
-                                            <FiCalendar className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                        </div>
-                                    </div>
 
-                                    {/* Expiry Date */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Expiry date
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={cardDetails.expiryDate}
-                                            onChange={(e) => handleInputChange('expiryDate', e.target.value)}
-                                            placeholder="MM/YY"
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#06202E]/20 focus:border-[#06202E]"
-                                        />
-                                    </div>
-
-                                    {/* Name on Card */}
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Name on card
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={cardDetails.nameOnCard}
-                                            onChange={(e) => handleInputChange('nameOnCard', e.target.value)}
-                                            placeholder="Joshua Nasiru"
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#06202E]/20 focus:border-[#06202E]"
-                                        />
+                                        <div className="bg-blue-50 p-4 rounded-lg text-sm text-blue-700">
+                                            You will be redirected to the secure payment gateway to verify your card details. No charge will be applied.
                                     </div>
                                 </div>
                             )}
                         </div>
 
                         {/* Footer */}
-                        <div className="absolute bottom-0  left-0 right-0 flex items-center justify-end space-x-3 p-6 border-t border-gray-200 bg-white">
+                            {view === 'add' && (
+                                <div className="p-6 border-t border-gray-100 bg-gray-50 flex items-center justify-end space-x-3">
                             <button
-                                onClick={onClose}
-                                className="px-4 py-2 text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                                        onClick={() => setView('list')}
+                                        className="px-6 py-2.5 text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium text-sm"
                             >
                                 Cancel
                             </button>
                             <button
-                                onClick={handleAddPaymentMethod}
-                                className="px-4 py-2 text-white bg-[#06202E] rounded-lg hover:bg-[#06202E]/90 transition-colors"
+                                        onClick={handleAddCard}
+                                        disabled={initializeMutation.isPending}
+                                        className="px-6 py-2.5 text-white bg-[#06202E] rounded-lg hover:bg-[#0a2e42] transition-colors font-medium text-sm flex items-center justify-center min-w-[140px]"
                             >
-                                Add payment method
+                                        {initializeMutation.isPending ? (
+                                            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                                        ) : null}
+                                        Proceed to Pay
                             </button>
+                                </div>
+                            )}
                         </div>
                     </motion.div>
                 </>
