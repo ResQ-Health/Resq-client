@@ -528,8 +528,11 @@ export const useResendOTP = () => {
 export const useForgotPassword = () => {
     return useMutation({
         mutationFn: forgotPassword,
-        onSuccess: () => {
-            toast.success('Password reset link has been sent to your email. Please check your inbox.');
+        onSuccess: (data: ForgotPasswordResponse) => {
+            // Use the API response message if available, otherwise use the spec message
+            const successMessage = data?.message || 
+                'If an account with that email exists, a password reset link has been sent.';
+            toast.success(successMessage);
         },
         onError: (error: any) => {
             console.error('Forgot password mutation error:', error);

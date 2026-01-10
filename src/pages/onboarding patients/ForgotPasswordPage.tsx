@@ -9,6 +9,7 @@ function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [emailSent, setEmailSent] = useState(false);
   const [error, setError] = useState('');
+  const [apiMessage, setApiMessage] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,7 +28,11 @@ function ForgotPasswordPage() {
     forgotPasswordMutation.mutate(
       { email },
       {
-        onSuccess: () => {
+        onSuccess: (data) => {
+          // Store API response message if available
+          if (data?.message) {
+            setApiMessage(data.message);
+          }
           setEmailSent(true);
         },
         onError: () => {
@@ -51,10 +56,10 @@ function ForgotPasswordPage() {
             Check your email
           </h1>
           <p className="text-gray-600 mb-6">
-            We've sent a password reset link to <strong>{email}</strong>
+            {apiMessage || 'If an account with that email exists, a password reset link has been sent.'}
           </p>
           <p className="text-sm text-gray-500 mb-6">
-            Please check your inbox and click on the link to reset your password. If you don't see the email, check your spam folder.
+            Please check your inbox ({email}) and click on the link to reset your password. If you don't see the email, check your spam folder.
           </p>
           <button
             onClick={() => navigate('/Sign-in-Patient')}

@@ -236,13 +236,66 @@ export const usePatientProfile = () => {
         }
     }
 
+    // Check localStorage for cached patient profile
+    const getCachedProfile = (): PatientProfileResponse | null => {
+        try {
+            const cachedProfileStr = localStorage.getItem('patientProfile');
+            if (cachedProfileStr) {
+                const cachedProfile: PatientProfileResponse = JSON.parse(cachedProfileStr);
+                
+                // Verify that cached profile belongs to current user
+                if (userStr) {
+                    try {
+                        const user = JSON.parse(userStr);
+                        // If cached profile user ID matches current user ID, use it
+                        if (cachedProfile.data?.id && user.id && cachedProfile.data.id === user.id) {
+                            return cachedProfile;
+                        }
+                        // If IDs don't match, clear the cached profile
+                        localStorage.removeItem('patientProfile');
+                        return null;
+                    } catch (e) {
+                        // If we can't parse user, don't use cached profile
+                        console.error('Error parsing user from localStorage for profile validation', e);
+                        localStorage.removeItem('patientProfile');
+                        return null;
+                    }
+                }
+                
+                // If no user in localStorage, don't use cached profile
+                localStorage.removeItem('patientProfile');
+                return null;
+            }
+        } catch (e) {
+            console.error('Error parsing cached patient profile from localStorage', e);
+            // Clear corrupted data
+            localStorage.removeItem('patientProfile');
+        }
+        return null;
+    };
+
+    // Get initial data from localStorage
+    const cachedProfile = getCachedProfile();
+
+    // Clear patient profile if user is not a patient
+    if (!isPatient && cachedProfile) {
+        localStorage.removeItem('patientProfile');
+    }
+
     return useQuery({
         queryKey: ['patientProfile'],
-        queryFn: getPatientProfile,
-        // Only run when a token is available AND user is NOT a provider
-        enabled: !!token && isPatient,
-        staleTime: 5 * 60 * 1000, // 5 minutes
-        gcTime: 10 * 60 * 1000, // 10 minutes
+        queryFn: async () => {
+            const data = await getPatientProfile();
+            // Save to localStorage after successful API call
+            localStorage.setItem('patientProfile', JSON.stringify(data));
+            return data;
+        },
+        // Use cached data as initial data (only if user is a patient)
+        initialData: (isPatient && cachedProfile) ? cachedProfile : undefined,
+        // Only run API call if no cached data exists AND token is available AND user is a patient
+        enabled: !cachedProfile && !!token && isPatient,
+        staleTime: Infinity, // Never consider stale since we're using localStorage
+        gcTime: Infinity, // Keep in cache indefinitely
     });
 };
 
@@ -258,7 +311,7 @@ export const useUpdatePatientProfile = () => {
             // Optimistically update to the new value
             const currentData = queryClient.getQueryData(['patientProfile']) as PatientProfileResponse | undefined;
             if (currentData) {
-                queryClient.setQueryData(['patientProfile'], {
+                const optimisticData: PatientProfileResponse = {
                     ...currentData,
                     data: {
                         ...currentData.data,
@@ -268,13 +321,31 @@ export const useUpdatePatientProfile = () => {
                     },
                     metadata: newProfileData.metadata || currentData.metadata,
                     message: 'Profile updated successfully!',
-                });
+                };
+                queryClient.setQueryData(['patientProfile'], optimisticData);
+                
+                // Save optimistic update to localStorage
+                try {
+                    localStorage.setItem('patientProfile', JSON.stringify(optimisticData));
+                } catch (e) {
+                    console.error('Error saving optimistic update to localStorage', e);
+                }
             }
 
             // Return a context object with the snapshotted value
             return { previousProfile };
         },
         onSuccess: (data) => {
+            // Save updated patient profile to localStorage
+            try {
+                localStorage.setItem('patientProfile', JSON.stringify(data));
+            } catch (e) {
+                console.error('Error saving patient profile to localStorage', e);
+            }
+
+            // Update query cache with new data
+            queryClient.setQueryData(['patientProfile'], data);
+
             // Update AuthContext and localStorage with new user data
             const storedUser = localStorage.getItem('user');
             if (storedUser) {
@@ -283,6 +354,10 @@ export const useUpdatePatientProfile = () => {
                     const updatedUser = {
                         ...user,
                         full_name: data.data.full_name,
+                        email: data.data.email,
+                        email_verified: data.data.email_verified,
+                        phone_number: data.data.phone_number,
+                        profile_picture: data.data.profile_picture,
                         // Add other fields as necessary
                         is_onboarding_complete: true // Assuming update implies completion or maintenance of completion
                     };
@@ -292,12 +367,30 @@ export const useUpdatePatientProfile = () => {
                 }
             }
             
-            queryClient.invalidateQueries({ queryKey: ['patientProfile'] });
+            // Don't invalidate queries to avoid API calls - we're using localStorage
+            // queryClient.invalidateQueries({ queryKey: ['patientProfile'] });
             queryClient.invalidateQueries({ queryKey: ['user'] });
         },
         onError: (err, newTodo, context: any) => {
             if (context?.previousProfile) {
                 queryClient.setQueryData(['patientProfile'], context.previousProfile);
+                // Restore previous profile to localStorage
+                try {
+                    localStorage.setItem('patientProfile', JSON.stringify(context.previousProfile));
+                } catch (e) {
+                    console.error('Error restoring previous profile to localStorage', e);
+                }
+            } else {
+                // Fallback: restore from localStorage if available
+                try {
+                    const cachedProfileStr = localStorage.getItem('patientProfile');
+                    if (cachedProfileStr) {
+                        const cachedProfile = JSON.parse(cachedProfileStr);
+                        queryClient.setQueryData(['patientProfile'], cachedProfile);
+                    }
+                } catch (e) {
+                    console.error('Error restoring profile from localStorage on error', e);
+                }
             }
             toast.error('Failed to update profile');
         },

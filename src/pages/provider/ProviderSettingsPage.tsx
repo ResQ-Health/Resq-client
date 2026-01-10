@@ -20,6 +20,8 @@ import {
   useUpdateProviderNotificationSettings,
   useUpdateProviderWorkingHours,
   useUpdateProviderFullProfile,
+  useProviderAutoConfirm,
+  useUpdateProviderAutoConfirm,
 } from '../../services/providerService';
 import toast from 'react-hot-toast';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
@@ -360,6 +362,7 @@ const ProviderSettingsPage: React.FC = () => {
     'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday'
   >('Monday');
   const [bookingPolicies, setBookingPolicies] = useState('');
+  const [autoConfirmAppointments, setAutoConfirmAppointments] = useState(false);
 
   // Team access (UI-only for now)
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>(TEAM_MEMBERS_MOCK);
@@ -386,6 +389,8 @@ const ProviderSettingsPage: React.FC = () => {
   const updateAddressMutation = useUpdateProviderAddress();
   const updateNotificationSettingsMutation = useUpdateProviderNotificationSettings();
   const updateWorkingHoursMutation = useUpdateProviderWorkingHours();
+  const autoConfirmQuery = useProviderAutoConfirm();
+  const updateAutoConfirmMutation = useUpdateProviderAutoConfirm();
 
   const countriesQuery = useCountries();
   const statesQuery = useStates({ country: countryVal || 'Nigeria' });
@@ -668,6 +673,13 @@ const ProviderSettingsPage: React.FC = () => {
     // Note: Team access currently uses mock data in this UI.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [providerProfileQuery.data, initialFields]);
+
+  // Initialize auto-confirm setting from API
+  useEffect(() => {
+    if (autoConfirmQuery.data?.data?.auto_confirm_appointments !== undefined) {
+      setAutoConfirmAppointments(autoConfirmQuery.data.data.auto_confirm_appointments);
+    }
+  }, [autoConfirmQuery.data]);
 
   const bannerPreviewUrl = useMemo(() => {
     if (bannerImageFile) return URL.createObjectURL(bannerImageFile);
@@ -1964,6 +1976,41 @@ const ProviderSettingsPage: React.FC = () => {
                     <option value="Sunday">Sunday</option>
                   </select>
                   <FiChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                </div>
+              </div>
+
+              {/* Auto-Confirm Appointments */}
+              <div className="border-t border-gray-100 pt-6">
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] items-center gap-6">
+                  <div>
+                    <p className="text-sm font-semibold text-[#16202E] mb-1">Auto-Confirm Appointments</p>
+                    <p className="text-sm text-gray-500">
+                      Automatically confirm pending appointments. When enabled, new appointment requests will be automatically confirmed without manual approval.
+                    </p>
+                  </div>
+                  <div className="flex items-center">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={autoConfirmAppointments}
+                      onClick={() => {
+                        const newValue = !autoConfirmAppointments;
+                        setAutoConfirmAppointments(newValue);
+                        updateAutoConfirmMutation.mutate({ auto_confirm_appointments: newValue });
+                      }}
+                      disabled={updateAutoConfirmMutation.isPending || autoConfirmQuery.isLoading}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#06202E]/20 disabled:opacity-50 disabled:cursor-not-allowed ${
+                        autoConfirmAppointments ? 'bg-[#06202E]' : 'bg-gray-300'
+                      }`}
+                      aria-label={autoConfirmAppointments ? 'Disable auto-confirm appointments' : 'Enable auto-confirm appointments'}
+                    >
+                      <span
+                        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                          autoConfirmAppointments ? 'translate-x-5' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
                 </div>
               </div>
 

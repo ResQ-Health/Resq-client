@@ -119,6 +119,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // Clear all user-specific localStorage items
         localStorage.removeItem('authToken');
         localStorage.removeItem('user');
+        localStorage.removeItem('patientProfile');
         localStorage.removeItem('bookingDraft');
         localStorage.removeItem('justLoggedIn');
         localStorage.removeItem('onboarding_completed');

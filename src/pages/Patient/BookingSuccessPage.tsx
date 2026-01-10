@@ -17,6 +17,7 @@ const BookingSuccessPage = () => {
     const { data: receiptData, isLoading, error } = usePaymentReceipt(appointmentId || undefined);
     const [receiptSent, setReceiptSent] = useState(false);
     const [isSendingReceipt, setIsSendingReceipt] = useState(false);
+    const [receiptStatus, setReceiptStatus] = useState<'generating' | 'sending'>('generating');
     const sendingRef = useRef(false); // Use ref to prevent multiple simultaneous sends
 
     // Clear booking draft on successful load
@@ -83,6 +84,7 @@ const BookingSuccessPage = () => {
 
             sendingRef.current = true;
             setIsSendingReceipt(true);
+            setReceiptStatus('generating');
 
             try {
                 // Wait for receipt template to be rendered (max 5 attempts with delays)
@@ -109,6 +111,9 @@ const BookingSuccessPage = () => {
                 const pdfFile = new File([pdfBlob], `ResQ-Receipt-${appointmentId}.pdf`, {
                     type: 'application/pdf',
                 });
+
+                // Update status to sending
+                setReceiptStatus('sending');
 
                 await sendReceiptEmail({
                     appointmentId: appointmentId,
@@ -214,7 +219,28 @@ const BookingSuccessPage = () => {
     const userAddress = patient.address || '';
 
     return (
-        <div className="min-h-screen bg-white w-full">
+        <div className="min-h-screen bg-white w-full relative">
+            {/* Receipt Generation and Email Sending Loader Overlay */}
+            {isSendingReceipt && (
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+                    <div className="bg-white rounded-xl p-8 shadow-xl max-w-md w-full mx-4">
+                        <div className="flex flex-col items-center justify-center space-y-4">
+                            <LoadingSpinner fullScreen={false} size="lg" />
+                            <div className="text-center">
+                                <h3 className="text-lg font-semibold text-[#06202E] mb-2">
+                                    {receiptStatus === 'generating' ? 'Generating Receipt' : 'Sending Email'}
+                                </h3>
+                                <p className="text-sm text-gray-600">
+                                    {receiptStatus === 'generating' 
+                                        ? 'Receipt is being generated...' 
+                                        : 'Receipt is being sent to your email...'}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="w-full mx-auto px-[64px] py-[100px]">
                 <div className="flex  gap-8">
                     {/* Left Column - Patient and Appointment Details */}
