@@ -169,13 +169,6 @@ export default function SettingsPage() {
                     {/* Danger Zone */}
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
                         <div className="divide-y divide-gray-50">
-                            <SettingItem 
-                                icon={FiX}
-                                title="Close Account"
-                                description="Permanently delete your data"
-                                onClick={handleCloseAccount}
-                                isDestructive={true}
-                            />
                             <button
                                 onClick={handleLogout}
                                 className="w-full flex items-center justify-center p-4 text-gray-500 hover:text-[#06202E] hover:bg-gray-50 transition-colors font-medium text-sm gap-2"
