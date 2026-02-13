@@ -86,7 +86,10 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ isOpen, onClose, ap
     .map((p) => p[0]?.toUpperCase())
     .join('');
 
-  const isConfirmed = appointment.status.toLowerCase() === 'confirmed';
+  const statusLower = appointment.status.toLowerCase();
+  const isConfirmed = statusLower === 'confirmed';
+  const isRejected = statusLower === 'rejected' || statusLower === 'cancelled';
+  const isPending = statusLower === 'pending';
 
   return (
     <div
@@ -105,7 +108,10 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ isOpen, onClose, ap
       >
         <div className="w-[420px] shadow-2xl rounded-[18px] overflow-hidden bg-white border border-gray-100 ring-1 ring-black/5 flex flex-col max-h-[85vh]">
           {/* Status banner */}
-          <div className={`px-6 py-4 text-center text-white text-sm font-medium flex-shrink-0 ${isConfirmed ? 'bg-green-600' : 'bg-yellow-500'
+          <div className={`px-6 py-4 text-center text-white text-sm font-medium flex-shrink-0 ${isConfirmed ? 'bg-green-600' :
+              isPending ? 'bg-yellow-500' :
+                isRejected ? 'bg-red-600' :
+                  'bg-gray-500'
             }`}>
             {isConfirmed ? 'Appointment is confirmed' : `Appointment is ${appointment.status}`}
           </div>
@@ -244,14 +250,20 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ isOpen, onClose, ap
 };
 
 const AppointmentDetailsInline: React.FC<{ appointment: CalendarAppointment; className?: string }> = ({ appointment, className }) => {
-  const isConfirmed = appointment.status.toLowerCase() === 'confirmed';
+  const statusLower = appointment.status.toLowerCase();
+  const isConfirmed = statusLower === 'confirmed';
+  const isRejected = statusLower === 'rejected' || statusLower === 'cancelled';
+  const isPending = statusLower === 'pending';
 
   return (
     <div className={`bg-gray-50 border-t border-gray-100 p-4 mt-2 rounded-b-lg animate-in fade-in slide-in-from-top-2 duration-200 ${className || '-mx-2 sm:-mx-6 sm:px-6'}`}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Status & Basic Info */}
         <div>
-          <div className={`inline-block px-3 py-1 rounded-full text-xs font-medium mb-4 ${isConfirmed ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+          <div className={`inline-block px-3 py-1 rounded-full text-xs font-medium mb-4 ${isConfirmed ? 'bg-green-100 text-green-800' :
+              isPending ? 'bg-yellow-100 text-yellow-800' :
+                isRejected ? 'bg-red-100 text-red-800' :
+                  'bg-gray-100 text-gray-800'
             }`}>
             {isConfirmed ? 'Confirmed' : appointment.status}
           </div>
@@ -884,7 +896,8 @@ const ProviderCalendarPage: React.FC = () => {
                             <div className="col-span-2">
                               <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${apt.status.toLowerCase() === 'confirmed' ? 'bg-green-100 text-green-800' :
                                 apt.status.toLowerCase() === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                  'bg-gray-100 text-gray-800'
+                                  apt.status.toLowerCase() === 'rejected' || apt.status.toLowerCase() === 'cancelled' ? 'bg-red-100 text-red-800' :
+                                    'bg-gray-100 text-gray-800'
                                 }`}>
                                 {apt.status}
                               </span>
@@ -996,9 +1009,11 @@ const ProviderCalendarPage: React.FC = () => {
                               <div
                                 key={apt.id}
                                 onClick={(e) => handleAppointmentClick(e, apt)}
-                                className={`flex flex-col px-2 py-1.5 rounded-md hover:bg-gray-100 transition-colors cursor-pointer border-l-4 ${apt.status.toLowerCase() === 'confirmed' ? 'border-l-green-500' : 'border-l-yellow-500'
-                                  } ${!isCurrentMonth && view !== 'Day' ? 'bg-white' : 'bg-[#F6F8FA]'}`}
-                              >
+                                className={`flex flex-col px-2 py-1.5 rounded-md hover:bg-gray-100 transition-colors cursor-pointer border-l-4 ${apt.status.toLowerCase() === 'confirmed' ? 'border-l-green-500' :
+                                  apt.status.toLowerCase() === 'pending' ? 'border-l-yellow-500' :
+                                    apt.status.toLowerCase() === 'rejected' || apt.status.toLowerCase() === 'cancelled' ? 'border-l-red-500' :
+                                      'border-l-gray-500'
+                                  } ${!isCurrentMonth && view !== 'Day' ? 'bg-white' : 'bg-[#F6F8FA]'}`}>
                                 <div className="flex justify-between items-center mb-0.5">
                                   <span className="text-[11px] font-semibold text-[#16202E]">{apt.time}</span>
                                   {view === 'Day' && (
