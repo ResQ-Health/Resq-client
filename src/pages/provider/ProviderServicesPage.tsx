@@ -31,7 +31,7 @@ type CreateServiceDraft = {
 const defaultDraft: CreateServiceDraft = {
   title: '',
   description: '',
-  durationMins: '30', // Default duration
+  durationMins: '', // Default duration
   cost: '',
   categoryIds: [],
 };
@@ -55,9 +55,9 @@ function CreateServiceModal({
 
   useEffect(() => {
     if (isOpen && initialData) {
-        setDraft(initialData);
+      setDraft(initialData);
     } else if (isOpen) {
-        setDraft(defaultDraft);
+      setDraft(defaultDraft);
     }
   }, [isOpen, initialData]);
 
@@ -67,7 +67,8 @@ function CreateServiceModal({
     draft.title.trim().length >= 2 &&
     draft.description.trim().length >= 2 &&
     Number(draft.cost) > 0 &&
-    draft.categoryIds.length > 0;
+    draft.categoryIds.length > 0 &&
+    Number(draft.durationMins) >= 5;
 
   return (
     <div
@@ -214,56 +215,58 @@ const ProviderServicesPage: React.FC = () => {
 
   // Calculate counts for each category
   const categoryCounts = useMemo(() => {
-      const counts: Record<string, number> = { all: servicesData?.data?.length || 0 };
-      servicesData?.data?.forEach(s => {
-          const cat = s.category.toLowerCase();
-          counts[cat] = (counts[cat] || 0) + 1;
-      });
-      return counts;
+    const counts: Record<string, number> = { all: servicesData?.data?.length || 0 };
+    servicesData?.data?.forEach(s => {
+      const cat = s.category.toLowerCase();
+      counts[cat] = (counts[cat] || 0) + 1;
+    });
+    return counts;
   }, [servicesData]);
 
   const handleCreateOrUpdate = async (draft: CreateServiceDraft) => {
     if (editingService && draft.id) {
-        // Update
-        await updateServiceMutation.mutateAsync({
-            id: draft.id,
-            name: draft.title,
-            description: draft.description,
-            price: Number(draft.cost),
-            category: draft.categoryIds[0],
-            // uses: draft.description // Mapping uses to description for now if needed, or separate field
-        });
+      // Update
+      await updateServiceMutation.mutateAsync({
+        id: draft.id,
+        name: draft.title,
+        description: draft.description,
+        price: Number(draft.cost),
+        category: draft.categoryIds[0],
+        duration: Number(draft.durationMins),
+        // uses: draft.description // Mapping uses to description for now if needed, or separate field
+      });
     } else {
-        // Create
-        await createServiceMutation.mutateAsync({
-            name: draft.title,
-            category: draft.categoryIds[0],
-            description: draft.description,
-      price: Number(draft.cost),
-            uses: draft.description // Using description as uses for now, or could be separate
-        });
+      // Create
+      await createServiceMutation.mutateAsync({
+        name: draft.title,
+        category: draft.categoryIds[0],
+        description: draft.description,
+        price: Number(draft.cost),
+        duration: Number(draft.durationMins),
+        uses: draft.description // Using description as uses for now, or could be separate
+      });
     }
     setEditingService(undefined);
   };
 
   const handleEditClick = (service: ProviderServiceItem) => {
-      setEditingService({
-          id: service.id || service._id,
-          title: service.name,
-          description: service.description || '',
-          durationMins: service.durationMins?.toString() || '30',
-          cost: service.price.toString(),
-          categoryIds: [service.category],
-      });
-      setIsCreateOpen(true);
-      setOpenServiceMenuId(null);
+    setEditingService({
+      id: service.id || service._id,
+      title: service.name,
+      description: service.description || '',
+      durationMins: service.duration?.toString() || '',
+      cost: service.price.toString(),
+      categoryIds: [service.category],
+    });
+    setIsCreateOpen(true);
+    setOpenServiceMenuId(null);
   };
 
   const handleDeleteClick = async (id: string) => {
-      if (confirm('Are you sure you want to delete this service?')) {
-          await deleteServiceMutation.mutateAsync(id);
-      }
-      setOpenServiceMenuId(null);
+    if (confirm('Are you sure you want to delete this service?')) {
+      await deleteServiceMutation.mutateAsync(id);
+    }
+    setOpenServiceMenuId(null);
   };
 
   return (
@@ -294,13 +297,12 @@ const ProviderServicesPage: React.FC = () => {
                     <div key={c.id} className="relative">
                       <div
                         onClick={() => setSelectedCategoryValue(c.value)}
-                        className={`w-full flex items-center justify-between px-2 py-2 rounded-lg cursor-pointer ${
-                          active ? 'text-[#16202E] bg-gray-50' : 'text-gray-500 hover:bg-gray-50'
-                        }`}
+                        className={`w-full flex items-center justify-between px-2 py-2 rounded-lg cursor-pointer ${active ? 'text-[#16202E] bg-gray-50' : 'text-gray-500 hover:bg-gray-50'
+                          }`}
                       >
                         <span className="text-sm">{c.name}</span>
                         <span className="text-xs bg-gray-100 px-2 py-0.5 rounded-full text-gray-600">{count}</span>
-                        </div>
+                      </div>
                     </div>
                   );
                 })}
@@ -308,8 +310,8 @@ const ProviderServicesPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                      setEditingService(undefined);
-                      setIsCreateOpen(true);
+                    setEditingService(undefined);
+                    setIsCreateOpen(true);
                   }}
                   className="mt-4 w-full flex items-center gap-3 text-gray-500 hover:text-[#16202E] px-2 py-2"
                 >
@@ -330,9 +332,9 @@ const ProviderServicesPage: React.FC = () => {
           </h3>
 
           {isLoading ? (
-             <div className="flex justify-center py-20">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-             </div>
+            <div className="flex justify-center py-20">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+            </div>
           ) : visibleServices.length > 0 ? (
             <div className="space-y-6">
               {visibleServices.map((s) => (
@@ -342,12 +344,12 @@ const ProviderServicesPage: React.FC = () => {
                     <div>
                       <p className="text-sm font-semibold text-[#16202E]">{s.name}</p>
                       <p className="text-xs text-gray-500 mt-2">
-                        {s.durationMins || 30} mins <span className="mx-2">·</span> {formatNaira(s.price)}
+                        {s.duration || ''} mins <span className="mx-2">·</span> {formatNaira(s.price)}
                       </p>
                       <p className="text-xs text-gray-400 mt-1 line-clamp-1">{s.description}</p>
                       <div className="mt-2 flex flex-wrap gap-2 text-[10px] text-gray-500">
-                          {s.metadata?.preparation && <span className="bg-gray-100 px-2 py-1 rounded">Prep: {s.metadata.preparation}</span>}
-                          {s.metadata?.report_time && <span className="bg-gray-100 px-2 py-1 rounded">Report: {s.metadata.report_time}</span>}
+                        {s.metadata?.preparation && <span className="bg-gray-100 px-2 py-1 rounded">Prep: {s.metadata.preparation}</span>}
+                        {s.metadata?.report_time && <span className="bg-gray-100 px-2 py-1 rounded">Report: {s.metadata.report_time}</span>}
                       </div>
                     </div>
 
@@ -388,8 +390,8 @@ const ProviderServicesPage: React.FC = () => {
           ) : (
             <div className="h-[520px] flex items-center justify-center">
               <div className="text-center max-w-md">
-                <div className="mx-auto w-20 h-20 bg-gray-100 rounded-xl flex items-center justify-center mb-6">
-                  <div className="w-10 h-10 bg-gray-200 rounded-md" />
+                <div className="mx-auto w-20 h-20 bg-gray-50 rounded-xl flex items-center justify-center mb-6">
+                  <FiMoreVertical className="w-8 h-8 text-gray-300" />
                 </div>
                 <h4 className="text-lg font-semibold text-[#16202E] mb-2">No services to display</h4>
                 <p className="text-sm text-gray-500 mb-6">
@@ -399,8 +401,8 @@ const ProviderServicesPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                      setEditingService(undefined);
-                      setIsCreateOpen(true);
+                    setEditingService(undefined);
+                    setIsCreateOpen(true);
                   }}
                   className="bg-[#06202E] text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-[#0a2e42] transition-colors"
                 >
@@ -415,8 +417,8 @@ const ProviderServicesPage: React.FC = () => {
       <CreateServiceModal
         isOpen={isCreateOpen}
         onClose={() => {
-            setIsCreateOpen(false);
-            setEditingService(undefined);
+          setIsCreateOpen(false);
+          setEditingService(undefined);
         }}
         categories={categories}
         onCreate={handleCreateOrUpdate}

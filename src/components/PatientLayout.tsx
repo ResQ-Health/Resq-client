@@ -6,7 +6,7 @@ import { usePatientProfile } from '../services/userService';
 
 const NAV_ITEMS = [
     { label: 'My account', icon: <FaUser className="w-5 h-5" />, path: '/patient/my-account', altPaths: ['/my-account', '/Myaccount', '/patientSetup/Myaccount'] },
-    { label: 'Booking history', icon: <FaRegCalendarAlt className="w-5 h-5" />, path: '/booking-history' },
+    { label: 'Bookings', icon: <FaRegCalendarAlt className="w-5 h-5" />, path: '/booking-history' },
     { label: 'My favourites', icon: <FaRegHeart className="w-5 h-5" />, path: '/favourites' },
     { label: 'Settings', icon: <FiSettings className="w-5 h-5" />, path: '/patient/settings' },
 ];

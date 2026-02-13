@@ -139,10 +139,10 @@ const DashboardPage: React.FC = () => {
     // Otherwise, default to current year.
     const currentYear = new Date().getFullYear();
     const sortedData = [...revenueByMonth].sort((a, b) => {
-        if (a.year !== b.year) return a.year - b.year;
-        return a.month - b.month;
+      if (a.year !== b.year) return a.year - b.year;
+      return a.month - b.month;
     });
-    
+
     // Use the latest year in the data, or current year
     const targetYear = sortedData.length > 0 ? sortedData[sortedData.length - 1].year : currentYear;
 
@@ -150,10 +150,10 @@ const DashboardPage: React.FC = () => {
       const monthNum = i + 1;
       const date = new Date(targetYear, i, 1);
       const monthName = date.toLocaleString('default', { month: 'long' });
-      
+
       // Find matching data for this month and year
       const found = revenueByMonth.find(d => d.month === monthNum && d.year === targetYear);
-      
+
       return {
         month: monthNum,
         year: targetYear,
@@ -163,7 +163,7 @@ const DashboardPage: React.FC = () => {
         count: found ? found.count : 0
       };
     });
-    
+
     return allMonths;
   }, [revenueByMonth]);
 
@@ -244,7 +244,7 @@ const DashboardPage: React.FC = () => {
   // Top Services Logic
   // Always use revenue_by_service based on the selected range - show ALL services
   const rawRevenueByService = financials?.revenue_by_service;
-  
+
   const currentTopServices = rawRevenueByService
     ? (rawRevenueByService[topServicesRange] || [])
     : [];

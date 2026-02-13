@@ -1,15 +1,15 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-  format, 
-  addMonths, 
-  subMonths, 
-  startOfMonth, 
-  endOfMonth, 
-  startOfWeek, 
-  endOfWeek, 
-  eachDayOfInterval, 
-  isSameMonth, 
-  isSameDay, 
+  format,
+  addMonths,
+  subMonths,
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  endOfWeek,
+  eachDayOfInterval,
+  isSameMonth,
+  isSameDay,
   addWeeks,
   subWeeks,
   addDays,
@@ -17,10 +17,10 @@ import {
   parseISO,
   isToday
 } from 'date-fns';
-import { 
-  FaChevronLeft, 
-  FaChevronRight, 
-  FaPrint, 
+import {
+  FaChevronLeft,
+  FaChevronRight,
+  FaPrint,
   FaFilter,
   FaTimes,
   FaChevronDown,
@@ -33,38 +33,38 @@ import * as XLSX from 'xlsx';
 
 // Derived Appointment Type for the UI
 interface CalendarAppointment {
-    id: string;
-    title: string;
-    service: string;
-    time: string;
-    endTime: string;
-    date: Date;
-    type: string;
-    patient: {
-      fullName: string;
-      phone: string;
-      email: string;
-      dob: string;
-      gender: string;
-      address: string;
-      identificationNumber: string;
+  id: string;
+  title: string;
+  service: string;
+  time: string;
+  endTime: string;
+  date: Date;
+  type: string;
+  patient: {
+    fullName: string;
+    phone: string;
+    email: string;
+    dob: string;
+    gender: string;
+    address: string;
+    identificationNumber: string;
+  };
+  appointmentId: string;
+  status: string;
+  generalInfo: {
+    comments: string;
+    visitedBefore: boolean;
+    forWhom: string;
+  };
+  bookerInfo: {
+    fullName: string;
+    email: string;
+    phone: string;
+    profilePicture: {
+      url: string;
     };
-    appointmentId: string;
-    status: string;
-    generalInfo: {
-      comments: string;
-      visitedBefore: boolean;
-      forWhom: string;
-    };
-    bookerInfo: {
-      fullName: string;
-      email: string;
-      phone: string;
-      profilePicture: {
-        url: string;
-      };
-    };
-    paymentStatus: string;
+  };
+  paymentStatus: string;
 }
 
 type ViewType = 'Day' | 'Week' | 'Month' | 'Appointments';
@@ -105,9 +105,8 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ isOpen, onClose, ap
       >
         <div className="w-[420px] shadow-2xl rounded-[18px] overflow-hidden bg-white border border-gray-100 ring-1 ring-black/5 flex flex-col max-h-[85vh]">
           {/* Status banner */}
-          <div className={`px-6 py-4 text-center text-white text-sm font-medium flex-shrink-0 ${
-            isConfirmed ? 'bg-green-600' : 'bg-yellow-500'
-          }`}>
+          <div className={`px-6 py-4 text-center text-white text-sm font-medium flex-shrink-0 ${isConfirmed ? 'bg-green-600' : 'bg-yellow-500'
+            }`}>
             {isConfirmed ? 'Appointment is confirmed' : `Appointment is ${appointment.status}`}
           </div>
 
@@ -126,118 +125,118 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ isOpen, onClose, ap
             </div>
 
             <div className="px-6 pb-6 overflow-y-auto flex-1">
-            {/* Patient name row */}
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-12 h-12 rounded-full bg-[#E7E1FF] flex items-center justify-center text-[#16202E] font-semibold text-base">
-                {initials || 'PT'}
+              {/* Patient name row */}
+              <div className="flex items-center gap-4 mb-6">
+                <div className="w-12 h-12 rounded-full bg-[#E7E1FF] flex items-center justify-center text-[#16202E] font-semibold text-base">
+                  {initials || 'PT'}
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Patient name</p>
+                  <p className="text-xl font-semibold text-[#16202E] leading-tight">
+                    {appointment.patient.fullName}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-gray-500">Patient name</p>
-                <p className="text-xl font-semibold text-[#16202E] leading-tight">
-                  {appointment.patient.fullName}
-                </p>
-              </div>
-            </div>
 
-            {/* 3-up summary */}
-            <div className="grid grid-cols-3 gap-4 mb-6">
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Appointment ID</p>
-                <p className="text-sm font-medium text-[#16202E] truncate" title={appointment.appointmentId}>{appointment.appointmentId}</p>
+              {/* 3-up summary */}
+              <div className="grid grid-cols-3 gap-4 mb-6">
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Appointment ID</p>
+                  <p className="text-sm font-medium text-[#16202E] truncate" title={appointment.appointmentId}>{appointment.appointmentId}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Service</p>
+                  <p className="text-sm font-medium text-[#16202E] truncate" title={appointment.service}>{appointment.service}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500 mb-1">Date and Time</p>
+                  <p className="text-sm font-medium text-[#16202E]">
+                    {format(appointment.date, 'EEE, dd MMM')}
+                  </p>
+                  <p className="text-sm font-medium text-[#16202E]">
+                    {appointment.time}–{appointment.endTime}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Service</p>
-                <p className="text-sm font-medium text-[#16202E] truncate" title={appointment.service}>{appointment.service}</p>
-              </div>
-              <div>
-                <p className="text-sm text-gray-500 mb-1">Date and Time</p>
-                <p className="text-sm font-medium text-[#16202E]">
-                  {format(appointment.date, 'EEE, dd MMM')}
-                </p>
-                <p className="text-sm font-medium text-[#16202E]">
-                  {appointment.time}–{appointment.endTime}
-                </p>
-              </div>
-            </div>
 
-            {/* Patient Information */}
-            <div>
-              <h4 className="text-lg font-semibold text-[#16202E] mb-4">Patient Information</h4>
-              <div className="grid grid-cols-2 gap-x-10 gap-y-4">
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Full name</p>
-                  <p className="text-sm font-medium text-[#16202E]">{appointment.patient.fullName}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Phone number</p>
-                  <p className="text-sm font-medium text-[#16202E]">{appointment.patient.phone}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Date of birth</p>
-                  <p className="text-sm font-medium text-[#16202E]">{appointment.patient.dob}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Email</p>
-                  <p className="text-sm font-medium text-[#16202E] break-all">{appointment.patient.email}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Gender</p>
-                  <p className="text-sm font-medium text-[#16202E]">{appointment.patient.gender}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Address</p>
-                  <p className="text-sm font-medium text-[#16202E]">{appointment.patient.address}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Identification Number</p>
-                  <p className="text-sm font-medium text-[#16202E]">{appointment.patient.identificationNumber || 'N/A'}</p>
-                </div>
-              </div>
-            </div>
-
-            {/* General Info Section */}
-            <div className="mt-6 pt-6 border-t border-gray-200">
-              <h4 className="text-lg font-semibold text-[#16202E] mb-4">General Information</h4>
-              <div className="grid grid-cols-2 gap-x-10 gap-y-4">
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Booking For</p>
-                  <p className="text-sm font-medium text-[#16202E]">{appointment.generalInfo.forWhom}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Visited Before</p>
-                  <p className="text-sm font-medium text-[#16202E]">{appointment.generalInfo.visitedBefore ? 'Yes' : 'No'}</p>
-                </div>
-                <div className="col-span-2">
-                  <p className="text-xs text-gray-500 mb-1">Comments</p>
-                  <p className="text-sm font-medium text-[#16202E]">{appointment.generalInfo.comments || 'No comments'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Payment Status</p>
-                  <p className="text-sm font-medium text-[#16202E] capitalize">{appointment.paymentStatus}</p>
+              {/* Patient Information */}
+              <div>
+                <h4 className="text-lg font-semibold text-[#16202E] mb-4">Patient Information</h4>
+                <div className="grid grid-cols-2 gap-x-10 gap-y-4">
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Full name</p>
+                    <p className="text-sm font-medium text-[#16202E]">{appointment.patient.fullName}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Phone number</p>
+                    <p className="text-sm font-medium text-[#16202E]">{appointment.patient.phone}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Date of birth</p>
+                    <p className="text-sm font-medium text-[#16202E]">{appointment.patient.dob}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Email</p>
+                    <p className="text-sm font-medium text-[#16202E] break-all">{appointment.patient.email}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Gender</p>
+                    <p className="text-sm font-medium text-[#16202E]">{appointment.patient.gender}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Address</p>
+                    <p className="text-sm font-medium text-[#16202E]">{appointment.patient.address}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Identification Number</p>
+                    <p className="text-sm font-medium text-[#16202E]">{appointment.patient.identificationNumber || 'N/A'}</p>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Booker Info Section */}
-            <div className="mt-6 pt-6 border-t border-gray-200">
-              <h4 className="text-lg font-semibold text-[#16202E] mb-4">Booker Information</h4>
-              <div className="grid grid-cols-2 gap-x-10 gap-y-4">
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Full Name</p>
-                  <p className="text-sm font-medium text-[#16202E]">{appointment.bookerInfo.fullName || 'N/A'}</p>
+              {/* General Info Section */}
+              <div className="mt-6 pt-6 border-t border-gray-200">
+                <h4 className="text-lg font-semibold text-[#16202E] mb-4">General Information</h4>
+                <div className="grid grid-cols-2 gap-x-10 gap-y-4">
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Booking For</p>
+                    <p className="text-sm font-medium text-[#16202E]">{appointment.generalInfo.forWhom}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Visited Before</p>
+                    <p className="text-sm font-medium text-[#16202E]">{appointment.generalInfo.visitedBefore ? 'Yes' : 'No'}</p>
+                  </div>
+                  <div className="col-span-2">
+                    <p className="text-xs text-gray-500 mb-1">Comments</p>
+                    <p className="text-sm font-medium text-[#16202E]">{appointment.generalInfo.comments || 'No comments'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Payment Status</p>
+                    <p className="text-sm font-medium text-[#16202E] capitalize">{appointment.paymentStatus}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Email</p>
-                  <p className="text-sm font-medium text-[#16202E] break-all">{appointment.bookerInfo.email || 'N/A'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500 mb-1">Phone</p>
-                  <p className="text-sm font-medium text-[#16202E]">{appointment.bookerInfo.phone || 'N/A'}</p>
+              </div>
+
+              {/* Booker Info Section */}
+              <div className="mt-6 pt-6 border-t border-gray-200">
+                <h4 className="text-lg font-semibold text-[#16202E] mb-4">Booker Information</h4>
+                <div className="grid grid-cols-2 gap-x-10 gap-y-4">
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Full Name</p>
+                    <p className="text-sm font-medium text-[#16202E]">{appointment.bookerInfo.fullName || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Email</p>
+                    <p className="text-sm font-medium text-[#16202E] break-all">{appointment.bookerInfo.email || 'N/A'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Phone</p>
+                    <p className="text-sm font-medium text-[#16202E]">{appointment.bookerInfo.phone || 'N/A'}</p>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
-        </div>
         </div>
       </div>
     </div>
@@ -245,114 +244,113 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ isOpen, onClose, ap
 };
 
 const AppointmentDetailsInline: React.FC<{ appointment: CalendarAppointment; className?: string }> = ({ appointment, className }) => {
-    const isConfirmed = appointment.status.toLowerCase() === 'confirmed';
+  const isConfirmed = appointment.status.toLowerCase() === 'confirmed';
 
-    return (
-        <div className={`bg-gray-50 border-t border-gray-100 p-4 mt-2 rounded-b-lg animate-in fade-in slide-in-from-top-2 duration-200 ${className || '-mx-2 sm:-mx-6 sm:px-6'}`}>
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Status & Basic Info */}
-                <div>
-                     <div className={`inline-block px-3 py-1 rounded-full text-xs font-medium mb-4 ${
-                         isConfirmed ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
-                     }`}>
-                         {isConfirmed ? 'Confirmed' : appointment.status}
-                     </div>
-                     
-                     <div className="space-y-3">
-                         <div>
-                             <p className="text-xs text-gray-500 uppercase tracking-wide">Appointment ID</p>
-                             <p className="text-sm font-medium text-[#16202E]">{appointment.appointmentId}</p>
-                         </div>
-                         <div>
-                             <p className="text-xs text-gray-500 uppercase tracking-wide">Service</p>
-                             <p className="text-sm font-medium text-[#16202E]">{appointment.service}</p>
-                         </div>
-                         <div>
-                             <p className="text-xs text-gray-500 uppercase tracking-wide">Time</p>
-                             <p className="text-sm font-medium text-[#16202E]">{appointment.time} - {appointment.endTime}</p>
-                         </div>
-                         <div>
-                             <p className="text-xs text-gray-500 uppercase tracking-wide">Payment Status</p>
-                             <p className="text-sm font-medium text-[#16202E] capitalize">{appointment.paymentStatus}</p>
-                         </div>
-                     </div>
-                </div>
+  return (
+    <div className={`bg-gray-50 border-t border-gray-100 p-4 mt-2 rounded-b-lg animate-in fade-in slide-in-from-top-2 duration-200 ${className || '-mx-2 sm:-mx-6 sm:px-6'}`}>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Status & Basic Info */}
+        <div>
+          <div className={`inline-block px-3 py-1 rounded-full text-xs font-medium mb-4 ${isConfirmed ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'
+            }`}>
+            {isConfirmed ? 'Confirmed' : appointment.status}
+          </div>
 
-                {/* Patient Details */}
-                <div>
-                    <h4 className="text-sm font-bold text-[#16202E] mb-3">Patient Information</h4>
-                    <div className="grid grid-cols-2 gap-y-3 gap-x-4">
-                        <div>
-                             <p className="text-xs text-gray-500">Full Name</p>
-                             <p className="text-sm font-medium text-[#16202E]">{appointment.patient.fullName}</p>
-                        </div>
-                        <div>
-                             <p className="text-xs text-gray-500">Phone</p>
-                             <p className="text-sm font-medium text-[#16202E]">{appointment.patient.phone}</p>
-                        </div>
-                         <div>
-                             <p className="text-xs text-gray-500">Email</p>
-                             <p className="text-sm font-medium text-[#16202E] break-all">{appointment.patient.email}</p>
-                        </div>
-                        <div>
-                             <p className="text-xs text-gray-500">DOB</p>
-                             <p className="text-sm font-medium text-[#16202E]">{appointment.patient.dob}</p>
-                        </div>
-                        <div>
-                             <p className="text-xs text-gray-500">Gender</p>
-                             <p className="text-sm font-medium text-[#16202E]">{appointment.patient.gender}</p>
-                        </div>
-                        <div>
-                             <p className="text-xs text-gray-500">ID Number</p>
-                             <p className="text-sm font-medium text-[#16202E]">{appointment.patient.identificationNumber || 'N/A'}</p>
-                        </div>
-                        <div className="col-span-2">
-                             <p className="text-xs text-gray-500">Address</p>
-                             <p className="text-sm font-medium text-[#16202E]">{appointment.patient.address}</p>
-                        </div>
-                    </div>
-                </div>
-             </div>
-
-             {/* General Info Section */}
-             <div className="mt-6 pt-6 border-t border-gray-200">
-                <h4 className="text-sm font-bold text-[#16202E] mb-3">General Information</h4>
-                <div className="grid grid-cols-2 gap-y-3 gap-x-4">
-                    <div>
-                         <p className="text-xs text-gray-500">Booking For</p>
-                         <p className="text-sm font-medium text-[#16202E]">{appointment.generalInfo.forWhom}</p>
-                    </div>
-                    <div>
-                         <p className="text-xs text-gray-500">Visited Before</p>
-                         <p className="text-sm font-medium text-[#16202E]">{appointment.generalInfo.visitedBefore ? 'Yes' : 'No'}</p>
-                    </div>
-                    <div className="col-span-2">
-                         <p className="text-xs text-gray-500">Comments</p>
-                         <p className="text-sm font-medium text-[#16202E]">{appointment.generalInfo.comments || 'No comments'}</p>
-                    </div>
-                </div>
-             </div>
-
-             {/* Booker Info Section */}
-             <div className="mt-6 pt-6 border-t border-gray-200">
-                <h4 className="text-sm font-bold text-[#16202E] mb-3">Booker Information</h4>
-                <div className="grid grid-cols-2 gap-y-3 gap-x-4">
-                    <div>
-                         <p className="text-xs text-gray-500">Full Name</p>
-                         <p className="text-sm font-medium text-[#16202E]">{appointment.bookerInfo.fullName || 'N/A'}</p>
-                    </div>
-                    <div>
-                         <p className="text-xs text-gray-500">Email</p>
-                         <p className="text-sm font-medium text-[#16202E] break-all">{appointment.bookerInfo.email || 'N/A'}</p>
-                    </div>
-                    <div>
-                         <p className="text-xs text-gray-500">Phone</p>
-                         <p className="text-sm font-medium text-[#16202E]">{appointment.bookerInfo.phone || 'N/A'}</p>
-                    </div>
-                </div>
-             </div>
+          <div className="space-y-3">
+            <div>
+              <p className="text-xs text-gray-500 uppercase tracking-wide">Appointment ID</p>
+              <p className="text-sm font-medium text-[#16202E]">{appointment.appointmentId}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 uppercase tracking-wide">Service</p>
+              <p className="text-sm font-medium text-[#16202E]">{appointment.service}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 uppercase tracking-wide">Time</p>
+              <p className="text-sm font-medium text-[#16202E]">{appointment.time} - {appointment.endTime}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500 uppercase tracking-wide">Payment Status</p>
+              <p className="text-sm font-medium text-[#16202E] capitalize">{appointment.paymentStatus}</p>
+            </div>
+          </div>
         </div>
-    );
+
+        {/* Patient Details */}
+        <div>
+          <h4 className="text-sm font-bold text-[#16202E] mb-3">Patient Information</h4>
+          <div className="grid grid-cols-2 gap-y-3 gap-x-4">
+            <div>
+              <p className="text-xs text-gray-500">Full Name</p>
+              <p className="text-sm font-medium text-[#16202E]">{appointment.patient.fullName}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">Phone</p>
+              <p className="text-sm font-medium text-[#16202E]">{appointment.patient.phone}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">Email</p>
+              <p className="text-sm font-medium text-[#16202E] break-all">{appointment.patient.email}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">DOB</p>
+              <p className="text-sm font-medium text-[#16202E]">{appointment.patient.dob}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">Gender</p>
+              <p className="text-sm font-medium text-[#16202E]">{appointment.patient.gender}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-500">ID Number</p>
+              <p className="text-sm font-medium text-[#16202E]">{appointment.patient.identificationNumber || 'N/A'}</p>
+            </div>
+            <div className="col-span-2">
+              <p className="text-xs text-gray-500">Address</p>
+              <p className="text-sm font-medium text-[#16202E]">{appointment.patient.address}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* General Info Section */}
+      <div className="mt-6 pt-6 border-t border-gray-200">
+        <h4 className="text-sm font-bold text-[#16202E] mb-3">General Information</h4>
+        <div className="grid grid-cols-2 gap-y-3 gap-x-4">
+          <div>
+            <p className="text-xs text-gray-500">Booking For</p>
+            <p className="text-sm font-medium text-[#16202E]">{appointment.generalInfo.forWhom}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">Visited Before</p>
+            <p className="text-sm font-medium text-[#16202E]">{appointment.generalInfo.visitedBefore ? 'Yes' : 'No'}</p>
+          </div>
+          <div className="col-span-2">
+            <p className="text-xs text-gray-500">Comments</p>
+            <p className="text-sm font-medium text-[#16202E]">{appointment.generalInfo.comments || 'No comments'}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Booker Info Section */}
+      <div className="mt-6 pt-6 border-t border-gray-200">
+        <h4 className="text-sm font-bold text-[#16202E] mb-3">Booker Information</h4>
+        <div className="grid grid-cols-2 gap-y-3 gap-x-4">
+          <div>
+            <p className="text-xs text-gray-500">Full Name</p>
+            <p className="text-sm font-medium text-[#16202E]">{appointment.bookerInfo.fullName || 'N/A'}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">Email</p>
+            <p className="text-sm font-medium text-[#16202E] break-all">{appointment.bookerInfo.email || 'N/A'}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500">Phone</p>
+            <p className="text-sm font-medium text-[#16202E]">{appointment.bookerInfo.phone || 'N/A'}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 
@@ -360,7 +358,7 @@ const ProviderCalendarPage: React.FC = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [view, setView] = useState<ViewType>('Month');
-  
+
   // Pagination State for List View
   const [listPage, setListPage] = useState(1);
   const ITEMS_PER_PAGE = 10;
@@ -393,53 +391,53 @@ const ProviderCalendarPage: React.FC = () => {
   // Transform API data to CalendarAppointment format and apply filters
   const appointments = useMemo<CalendarAppointment[]>(() => {
     if (!appointmentsData?.data) return [];
-    
+
     let filtered = appointmentsData.data
       .map((apt: ProviderAppointment) => {
         const isOther = apt.formData?.forWhom === 'Other';
-        // If booking for "Other", use formData patient details, otherwise use root/account details
-        const patientName = isOther ? apt.formData?.patientName : apt.patient_name;
-        const patientEmail = isOther ? apt.formData?.patientEmail : apt.patient_email;
-        const patientPhone = isOther ? apt.formData?.patientPhone : apt.patient_phone;
-        const patientAddress = isOther ? apt.formData?.patientAddress : apt.patient_address;
-        const patientGender = isOther ? apt.formData?.patientGender : apt.patient_gender;
-        const patientDOB = isOther ? apt.formData?.patientDOB : apt.patient_dob;
+        // Use formData for patient details when available, fallback to root fields
+        const patientName = apt.formData?.patientName || apt.patient_name;
+        const patientEmail = apt.formData?.patientEmail || '';
+        const patientPhone = apt.formData?.patientPhone || '';
+        const patientAddress = apt.formData?.patientAddress || '';
+        const patientGender = apt.formData?.patientGender || '';
+        const patientDOB = apt.formData?.patientDOB || '';
 
         return {
-            id: apt.id,
-            title: apt.service_name,
-            service: apt.service_name,
-            time: apt.start_time,
-            endTime: apt.end_time,
-            date: parseISO(apt.appointment_date),
-      type: 'medical', 
-      patient: {
-                fullName: patientName || 'Unknown Patient',
-                phone: patientPhone || '',
-                email: patientEmail || '',
-                dob: patientDOB || '',
-                gender: patientGender || '',
-                address: patientAddress || '',
-                identificationNumber: apt.formData?.identificationNumber || '',
-      },
-            appointmentId: apt.id,
-            status: (apt.status || 'pending').charAt(0).toUpperCase() + (apt.status || 'pending').slice(1),
-      generalInfo: {
-                comments: apt.formData?.comments || apt.notes || '',
-                visitedBefore: apt.formData?.visitedBefore || false,
-                forWhom: apt.formData?.forWhom || 'Self',
-      },
-      bookerInfo: {
-                fullName: apt.patient_name || '', // Assuming root fields are booker/account holder
-                email: apt.patient_email || '',
-                phone: apt.patient_phone || '',
-        profilePicture: {
-                url: '', // Not provided in new API response
-        },
-      },
-            paymentStatus: apt.payment?.status || 'pending',
+          id: apt.id,
+          title: apt.service_name,
+          service: apt.service_name,
+          time: apt.start_time,
+          endTime: apt.end_time,
+          date: parseISO(apt.appointment_date),
+          type: 'medical',
+          patient: {
+            fullName: patientName || 'Unknown Patient',
+            phone: patientPhone || '',
+            email: patientEmail || '',
+            dob: patientDOB || '',
+            gender: patientGender || '',
+            address: patientAddress || '',
+            identificationNumber: apt.formData?.identificationNumber || '',
+          },
+          appointmentId: apt.id,
+          status: (apt.status || 'pending').charAt(0).toUpperCase() + (apt.status || 'pending').slice(1),
+          generalInfo: {
+            comments: apt.formData?.comments || '',
+            visitedBefore: apt.formData?.visitedBefore || false,
+            forWhom: apt.formData?.forWhom || 'Self',
+          },
+          bookerInfo: {
+            fullName: apt.patient_name || '', // Assuming root fields are booker/account holder
+            email: '',
+            phone: '',
+            profilePicture: {
+              url: '', // Not provided in new API response
+            },
+          },
+          paymentStatus: apt.payment?.status || 'pending',
         };
-    });
+      });
 
     // Apply status filter
     if (filterStatus !== 'all') {
@@ -487,7 +485,7 @@ const ProviderCalendarPage: React.FC = () => {
     setIsModalOpen(false);
     setExpandedAppointmentId(null);
     setIsFilterOpen(false);
-    
+
     // Prepare table data
     const tableData = appointments
       .sort((a, b) => a.date.getTime() - b.date.getTime())
@@ -512,11 +510,11 @@ const ProviderCalendarPage: React.FC = () => {
         'Booker Phone': apt.bookerInfo.phone,
         'Appointment ID': apt.appointmentId,
       }));
-    
+
     // Create workbook and worksheet
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.json_to_sheet(tableData);
-    
+
     // Set column widths
     const colWidths = [
       { wch: 12 }, // Date
@@ -540,16 +538,16 @@ const ProviderCalendarPage: React.FC = () => {
       { wch: 20 }, // Appointment ID
     ];
     ws['!cols'] = colWidths;
-    
+
     // Add worksheet to workbook
     XLSX.utils.book_append_sheet(wb, ws, 'Appointments');
-    
+
     // Generate filename
-    const dateRange = view === 'Day' 
+    const dateRange = view === 'Day'
       ? format(currentDate, 'yyyy-MM-dd')
       : format(currentDate, 'yyyy-MM');
     const filename = `appointments-${dateRange}-${view.toLowerCase()}.xlsx`;
-    
+
     // Save Excel file
     XLSX.writeFile(wb, filename);
   };
@@ -594,10 +592,10 @@ const ProviderCalendarPage: React.FC = () => {
   };
 
   const handleShowMore = (e: React.MouseEvent, day: Date) => {
-      e.stopPropagation();
-      setSelectedDate(day);
-      setView('Day');
-      setCurrentDate(day);
+    e.stopPropagation();
+    setSelectedDate(day);
+    setView('Day');
+    setCurrentDate(day);
   };
 
   const handleAppointmentClick = (e: React.MouseEvent<HTMLDivElement>, apt: CalendarAppointment) => {
@@ -605,8 +603,8 @@ const ProviderCalendarPage: React.FC = () => {
 
     // If Day view or List view, use expansion (inline) logic
     if (view === 'Day') {
-        toggleExpansion(e as any, apt.id);
-        return;
+      toggleExpansion(e as any, apt.id);
+      return;
     }
 
     // If Month or Week view, use Modal logic
@@ -644,7 +642,7 @@ const ProviderCalendarPage: React.FC = () => {
     }
     // Ensure it doesn't go above viewport
     top = Math.max(PADDING, top);
-    
+
     // If still too tall, center it vertically but with preference to move up
     if (top + MAX_MODAL_H > vh - BOTTOM_PADDING) {
       // Center but bias upward by subtracting some offset
@@ -666,10 +664,10 @@ const ProviderCalendarPage: React.FC = () => {
   // Pagination Handlers
   const totalPages = appointmentsData?.pagination?.pages || 1;
   const handlePageChange = (newPage: number) => {
-      if (newPage >= 1 && newPage <= totalPages) {
-          setListPage(newPage);
-          setExpandedAppointmentId(null); // Reset expansion on page change
-      }
+    if (newPage >= 1 && newPage <= totalPages) {
+      setListPage(newPage);
+      setExpandedAppointmentId(null); // Reset expansion on page change
+    }
   };
 
   // Close filter dropdown when clicking outside
@@ -691,377 +689,370 @@ const ProviderCalendarPage: React.FC = () => {
     <div className="flex flex-col h-full bg-[#F9FAFB] space-y-6 pt-6">
 
       <div className="px-8 pb-8 flex-1 flex flex-col">
-          {/* Calendar Controls */}
-          <div className="flex flex-wrap items-center justify-between mb-6 gap-4">
-            <div className="flex items-center gap-4">
-              <span className="text-xl font-semibold text-[#16202E] min-w-[140px]">
-                {view === 'Day' 
-                  ? format(currentDate, 'MMMM d, yyyy')
-                  : format(currentDate, 'MMMM yyyy')
-                }
-              </span>
-              <div className="flex items-center gap-2">
-                <button 
-                    onClick={() => navigate('prev')}
-                    className="p-1 hover:bg-gray-200 rounded transition-colors"
-                >
-                    <FaChevronLeft size={14} className="text-gray-600" />
-                </button>
-                <button 
-                    onClick={() => navigate('next')}
-                    className="p-1 hover:bg-gray-200 rounded transition-colors"
-                >
-                    <FaChevronRight size={14} className="text-gray-600" />
-                </button>
-                <button 
-                    onClick={handleToday}
-                    className="ml-2 px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-[#16202E] rounded transition-colors font-medium"
-                >
-                    Today
-                </button>
-              </div>
-            </div>
-
-            <div className="flex bg-gray-100 p-1 rounded-lg">
-              {(['Day', 'Week', 'Month', 'Appointments'] as ViewType[]).map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setView(v)}
-                  className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
-                    view === v 
-                      ? 'bg-white text-[#16202E] shadow-sm' 
-                      : 'text-gray-500 hover:text-gray-700'
-                  }`}
-                >
-                  {v}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex items-center gap-4">
-              <button 
-                onClick={handleRefresh}
-                className="p-2 text-gray-500 hover:text-[#16202E] transition-colors" 
-                title="Refresh"
-                disabled={isRefreshing || isLoading || isRefetching}
+        {/* Calendar Controls */}
+        <div className="flex flex-wrap items-center justify-between mb-6 gap-4">
+          <div className="flex items-center gap-4">
+            <span className="text-xl font-semibold text-[#16202E] min-w-[140px]">
+              {view === 'Day'
+                ? format(currentDate, 'MMMM d, yyyy')
+                : format(currentDate, 'MMMM yyyy')
+              }
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => navigate('prev')}
+                className="p-1 hover:bg-gray-200 rounded transition-colors"
               >
-                <IoRefreshOutline 
-                    size={20} 
-                    className={isRefreshing || isLoading || isRefetching ? 'animate-spin text-[#16202E]' : ''} 
-                />
+                <FaChevronLeft size={14} className="text-gray-600" />
               </button>
-              <div className="relative">
-                <button 
-                  onClick={handlePrint}
-                  className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-[#16202E] transition-colors"
-                  title="Export to Excel"
-                >
-                <FaPrint size={14} />
-                  Export
+              <button
+                onClick={() => navigate('next')}
+                className="p-1 hover:bg-gray-200 rounded transition-colors"
+              >
+                <FaChevronRight size={14} className="text-gray-600" />
               </button>
-              </div>
-              <div className="relative">
-                <button 
-                  onClick={() => setIsFilterOpen(!isFilterOpen)}
-                  className={`flex items-center gap-2 text-sm font-medium transition-colors ${
-                    filterStatus !== 'all' || filterDateFrom || filterDateTo
-                      ? 'text-[#16202E] font-semibold'
-                      : 'text-gray-600 hover:text-[#16202E]'
+              <button
+                onClick={handleToday}
+                className="ml-2 px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 text-[#16202E] rounded transition-colors font-medium"
+              >
+                Today
+              </button>
+            </div>
+          </div>
+
+          <div className="flex bg-gray-100 p-1 rounded-lg">
+            {(['Day', 'Week', 'Month', 'Appointments'] as ViewType[]).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${view === v
+                  ? 'bg-white text-[#16202E] shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
                   }`}
-                >
+              >
+                {v}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-4">
+            <button
+              onClick={handleRefresh}
+              className="p-2 text-gray-500 hover:text-[#16202E] transition-colors"
+              title="Refresh"
+              disabled={isRefreshing || isLoading || isRefetching}
+            >
+              <IoRefreshOutline
+                size={20}
+                className={isRefreshing || isLoading || isRefetching ? 'animate-spin text-[#16202E]' : ''}
+              />
+            </button>
+            <div className="relative">
+              <button
+                onClick={handlePrint}
+                className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-[#16202E] transition-colors"
+                title="Export to Excel"
+              >
+                <FaPrint size={14} />
+                Export
+              </button>
+            </div>
+            <div className="relative">
+              <button
+                onClick={() => setIsFilterOpen(!isFilterOpen)}
+                className={`flex items-center gap-2 text-sm font-medium transition-colors ${filterStatus !== 'all' || filterDateFrom || filterDateTo
+                  ? 'text-[#16202E] font-semibold'
+                  : 'text-gray-600 hover:text-[#16202E]'
+                  }`}
+              >
                 <FaFilter size={12} />
                 Filter
-                  {(filterStatus !== 'all' || filterDateFrom || filterDateTo) && (
-                    <span className="w-2 h-2 bg-[#06202E] rounded-full"></span>
-                  )}
-                </button>
-                
-                {/* Filter Dropdown */}
-                {isFilterOpen && (
-                  <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-xl border border-gray-200 z-50 p-4">
-                    <div className="space-y-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                        <select
-                          value={filterStatus}
-                          onChange={(e) => setFilterStatus(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#06202E] focus:border-transparent"
-                        >
-                          <option value="all">All Statuses</option>
-                          <option value="pending">Pending</option>
-                          <option value="confirmed">Confirmed</option>
-                          <option value="completed">Completed</option>
-                          <option value="cancelled">Cancelled</option>
-                        </select>
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Date From</label>
-                        <input
-                          type="date"
-                          value={filterDateFrom}
-                          onChange={(e) => setFilterDateFrom(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#06202E] focus:border-transparent"
-                        />
-                      </div>
-                      
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Date To</label>
-                        <input
-                          type="date"
-                          value={filterDateTo}
-                          onChange={(e) => setFilterDateTo(e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#06202E] focus:border-transparent"
-                        />
-                      </div>
-                      
-                      <div className="flex gap-2 pt-2">
-                        <button
-                          onClick={handleFilterApply}
-                          className="flex-1 px-4 py-2 bg-[#06202E] text-white rounded-md text-sm font-medium hover:bg-[#051a26] transition-colors"
-                        >
-                          Apply
-                        </button>
-                        <button
-                          onClick={handleFilterReset}
-                          className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors"
-                        >
-                          Reset
+                {(filterStatus !== 'all' || filterDateFrom || filterDateTo) && (
+                  <span className="w-2 h-2 bg-[#06202E] rounded-full"></span>
+                )}
               </button>
-                      </div>
+
+              {/* Filter Dropdown */}
+              {isFilterOpen && (
+                <div className="absolute right-0 mt-2 w-72 bg-white rounded-lg shadow-xl border border-gray-200 z-50 p-4">
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                      <select
+                        value={filterStatus}
+                        onChange={(e) => setFilterStatus(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#06202E] focus:border-transparent"
+                      >
+                        <option value="all">All Statuses</option>
+                        <option value="pending">Pending</option>
+                        <option value="confirmed">Confirmed</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
                     </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Date From</label>
+                      <input
+                        type="date"
+                        value={filterDateFrom}
+                        onChange={(e) => setFilterDateFrom(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#06202E] focus:border-transparent"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Date To</label>
+                      <input
+                        type="date"
+                        value={filterDateTo}
+                        onChange={(e) => setFilterDateTo(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#06202E] focus:border-transparent"
+                      />
+                    </div>
+
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        onClick={handleFilterApply}
+                        className="flex-1 px-4 py-2 bg-[#06202E] text-white rounded-md text-sm font-medium hover:bg-[#051a26] transition-colors"
+                      >
+                        Apply
+                      </button>
+                      <button
+                        onClick={handleFilterReset}
+                        className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Calendar Grid or List */}
+        {view === 'Appointments' ? (
+          <div className="flex-1 flex flex-col min-h-0 bg-white rounded-xl border border-gray-200">
+            <div className="flex-1 overflow-y-auto">
+              <div className="min-w-full">
+                {/* Table Header */}
+                <div className="grid grid-cols-12 gap-4 border-b border-gray-100 bg-gray-50 px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider sticky top-0 z-10">
+                  <div className="col-span-3">Patient</div>
+                  <div className="col-span-3">Service</div>
+                  <div className="col-span-3">Date & Time</div>
+                  <div className="col-span-2">Status</div>
+                  <div className="col-span-1"></div>
+                </div>
+
+                {/* Appointments List */}
+                {isLoading ? (
+                  <div className="flex justify-center py-20">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+                  </div>
+                ) : appointments.length > 0 ? (
+                  appointments
+                    .sort((a, b) => a.date.getTime() - b.date.getTime())
+                    .map((apt) => {
+                      const isExpanded = expandedAppointmentId === apt.id;
+                      return (
+                        <div
+                          key={apt.id}
+                          className={`border-b border-gray-100 transition-colors ${isExpanded ? 'bg-gray-50' : 'hover:bg-gray-50'}`}
+                        >
+                          <div
+                            onClick={(e) => toggleExpansion(e, apt.id)}
+                            className="grid grid-cols-12 gap-4 px-6 py-4 cursor-pointer items-center"
+                          >
+                            <div className="col-span-3 flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-[#E7E1FF] flex items-center justify-center text-[#16202E] font-medium text-xs">
+                                {(apt.patient.fullName || 'PT').substring(0, 2).toUpperCase()}
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium text-[#16202E]">{apt.patient.fullName}</p>
+                                <p className="text-xs text-gray-500">{apt.patient.phone}</p>
+                              </div>
+                            </div>
+                            <div className="col-span-3 text-sm text-gray-700 font-medium">
+                              {apt.service}
+                            </div>
+                            <div className="col-span-3">
+                              <p className="text-sm text-[#16202E]">{format(apt.date, 'MMM d, yyyy')}</p>
+                              <p className="text-xs text-gray-500">{apt.time} - {apt.endTime}</p>
+                            </div>
+                            <div className="col-span-2">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${apt.status.toLowerCase() === 'confirmed' ? 'bg-green-100 text-green-800' :
+                                apt.status.toLowerCase() === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                  'bg-gray-100 text-gray-800'
+                                }`}>
+                                {apt.status}
+                              </span>
+                            </div>
+                            <div className="col-span-1 text-right">
+                              <button className="text-gray-400 hover:text-[#16202E]">
+                                {isExpanded ? <FaChevronUp size={12} /> : <FaChevronDown size={12} />}
+                              </button>
+                            </div>
+                          </div>
+                          {isExpanded && (
+                            <div className="px-6 pb-4">
+                              <AppointmentDetailsInline appointment={apt} />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-20 text-gray-500">
+                    <MdOutlineCalendarToday size={48} className="mb-4 text-gray-300" />
+                    <p>No appointments found.</p>
                   </div>
                 )}
               </div>
             </div>
-          </div>
 
-          {/* Calendar Grid or List */}
-          {view === 'Appointments' ? (
-             <div className="flex-1 flex flex-col min-h-0 bg-white rounded-xl border border-gray-200">
-                <div className="flex-1 overflow-y-auto">
-                    <div className="min-w-full">
-                    {/* Table Header */}
-                    <div className="grid grid-cols-12 gap-4 border-b border-gray-100 bg-gray-50 px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider sticky top-0 z-10">
-                        <div className="col-span-3">Patient</div>
-                        <div className="col-span-3">Service</div>
-                        <div className="col-span-3">Date & Time</div>
-                        <div className="col-span-2">Status</div>
-                        <div className="col-span-1"></div>
-                    </div>
-                    
-                    {/* Appointments List */}
-                    {isLoading ? (
-                         <div className="flex justify-center py-20">
-                             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-                         </div>
-                    ) : appointments.length > 0 ? (
-                        appointments
-                        .sort((a, b) => a.date.getTime() - b.date.getTime())
-                        .map((apt) => {
-                        const isExpanded = expandedAppointmentId === apt.id;
-                        return (
-                            <div 
-                                key={apt.id}
-                                className={`border-b border-gray-100 transition-colors ${isExpanded ? 'bg-gray-50' : 'hover:bg-gray-50'}`}
-                            >
-                                <div 
-                                    onClick={(e) => toggleExpansion(e, apt.id)}
-                                    className="grid grid-cols-12 gap-4 px-6 py-4 cursor-pointer items-center"
-                                >
-                                    <div className="col-span-3 flex items-center gap-3">
-                                    <div className="w-8 h-8 rounded-full bg-[#E7E1FF] flex items-center justify-center text-[#16202E] font-medium text-xs">
-                                        {(apt.patient.fullName || 'PT').substring(0,2).toUpperCase()}
-                                    </div>
-                                    <div>
-                                        <p className="text-sm font-medium text-[#16202E]">{apt.patient.fullName}</p>
-                                        <p className="text-xs text-gray-500">{apt.patient.phone}</p>
-                                    </div>
-                                    </div>
-                                    <div className="col-span-3 text-sm text-gray-700 font-medium">
-                                    {apt.service}
-                                    </div>
-                                    <div className="col-span-3">
-                                    <p className="text-sm text-[#16202E]">{format(apt.date, 'MMM d, yyyy')}</p>
-                                    <p className="text-xs text-gray-500">{apt.time} - {apt.endTime}</p>
-                                    </div>
-                                    <div className="col-span-2">
-                                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                        apt.status.toLowerCase() === 'confirmed' ? 'bg-green-100 text-green-800' :
-                                        apt.status.toLowerCase() === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                        'bg-gray-100 text-gray-800'
-                                    }`}>
-                                        {apt.status}
-                                    </span>
-                                    </div>
-                                    <div className="col-span-1 text-right">
-                                    <button className="text-gray-400 hover:text-[#16202E]">
-                                        {isExpanded ? <FaChevronUp size={12} /> : <FaChevronDown size={12} />}
-                                    </button>
-                                    </div>
-                                </div>
-                                {isExpanded && (
-                                    <div className="px-6 pb-4">
-                                        <AppointmentDetailsInline appointment={apt} />
-                                    </div>
-                                )}
-                            </div>
-                        );
-                        })
-                    ) : (
-                        <div className="flex flex-col items-center justify-center py-20 text-gray-500">
-                        <MdOutlineCalendarToday size={48} className="mb-4 text-gray-300" />
-                        <p>No appointments found.</p>
-                        </div>
-                    )}
-                    </div>
-                </div>
-                
-                {/* Pagination Controls */}
-                <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
-                    <div className="text-sm text-gray-700">
-                        Page <span className="font-medium">{listPage}</span> of <span className="font-medium">{totalPages}</span>
-                    </div>
-                    <div className="flex gap-2">
-                        <button
-                            onClick={() => handlePageChange(listPage - 1)}
-                            disabled={listPage === 1}
-                            className="px-3 py-1 border border-gray-300 rounded-md bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            Previous
-                        </button>
-                        <button
-                            onClick={() => handlePageChange(listPage + 1)}
-                            disabled={listPage === totalPages}
-                            className="px-3 py-1 border border-gray-300 rounded-md bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            Next
-                        </button>
-                    </div>
-                </div>
-             </div>
-          ) : (
+            {/* Pagination Controls */}
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 flex items-center justify-between">
+              <div className="text-sm text-gray-700">
+                Page <span className="font-medium">{listPage}</span> of <span className="font-medium">{totalPages}</span>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => handlePageChange(listPage - 1)}
+                  disabled={listPage === 1}
+                  className="px-3 py-1 border border-gray-300 rounded-md bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => handlePageChange(listPage + 1)}
+                  disabled={listPage === totalPages}
+                  className="px-3 py-1 border border-gray-300 rounded-md bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : (
           <div className="flex-1 bg-transparent flex flex-col min-h-0">
             {/* Days Header */}
-              {view !== 'Day' && (
-            <div className="grid grid-cols-7 gap-4 mb-4">
-              {daysOfWeek.map(day => (
-                <div key={day} className="text-sm font-medium text-gray-500 pl-1">
-                  {day}
-                </div>
-              ))}
-            </div>
-              )}
+            {view !== 'Day' && (
+              <div className="grid grid-cols-7 gap-4 mb-4">
+                {daysOfWeek.map(day => (
+                  <div key={day} className="text-sm font-medium text-gray-500 pl-1">
+                    {day}
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Days Grid */}
-              <div className={`grid gap-4 auto-rows-fr flex-1 ${
-                view === 'Day' ? 'grid-cols-1' : 'grid-cols-7'
+            <div className={`grid gap-4 auto-rows-fr flex-1 ${view === 'Day' ? 'grid-cols-1' : 'grid-cols-7'
               }`}>
               {calendarDays.map((day, idx) => {
                 const isCurrentMonth = isSameMonth(day, currentDate);
                 const isSelected = isSameDay(day, selectedDate);
-                  const isCurrentDay = isToday(day);
+                const isCurrentDay = isToday(day);
                 const dayApts = getDayAppointments(day);
 
-                  // Determine visible appointments
-                  const MAX_VISIBLE = view === 'Month' ? 2 : 100;
-                  const visibleApts = view === 'Day' ? dayApts : dayApts.slice(0, MAX_VISIBLE);
-                  const hiddenCount = dayApts.length - visibleApts.length;
+                // Determine visible appointments
+                const MAX_VISIBLE = view === 'Month' ? 2 : 100;
+                const visibleApts = view === 'Day' ? dayApts : dayApts.slice(0, MAX_VISIBLE);
+                const hiddenCount = dayApts.length - visibleApts.length;
 
                 return (
-                  <div 
-                    key={day.toString()} 
+                  <div
+                    key={day.toString()}
                     onClick={() => setSelectedDate(day)}
-                      className={`rounded-xl p-3 flex flex-col border border-transparent cursor-pointer transition-colors overflow-hidden ${
-                        view === 'Day' 
-                           ? 'bg-white h-full' 
-                           : !isCurrentMonth ? 'bg-gray-100' : 'bg-white hover:border-gray-200 min-h-[140px]'
-                    }`}
+                    className={`rounded-xl p-3 flex flex-col border border-transparent cursor-pointer transition-colors overflow-hidden ${view === 'Day'
+                      ? 'bg-white h-full'
+                      : !isCurrentMonth ? 'bg-gray-100' : 'bg-white hover:border-gray-200 min-h-[140px]'
+                      }`}
                   >
                     <div className="flex justify-between items-start mb-2">
-                      <span 
-                        className={`text-sm font-medium w-7 h-7 flex items-center justify-center rounded-md transition-colors ${
-                            isCurrentDay
-                              ? 'bg-[#06202E] text-white' 
-                              : isSelected && view !== 'Day'
-                                ? 'bg-gray-200 text-[#16202E]' 
+                      <span
+                        className={`text-sm font-medium w-7 h-7 flex items-center justify-center rounded-md transition-colors ${isCurrentDay
+                          ? 'bg-[#06202E] text-white'
+                          : isSelected && view !== 'Day'
+                            ? 'bg-gray-200 text-[#16202E]'
                             : !isCurrentMonth ? 'text-gray-400' : 'text-gray-700'
-                        }`}
+                          }`}
                       >
                         {format(day, 'd')}
                       </span>
-                        {view === 'Day' && (
-                          <span className="text-sm text-gray-500 font-medium">{format(day, 'EEEE')}</span>
-                        )}
+                      {view === 'Day' && (
+                        <span className="text-sm text-gray-500 font-medium">{format(day, 'EEEE')}</span>
+                      )}
                     </div>
 
-                      <div className={`flex flex-col gap-1.5 flex-1 ${view === 'Day' ? 'overflow-y-auto' : ''}`}>
-                        {visibleApts.length > 0 ? (
-                            <>
-                            {visibleApts.map((apt) => {
-                              const isExpanded = expandedAppointmentId === apt.id && view === 'Day';
-                              return (
-                        <div 
-                          key={apt.id}
-                          onClick={(e) => handleAppointmentClick(e, apt)}
-                                  className={`flex flex-col px-2 py-1.5 rounded-md hover:bg-gray-100 transition-colors cursor-pointer border-l-4 ${
-                                    apt.status.toLowerCase() === 'confirmed' ? 'border-l-green-500' : 'border-l-yellow-500'
+                    <div className={`flex flex-col gap-1.5 flex-1 ${view === 'Day' ? 'overflow-y-auto' : ''}`}>
+                      {visibleApts.length > 0 ? (
+                        <>
+                          {visibleApts.map((apt) => {
+                            const isExpanded = expandedAppointmentId === apt.id && view === 'Day';
+                            return (
+                              <div
+                                key={apt.id}
+                                onClick={(e) => handleAppointmentClick(e, apt)}
+                                className={`flex flex-col px-2 py-1.5 rounded-md hover:bg-gray-100 transition-colors cursor-pointer border-l-4 ${apt.status.toLowerCase() === 'confirmed' ? 'border-l-green-500' : 'border-l-yellow-500'
                                   } ${!isCurrentMonth && view !== 'Day' ? 'bg-white' : 'bg-[#F6F8FA]'}`}
-                                >
-                                  <div className="flex justify-between items-center mb-0.5">
-                                    <span className="text-[11px] font-semibold text-[#16202E]">{apt.time}</span>
-                                    {view === 'Day' && (
-                                        <span className="text-gray-400">
-                                            {isExpanded ? <FaChevronUp size={10} /> : <FaChevronDown size={10} />}
-                                        </span>
-                                    )}
-                                  </div>
-                                  <span className="text-[12px] text-[#16202E] font-medium leading-tight truncate">
-                                    {apt.service}
-                                  </span>
+                              >
+                                <div className="flex justify-between items-center mb-0.5">
+                                  <span className="text-[11px] font-semibold text-[#16202E]">{apt.time}</span>
                                   {view === 'Day' && (
-                                    <>
-                                        <span className="text-[11px] text-gray-500 mt-1">
-                                            Patient: {apt.patient.fullName}
-                          </span>
-                                        
-                                        {isExpanded && (
-                                            <div onClick={e => e.stopPropagation()}>
-                                                <AppointmentDetailsInline 
-                                                    appointment={apt} 
-                                                    className="-mx-2 mt-3 rounded-none border-t border-gray-200 bg-gray-50"
-                                                />
-                                            </div>
-                                        )}
-                                    </>
+                                    <span className="text-gray-400">
+                                      {isExpanded ? <FaChevronUp size={10} /> : <FaChevronDown size={10} />}
+                                    </span>
                                   )}
                                 </div>
-                              );
-                            })}
+                                <span className="text-[12px] text-[#16202E] font-medium leading-tight truncate">
+                                  {apt.service}
+                                </span>
+                                {view === 'Day' && (
+                                  <>
+                                    <span className="text-[11px] text-gray-500 mt-1">
+                                      Patient: {apt.patient.fullName}
+                                    </span>
+
+                                    {isExpanded && (
+                                      <div onClick={e => e.stopPropagation()}>
+                                        <AppointmentDetailsInline
+                                          appointment={apt}
+                                          className="-mx-2 mt-3 rounded-none border-t border-gray-200 bg-gray-50"
+                                        />
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+                              </div>
+                            );
+                          })}
                           {hiddenCount > 0 && (
-                            <div 
-                                onClick={(e) => handleShowMore(e, day)}
-                                className="text-xs text-gray-500 hover:text-[#16202E] font-medium px-2 py-1 cursor-pointer hover:bg-gray-100 rounded"
+                            <div
+                              onClick={(e) => handleShowMore(e, day)}
+                              className="text-xs text-gray-500 hover:text-[#16202E] font-medium px-2 py-1 cursor-pointer hover:bg-gray-100 rounded"
                             >
-                                +{hiddenCount} more
+                              +{hiddenCount} more
                             </div>
                           )}
-                          </>
-                        ) : view === 'Day' ? (
-                          <div className="flex flex-col items-center justify-center h-full text-gray-400 text-sm">
-                            <p>No appointments for this day</p>
+                        </>
+                      ) : view === 'Day' ? (
+                        <div className="flex flex-col items-center justify-center h-full text-gray-400 text-sm">
+                          <p>No appointments for this day</p>
                         </div>
-                        ) : null}
+                      ) : null}
                     </div>
                   </div>
                 );
               })}
             </div>
           </div>
-          )}
+        )}
       </div>
 
-      <AppointmentModal 
+      <AppointmentModal
         isOpen={isModalOpen}
         onClose={closeModal}
         appointment={selectedAppointment}

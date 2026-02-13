@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Outlet, useLocation, Link, useNavigate } from 'react-router-dom';
 import { FaRegCalendarAlt, FaStar, FaCog, FaChevronLeft, FaChevronRight, FaPlus } from 'react-icons/fa';
-import { MdDashboard, MdPayment, MdMedicalServices, MdOutlineSupportAgent, MdPeople } from 'react-icons/md';
+import { MdDashboard, MdPayment, MdMedicalServices, MdOutlineSupportAgent, MdPeople, MdPendingActions } from 'react-icons/md';
 import { TbReport } from 'react-icons/tb';
 import { IoNotificationsOutline } from 'react-icons/io5';
 import { FiLogOut, FiSearch } from 'react-icons/fi';
 import { useAuth } from '../contexts/AuthContext';
 import { useProviderSearch } from '../contexts/ProviderSearchContext';
+import { usePendingAppointments } from '../services/providerService';
 import logo from '/icons/Logomark (1).png'
 
 const NAV_ITEMS = [
   { label: 'Overview', icon: <MdDashboard size={20} />, path: '/provider/dashboard' },
+  { label: 'Requests', icon: <MdPendingActions size={20} />, path: '/provider/pending-appointments' },
   { label: 'Calendar', icon: <FaRegCalendarAlt size={20} />, path: '/provider/calendar' },
   { label: 'Patient Lists', icon: <MdPeople size={20} />, path: '/provider/patients' },
   { label: 'Services', icon: <MdMedicalServices size={20} />, path: '/provider/services' },
@@ -26,6 +28,14 @@ const ProviderLayout: React.FC = () => {
   const { searchQuery, setSearchQuery, isSearching } = useProviderSearch();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const isPatientsPage = location.pathname === '/provider/patients';
+
+  // Fetch pending appointments for badge
+  const { data: appointmentsData } = usePendingAppointments();
+
+  const pendingCount = React.useMemo(() => {
+    if (!appointmentsData?.data) return 0;
+    return appointmentsData.data.length;
+  }, [appointmentsData]);
 
   return (
     <div className="flex h-screen bg-[#F9FAFB]">
@@ -68,6 +78,17 @@ const ProviderLayout: React.FC = () => {
                     <span className={`transition-opacity duration-300 whitespace-nowrap ${isCollapsed ? 'opacity-0 w-0 hidden' : 'opacity-100'}`}>
                       {item.label}
                     </span>
+
+                    {/* Pending Badge - Premium Style */}
+                    {/* Pending Badge - Premium Style */}
+                    {item.path === '/provider/pending-appointments' && pendingCount > 0 && (
+                      <span className={`ml-auto flex items-center justify-center transition-all duration-300 ${isCollapsed
+                        ? 'absolute top-1.5 right-1.5 h-2.5 w-2.5 rounded-full bg-orange-500 ring-2 ring-white shadow-sm'
+                        : 'bg-orange-50 text-orange-600 px-2 py-0.5 rounded-md text-[11px] font-bold border border-orange-100 shadow-sm'
+                        }`}>
+                        {!isCollapsed && (pendingCount > 99 ? '99+' : pendingCount)}
+                      </span>
+                    )}
                   </Link>
                 </li>
               );

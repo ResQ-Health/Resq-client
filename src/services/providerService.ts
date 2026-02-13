@@ -279,45 +279,38 @@ export const useCreateAppointment = () => {
 };
 
 // Fetch Provider Appointments
+// Fetch Provider Appointments
 export interface ProviderAppointment {
+    id: string;
     _id: string;
-    id: string; // appointment_id
-    patient_id: string;
-    provider_id: string;
-    service_id: string;
+    patient_name: string;
+    service_name: string;
     appointment_date: string;
     start_time: string;
     end_time: string;
+    duration?: number;
     status: string;
-    service_name: string;
-    patient_name: string;
-    patient_email: string;
-    patient_phone: string;
-    patient_dob: string;
-    patient_gender: string;
-    patient_address: string;
-    formData: {
-        forWhom: string;
-        visitedBefore: boolean;
-        identificationNumber: string;
-        comments: string;
-        communicationPreference: string;
+    payment?: {
+        status: string;
+        amount: number;
+        paidAt?: string;
+        paystackReference?: string;
+    };
+    formData?: {
         patientName?: string;
         patientEmail?: string;
         patientPhone?: string;
         patientAddress?: string;
         patientGender?: string;
         patientDOB?: string;
+        forWhom?: string;
+        communicationPreference?: string;
+        [key: string]: any;
     };
-    payment: {
-        status: string;
-        amount: number;
-        paystackReference?: string;
-        paidAt?: string;
-    };
-    notes?: string;
-    created_at: string;
-    updated_at: string;
+    patient_id?: string;
+    service_id?: string;
+    created_at?: string;
+    updated_at?: string;
 }
 
 export interface ProviderAppointmentsResponse {
@@ -346,6 +339,83 @@ export const useProviderAppointments = (page = 1, limit = 100) => {
     });
 };
 
+export const updateAppointmentStatus = async (id: string, action: 'confirm' | 'reject'): Promise<any> => {
+    // Endpoint: PUT /api/v1/appointments/:id/confirm (as per user instruction)
+    // Body: { action: 'confirm' } or { action: 'reject' }
+    const res = await apiClient.put(API_ENDPOINTS.PROVIDER.APPOINTMENTS.UPDATE_STATUS(id), { action });
+    return res.data;
+};
+
+export const useUpdateAppointmentStatus = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, action }: { id: string; action: 'confirm' | 'reject' }) =>
+            updateAppointmentStatus(id, action),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['providerAppointments'] });
+            queryClient.invalidateQueries({ queryKey: ['pendingAppointments'] }); // Invalidate new pending query
+            queryClient.invalidateQueries({ queryKey: ['providerDashboardStats'] });
+            toast.success('Appointment status updated successfully');
+        },
+        onError: (error: any) => {
+            console.error('Update status error:', error);
+            toast.error(error.response?.data?.message || 'Failed to update appointment status');
+        }
+    });
+};
+
+export const fetchPendingAppointments = async (): Promise<ProviderAppointmentsResponse> => {
+    const res = await apiClient.get(API_ENDPOINTS.PROVIDER.APPOINTMENTS.GET_PENDING);
+    return res.data as ProviderAppointmentsResponse;
+};
+
+export const usePendingAppointments = () => {
+    return useQuery({
+        queryKey: ['pendingAppointments'],
+        queryFn: fetchPendingAppointments,
+        staleTime: 1 * 60 * 1000, // 1 minute
+    });
+};
+
+export const bulkAcceptAppointments = async (): Promise<any> => {
+    const res = await apiClient.post(API_ENDPOINTS.PROVIDER.APPOINTMENTS.ACCEPT_ALL, {});
+    return res.data;
+};
+
+export const useBulkAcceptAppointments = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: bulkAcceptAppointments,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['providerAppointments'] });
+            queryClient.invalidateQueries({ queryKey: ['pendingAppointments'] });
+            toast.success('All pending appointments accepted');
+        },
+        onError: (error: any) => {
+            toast.error(error.response?.data?.message || 'Failed to accept all appointments');
+        }
+    });
+};
+
+export const bulkRejectAppointments = async (): Promise<any> => {
+    const res = await apiClient.post(API_ENDPOINTS.PROVIDER.APPOINTMENTS.REJECT_ALL, {});
+    return res.data;
+};
+
+export const useBulkRejectAppointments = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: bulkRejectAppointments,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['providerAppointments'] });
+            queryClient.invalidateQueries({ queryKey: ['pendingAppointments'] });
+            toast.success('All pending appointments rejected');
+        },
+        onError: (error: any) => {
+            toast.error(error.response?.data?.message || 'Failed to reject all appointments');
+        }
+    });
+};
 
 // Booking API (pre-payment)
 export interface BookAppointmentRequest {
@@ -741,7 +811,45 @@ export const useProviderProfile = () => {
     });
 };
 
-// Cached Provider Profile Query (avoid refetching on every mount)
+// Request to Book Settings
+export interface ProviderRequestToBookResponse {
+    success: boolean;
+    request_to_book: boolean;
+}
+
+export const fetchProviderRequestToBook = async (): Promise<ProviderRequestToBookResponse> => {
+    const res = await apiClient.get(API_ENDPOINTS.PROVIDER.REQUEST_TO_BOOK);
+    return res.data as ProviderRequestToBookResponse;
+};
+
+export const updateProviderRequestToBook = async (enabled: boolean): Promise<ProviderRequestToBookResponse> => {
+    const res = await apiClient.put(API_ENDPOINTS.PROVIDER.REQUEST_TO_BOOK, { request_to_book: enabled });
+    return res.data as ProviderRequestToBookResponse;
+};
+
+export const useProviderRequestToBook = () => {
+    return useQuery({
+        queryKey: ['providerRequestToBook'],
+        queryFn: fetchProviderRequestToBook,
+        staleTime: 5 * 60 * 1000, // 5 minutes
+    });
+};
+
+export const useUpdateProviderRequestToBook = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: updateProviderRequestToBook,
+        onSuccess: (data) => {
+            queryClient.setQueryData(['providerRequestToBook'], data);
+            toast.success('Request to book setting updated');
+        },
+        onError: (error: any) => {
+            toast.error(error.response?.data?.message || 'Failed to update setting');
+        }
+    });
+};
+
+// Provider Profile Query (avoid refetching on every mount)
 export const useProviderProfileQuery = () => {
     return useQuery({
         queryKey: ['providerProfileMe'],
@@ -1634,7 +1742,7 @@ export interface ProviderServiceItem {
     };
     created_at: string;
     updated_at: string;
-    durationMins?: number; // Optional, UI helper, might not be in API yet or could be added to metadata
+    duration?: number;
 }
 
 export interface ProviderServicesResponse {
@@ -1649,6 +1757,7 @@ export interface CreateServiceRequest {
     description: string;
     price: number;
     uses?: string;
+    duration?: number;
 }
 
 export interface UpdateServiceRequest {
@@ -1658,6 +1767,7 @@ export interface UpdateServiceRequest {
     name?: string;
     category?: string;
     uses?: string;
+    duration?: number;
 }
 
 export const fetchProviderServices = async (): Promise<ProviderServicesResponse> => {
@@ -1703,6 +1813,7 @@ export const useCreateProviderService = () => {
                     description: newServiceData.description,
                     price: newServiceData.price,
                     uses: newServiceData.uses || newServiceData.description, // Fallback
+                    duration: newServiceData.duration, // Optimistic update
                     created_at: new Date().toISOString(),
                     updated_at: new Date().toISOString(),
                     metadata: {}
@@ -1765,6 +1876,7 @@ export const useUpdateProviderService = () => {
                             return {
                                 ...service,
                                 ...updatedServiceData,
+                                duration: updatedServiceData.duration !== undefined ? updatedServiceData.duration : service.duration,
                                 // Maintain existing fields that are not in the update payload
                                 updated_at: new Date().toISOString()
                             } as ProviderServiceItem;

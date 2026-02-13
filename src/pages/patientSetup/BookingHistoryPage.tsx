@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { MdOutlineSearch, MdArrowUpward, MdArrowDownward, MdFilterList, MdSort, MdRefresh, MdSchedule, MdCheckCircle, MdCancel, MdToday, MdEvent, MdHistory, MdClear } from 'react-icons/md';
 import { FaPlus, FaRegClock, FaHourglassHalf } from 'react-icons/fa';
-import { FiEye } from 'react-icons/fi';
+import { FiEye, FiDownload } from 'react-icons/fi';
 import { BsThreeDotsVertical } from 'react-icons/bs';
 import { IoCheckmarkDone, IoTimeOutline } from 'react-icons/io5';
 import { TiPlusOutline } from 'react-icons/ti';
@@ -10,9 +10,15 @@ import { RiDeleteBinLine } from 'react-icons/ri';
 import { LiaTimesCircle } from 'react-icons/lia';
 import { useNavigate } from 'react-router-dom';
 import { usePatientAppointments, useDeleteAppointment, Appointment } from '../../services/userService';
+import { fetchPaymentReceipt, PaymentReceiptData } from '../../services/providerService';
 import { useQueryClient } from '@tanstack/react-query';
 import Pagination from '../../components/Pagination';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+import toast from 'react-hot-toast';
+import logo from '/icons/Logomark (1).png';
+import check from '/success.png';
 
 export default function BookingHistoryPage() {
     const navigate = useNavigate();
@@ -47,6 +53,9 @@ export default function BookingHistoryPage() {
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const sortDropdownRef = useRef<HTMLDivElement>(null);
     const filterDropdownRef = useRef<HTMLDivElement>(null);
+    const receiptRef = useRef<HTMLDivElement>(null);
+    const [receiptData, setReceiptData] = useState<PaymentReceiptData | null>(null);
+    const [isGeneratingReceipt, setIsGeneratingReceipt] = useState(false);
 
     // Transform API data to match component expectations
     const rawData = appointmentsData?.data as any;
@@ -61,6 +70,7 @@ export default function BookingHistoryPage() {
     }
 
     const appointments: Appointment[] = rawAppointments.map((apt: any) => {
+        console.log('Appointment:', apt.id, 'Status:', apt.status, 'PaymentStatus:', apt.paymentStatus, 'Payment:', apt.payment);
         const bookingType = apt.bookingType || apt.contact?.bookingType || 'Self';
         const communicationPreference = apt.communicationPreference || apt.contact?.communicationPreference || 'Booker';
 
@@ -181,7 +191,15 @@ export default function BookingHistoryPage() {
 
         // 3. Status filter
         if (selectedStatus !== 'all') {
-            filtered = filtered.filter((apt) => apt.status.toLowerCase() === selectedStatus.toLowerCase());
+            if (selectedStatus === 'rejected') {
+                filtered = filtered.filter((apt) =>
+                    apt.status.toLowerCase() === 'cancelled' ||
+                    apt.status.toLowerCase() === 'canceled' ||
+                    apt.status.toLowerCase() === 'rejected'
+                );
+            } else {
+                filtered = filtered.filter((apt) => apt.status.toLowerCase() === selectedStatus.toLowerCase());
+            }
         }
 
         // 4. Sorting logic
@@ -229,6 +247,12 @@ export default function BookingHistoryPage() {
                 if (typeof aValue === 'number' && typeof bValue === 'number') {
                     return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
                 }
+            } else if (sortField === 'status') {
+                const aStatus = a.status.toLowerCase() === 'cancelled' || a.status.toLowerCase() === 'canceled' ? 'rejected' : a.status.toLowerCase();
+                const bStatus = b.status.toLowerCase() === 'cancelled' || b.status.toLowerCase() === 'canceled' ? 'rejected' : b.status.toLowerCase();
+                return sortDirection === 'asc'
+                    ? aStatus.localeCompare(bStatus)
+                    : bStatus.localeCompare(aStatus);
             }
 
             // Fallback: Automatic date-based sorting: Upcoming → Today → Past
@@ -286,7 +310,11 @@ export default function BookingHistoryPage() {
     // Calculate counts for filter dropdown
     const pendingCount = appointments?.filter((apt) => apt.status.toLowerCase() === 'pending').length || 0;
     const confirmedCount = appointments?.filter((apt) => apt.status.toLowerCase() === 'confirmed').length || 0;
-    const cancelledCount = appointments?.filter((apt) => apt.status.toLowerCase() === 'cancelled').length || 0;
+    const rejectedCount = appointments?.filter((apt) =>
+        apt.status.toLowerCase() === 'cancelled' ||
+        apt.status.toLowerCase() === 'canceled' ||
+        apt.status.toLowerCase() === 'rejected'
+    ).length || 0;
 
 
     const toggleDropdown = (index: number) => {
@@ -410,6 +438,89 @@ export default function BookingHistoryPage() {
         };
     }, [showDetailsModal]);
 
+    // Generate PDF from receipt template
+    const generateReceiptPDF = async (): Promise<Blob | null> => {
+        if (!receiptRef.current) return null;
+
+        try {
+            const canvas = await html2canvas(receiptRef.current, {
+                scale: 2,
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff'
+            });
+
+            const imgData = canvas.toDataURL('image/png');
+            const pdf = new jsPDF({
+                orientation: 'portrait',
+                unit: 'mm',
+                format: 'a4'
+            });
+
+            const imgWidth = 210;
+            const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+            pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+
+            const pdfBlob = pdf.output('blob');
+            return pdfBlob;
+        } catch (err) {
+            console.error('Failed to generate receipt PDF:', err);
+            return null;
+        }
+    };
+
+    const handleDownloadReceipt = async (appointmentId: string) => {
+        const toastId = toast.loading('Fetching receipt details...');
+        setIsGeneratingReceipt(true);
+
+        try {
+            const response = await fetchPaymentReceipt(appointmentId);
+
+            if (response.success && response.data) {
+                setReceiptData(response.data);
+
+                // Allow time for state update and rendering
+                setTimeout(async () => {
+                    toast.loading('Generating PDF...', { id: toastId });
+
+                    try {
+                        const pdfBlob = await generateReceiptPDF();
+
+                        if (!pdfBlob) {
+                            toast.error('Failed to generate receipt', { id: toastId });
+                            return;
+                        }
+
+                        const url = URL.createObjectURL(pdfBlob);
+                        const link = document.createElement('a');
+                        link.href = url;
+                        link.download = `ResQ-Receipt-${response.data.appointment.booking_id}.pdf`;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(url);
+
+                        toast.success('Receipt downloaded successfully', { id: toastId });
+                    } catch (genErr) {
+                        console.error('PDF Generation Error:', genErr);
+                        toast.error('Failed to generate PDF', { id: toastId });
+                    } finally {
+                        setReceiptData(null); // Clear data to hide template
+                        setIsGeneratingReceipt(false);
+                    }
+                }, 1000);
+            } else {
+                toast.error('Failed to fetch receipt details', { id: toastId });
+                setIsGeneratingReceipt(false);
+            }
+        } catch (err) {
+            console.error('Fetch Receipt Error:', err);
+            toast.error('Failed to download receipt', { id: toastId });
+            setIsGeneratingReceipt(false);
+        }
+    };
+
     // Removed automatic refetch intervals - data will only refresh on manual refresh or page reload
 
     if (!isAuthenticated) return null;
@@ -444,7 +555,7 @@ export default function BookingHistoryPage() {
                 {/* Header Section */}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
                     <div>
-                        <h1 className="text-2xl md:text-3xl font-bold text-[#16202E] tracking-tight">Booking History</h1>
+                        <h1 className="text-2xl md:text-3xl font-bold text-[#16202E] tracking-tight">Bookings</h1>
                         <p className="text-gray-500 mt-1">Manage and track your medical appointments</p>
                     </div>
                     <button
@@ -531,7 +642,7 @@ export default function BookingHistoryPage() {
                                             { id: 'all', label: 'All Statuses', count: allCount, icon: MdFilterList, color: 'text-gray-600' },
                                             { id: 'pending', label: 'Pending', count: pendingCount, icon: FaHourglassHalf, color: 'text-yellow-600' },
                                             { id: 'confirmed', label: 'Confirmed', count: confirmedCount, icon: MdCheckCircle, color: 'text-blue-600' },
-                                            { id: 'cancelled', label: 'Cancelled', count: cancelledCount, icon: MdCancel, color: 'text-red-600' },
+                                            { id: 'rejected', label: 'Rejected', count: rejectedCount, icon: MdCancel, color: 'text-red-600' },
                                         ].map((option) => (
                                             <button
                                                 key={option.id}
@@ -570,6 +681,7 @@ export default function BookingHistoryPage() {
                                             { id: 'date', label: 'Date' },
                                             { id: 'service', label: 'Service' },
                                             { id: 'provider', label: 'Provider' },
+                                            { id: 'status', label: 'Status' },
                                         ].map((option) => (
                                             <button
                                                 key={option.id}
@@ -709,7 +821,7 @@ export default function BookingHistoryPage() {
                                                 <td className="p-4">
                                                     <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${getStatusColor(appointment.status)}`}>
                                                         <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60"></span>
-                                                        {appointment.status}
+                                                        {(appointment.status.toLowerCase() === 'cancelled' || appointment.status.toLowerCase() === 'canceled') ? 'rejected' : appointment.status}
                                                     </div>
                                                 </td>
                                                 <td className="p-4 pr-6">
@@ -720,6 +832,14 @@ export default function BookingHistoryPage() {
                                                             title="View Details"
                                                         >
                                                             <FiEye className="w-4 h-4" />
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleDownloadReceipt(appointment.id)}
+                                                            className="p-2 text-gray-400 hover:text-[#16202E] hover:bg-gray-100 rounded-lg transition-all"
+                                                            title="Download Receipt"
+                                                            disabled={isGeneratingReceipt}
+                                                        >
+                                                            <FiDownload className="w-4 h-4" />
                                                         </button>
                                                     </div>
                                                 </td>
@@ -804,7 +924,7 @@ export default function BookingHistoryPage() {
                                             <IoCheckmarkDone className={`w-5 h-5 ${getStatusColor(selectedAppointment.status).split(' ')[1]}`} />
                                         </div>
                                         <div>
-                                            <p className="font-medium text-gray-900 capitalize">{selectedAppointment.status}</p>
+                                            <p className="font-medium text-gray-900 capitalize">{(selectedAppointment.status.toLowerCase() === 'cancelled' || selectedAppointment.status.toLowerCase() === 'canceled') ? 'rejected' : selectedAppointment.status}</p>
                                             <p className="text-sm text-gray-500">Current status</p>
                                         </div>
                                     </div>
@@ -894,6 +1014,19 @@ export default function BookingHistoryPage() {
                         </div>
 
                         <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-3 rounded-b-2xl">
+                            {(
+                                (selectedAppointment.payment && (selectedAppointment.payment.status?.toLowerCase() === 'paid' || selectedAppointment.paymentStatus?.toLowerCase() === 'paid')) ||
+                                selectedAppointment.status?.toLowerCase() === 'completed'
+                            ) && (
+                                    <button
+                                        onClick={() => handleDownloadReceipt(selectedAppointment.id)}
+                                        disabled={isGeneratingReceipt}
+                                        className="px-5 py-2.5 text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 font-medium rounded-xl transition-colors flex items-center gap-2"
+                                    >
+                                        {isGeneratingReceipt ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-700"></div> : <FiDownload className="w-4 h-4" />}
+                                        Download Receipt
+                                    </button>
+                                )}
                             <button
                                 onClick={closeDetailsModal}
                                 className="px-5 py-2.5 text-gray-600 font-medium hover:bg-gray-100 rounded-xl transition-colors"
@@ -930,6 +1063,98 @@ export default function BookingHistoryPage() {
                             >
                                 {deleteAppointmentMutation.isPending ? 'Deleting...' : 'Delete'}
                             </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            {/* Hidden Receipt Template */}
+            {receiptData && (
+                <div style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
+                    <div ref={receiptRef} className="w-[210mm] bg-white p-12 text-black font-sans">
+                        {/* Header */}
+                        <div className="flex justify-between items-center border-b border-gray-200 pb-6 mb-8">
+                            <div className="flex items-center gap-3">
+                                <img src={logo} alt="RESQ" className="w-12 h-12" />
+                                <span className="text-2xl font-bold tracking-tight">RESQ</span>
+                            </div>
+                            <div className="text-right">
+                                <h1 className="text-3xl font-bold text-gray-900">RECEIPT</h1>
+                                <p className="text-gray-500 mt-1">#{receiptData.appointment.booking_id || 'N/A'}</p>
+                            </div>
+                        </div>
+
+                        {/* Date and Status */}
+                        <div className="flex justify-between mb-12">
+                            <div>
+                                <p className="text-sm text-gray-500 uppercase tracking-wider font-semibold">Date Issued</p>
+                                <p className="text-lg font-medium">{new Date().toLocaleDateString()}</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-sm text-gray-500 uppercase tracking-wider font-semibold">Status</p>
+                                <span className="inline-block bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-bold mt-1">
+                                    PAID
+                                </span>
+                            </div>
+                        </div>
+
+                        {/* Two Column Layout */}
+                        <div className="flex gap-12 mb-12">
+                            {/* Patient Info */}
+                            <div className="flex-1">
+                                <h3 className="text-gray-500 uppercase tracking-wider font-semibold text-sm mb-4 border-b pb-2">Patient Details</h3>
+                                <div className="space-y-2">
+                                    <p><span className="font-medium">Name:</span> {receiptData.patient.name}</p>
+                                    <p><span className="font-medium">Email:</span> {receiptData.patient.email}</p>
+                                    <p><span className="font-medium">Phone:</span> {receiptData.patient.mobile_number}</p>
+                                </div>
+                            </div>
+
+                            {/* Appointment Info */}
+                            <div className="flex-1">
+                                <h3 className="text-gray-500 uppercase tracking-wider font-semibold text-sm mb-4 border-b pb-2">Appointment Details</h3>
+                                <div className="space-y-2">
+                                    <p><span className="font-medium">Service:</span> {receiptData.appointment.type}</p>
+                                    <p><span className="font-medium">Date:</span> {new Date(receiptData.appointment.date).toLocaleDateString(undefined, {
+                                        weekday: 'long',
+                                        year: 'numeric',
+                                        month: 'long',
+                                        day: 'numeric'
+                                    })}</p>
+                                    <p><span className="font-medium">Time:</span> {receiptData.appointment.time}</p>
+                                    <p><span className="font-medium">Location:</span> {`${receiptData.appointment.location.street}, ${receiptData.appointment.location.city}, ${receiptData.appointment.location.state}`}</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Payment Table */}
+                        <div className="mb-12">
+                            <h3 className="text-gray-500 uppercase tracking-wider font-semibold text-sm mb-4">Payment Details</h3>
+                            <table className="w-full">
+                                <thead>
+                                    <tr className="bg-gray-50">
+                                        <th className="text-left py-3 px-4 font-semibold text-gray-700">Description</th>
+                                        <th className="text-right py-3 px-4 font-semibold text-gray-700">Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr className="border-b border-gray-100">
+                                        <td className="py-4 px-4">{receiptData.appointment.type}</td>
+                                        <td className="text-right py-4 px-4">{receiptData.payment_summary.service_cost}</td>
+                                    </tr>
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <td className="py-4 px-4 font-bold text-right">Total</td>
+                                        <td className="py-4 px-4 font-bold text-right text-xl">{receiptData.payment_summary.total}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="text-center text-gray-500 text-sm mt-20 border-t pt-8">
+                            <p className="mb-2">Thank you for choosing RESQ Health.</p>
+                            <p>For any inquiries, please contact us at Hello@resq.africa or +2347072779831</p>
                         </div>
                     </div>
                 </div>

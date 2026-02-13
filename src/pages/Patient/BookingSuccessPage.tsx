@@ -231,8 +231,8 @@ const BookingSuccessPage = () => {
                                     {receiptStatus === 'generating' ? 'Generating Receipt' : 'Sending Email'}
                                 </h3>
                                 <p className="text-sm text-gray-600">
-                                    {receiptStatus === 'generating' 
-                                        ? 'Receipt is being generated...' 
+                                    {receiptStatus === 'generating'
+                                        ? 'Receipt is being generated...'
                                         : 'Receipt is being sent to your email...'}
                                 </p>
                             </div>

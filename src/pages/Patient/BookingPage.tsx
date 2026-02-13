@@ -362,7 +362,8 @@ const BookingPage = () => {
                 name: providerFromApi.provider_name,
                 address: [providerFromApi.address?.street, providerFromApi.address?.city, providerFromApi.address?.state].filter(Boolean).join(', '),
                 image: providerFromApi.banner_image_url || providerFromApi.logo,
-                services: providerFromApi.services
+                services: providerFromApi.services,
+                request_to_book: providerFromApi.request_to_book
             });
         }
 
@@ -1804,7 +1805,16 @@ const BookingPage = () => {
                                                                     // Invalidate appointments query to refresh booking history
                                                                     queryClient.invalidateQueries({ queryKey: ['patientAppointments'] });
                                                                     if (res?.message) toast.success(res.message);
-                                                                    setCurrentStep('payment');
+
+                                                                    // Check if provider has request_to_book enabled
+                                                                    // We prefer providerFromApi as it comes from the fresh query, falling back to providerData
+                                                                    const isRequestToBook = providerFromApi?.request_to_book || providerData?.request_to_book || false;
+
+                                                                    if (isRequestToBook && res?.data?.appointment?.id) {
+                                                                        navigate(`/patient/booking/request-success?appointmentId=${res.data.appointment.id}`);
+                                                                    } else {
+                                                                        setCurrentStep('payment');
+                                                                    }
                                                                 },
                                                                 onError: (error: any) => {
                                                                     isBookingInProgressRef.current = false;

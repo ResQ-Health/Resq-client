@@ -68,9 +68,7 @@ function Navbar() {
   if (location.pathname === '/patientSetup/Myaccount' || isAuthenticated) {
     centerContent = (
       <div className="flex items-center gap-8">
-        <Link to="/services" className="text-gray-700 hover:text-gray-900 font-medium">Services</Link>
-        <Link to="/about" className="text-gray-700 hover:text-gray-900 font-medium">About Us</Link>
-        <Link to="/business" className="text-gray-700 hover:text-gray-900 font-medium">Business</Link>
+
       </div>
     );
     rightContent = (

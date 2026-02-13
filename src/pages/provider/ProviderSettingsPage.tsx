@@ -22,6 +22,8 @@ import {
   useUpdateProviderFullProfile,
   useProviderAutoConfirm,
   useUpdateProviderAutoConfirm,
+  useProviderRequestToBook,
+  useUpdateProviderRequestToBook,
 } from '../../services/providerService';
 import toast from 'react-hot-toast';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
@@ -363,6 +365,7 @@ const ProviderSettingsPage: React.FC = () => {
   >('Monday');
   const [bookingPolicies, setBookingPolicies] = useState('');
   const [autoConfirmAppointments, setAutoConfirmAppointments] = useState(false);
+  const [requestToBook, setRequestToBook] = useState(false);
 
   // Team access (UI-only for now)
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>(TEAM_MEMBERS_MOCK);
@@ -391,6 +394,8 @@ const ProviderSettingsPage: React.FC = () => {
   const updateWorkingHoursMutation = useUpdateProviderWorkingHours();
   const autoConfirmQuery = useProviderAutoConfirm();
   const updateAutoConfirmMutation = useUpdateProviderAutoConfirm();
+  const requestToBookQuery = useProviderRequestToBook();
+  const updateRequestToBookMutation = useUpdateProviderRequestToBook();
 
   const countriesQuery = useCountries();
   const statesQuery = useStates({ country: countryVal || 'Nigeria' });
@@ -680,6 +685,13 @@ const ProviderSettingsPage: React.FC = () => {
       setAutoConfirmAppointments(autoConfirmQuery.data.data.auto_confirm_appointments);
     }
   }, [autoConfirmQuery.data]);
+
+  // Initialize request-to-book setting from API
+  useEffect(() => {
+    if (requestToBookQuery.data?.request_to_book !== undefined) {
+      setRequestToBook(requestToBookQuery.data.request_to_book);
+    }
+  }, [requestToBookQuery.data]);
 
   const bannerPreviewUrl = useMemo(() => {
     if (bannerImageFile) return URL.createObjectURL(bannerImageFile);
@@ -1999,15 +2011,46 @@ const ProviderSettingsPage: React.FC = () => {
                         updateAutoConfirmMutation.mutate({ auto_confirm_appointments: newValue });
                       }}
                       disabled={updateAutoConfirmMutation.isPending || autoConfirmQuery.isLoading}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#06202E]/20 disabled:opacity-50 disabled:cursor-not-allowed ${
-                        autoConfirmAppointments ? 'bg-[#06202E]' : 'bg-gray-300'
-                      }`}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#06202E]/20 disabled:opacity-50 disabled:cursor-not-allowed ${autoConfirmAppointments ? 'bg-[#06202E]' : 'bg-gray-300'
+                        }`}
                       aria-label={autoConfirmAppointments ? 'Disable auto-confirm appointments' : 'Enable auto-confirm appointments'}
                     >
                       <span
-                        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
-                          autoConfirmAppointments ? 'translate-x-5' : 'translate-x-1'
+                        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${autoConfirmAppointments ? 'translate-x-5' : 'translate-x-1'
+                          }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Request-to-Book Feature */}
+              <div className="border-t border-gray-100 pt-6">
+                <div className="grid grid-cols-1 md:grid-cols-[1fr_auto] items-center gap-6">
+                  <div>
+                    <p className="text-sm font-semibold text-[#16202E] mb-1">Request-to-Book Feature</p>
+                    <p className="text-sm text-gray-500">
+                      The Booking Confirmation System allows users to submit booking requests without immediate payment, which are then reviewed for confirmation before prompting payment, helping to manage demand and prevent bulk requests.
+                    </p>
+                  </div>
+                  <div className="flex items-center">
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={requestToBook}
+                      onClick={() => {
+                        const newValue = !requestToBook;
+                        setRequestToBook(newValue);
+                        updateRequestToBookMutation.mutate(newValue);
+                      }}
+                      disabled={updateRequestToBookMutation.isPending || requestToBookQuery.isLoading}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#06202E]/20 disabled:opacity-50 disabled:cursor-not-allowed ${requestToBook ? 'bg-[#06202E]' : 'bg-gray-300'
                         }`}
+                      aria-label={requestToBook ? 'Disable Request-to-Book Feature' : 'Enable Request-to-Book Feature'}
+                    >
+                      <span
+                        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${requestToBook ? 'translate-x-5' : 'translate-x-1'
+                          }`}
                       />
                     </button>
                   </div>

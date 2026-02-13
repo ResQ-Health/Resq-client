@@ -26,6 +26,7 @@ import SearchPage from './pages/Patient/SearchPage'
 import ProviderPage from './pages/Patient/ProviderPage'
 import BookingPage from './pages/Patient/BookingPage'
 import BookingSuccessPage from './pages/Patient/BookingSuccessPage'
+import BookingRequestSuccessPage from './pages/Patient/BookingRequestSuccessPage'
 import PaymentCallback from './components/PaymentCallback'
 import TermsAndPolicyPage from './pages/TermsAndPolicyPage'
 import SupportPage from './pages/SupportPage'
@@ -41,6 +42,8 @@ import ProviderSettingsPage from './pages/provider/ProviderSettingsPage'
 import ProviderReportsPage from './pages/provider/ProviderReportsPage'
 import ProviderReviewsPage from './pages/provider/ProviderReviewsPage'
 import ProviderSupportPage from './pages/provider/ProviderSupportPage'
+
+import PendingAppointmentsPage from './pages/provider/PendingAppointmentsPage'
 import { ProviderSearchProvider } from './contexts/ProviderSearchContext'
 
 function App() {
@@ -56,6 +59,7 @@ function App() {
         </ProtectedRoute>
       }>
         <Route path="/provider/dashboard" element={<DashboardPage />} />
+        <Route path="/provider/pending-appointments" element={<PendingAppointmentsPage />} />
         <Route path="/provider/calendar" element={<ProviderCalendarPage />} />
         <Route path="/provider/patients" element={<ProviderPatientsPage />} />
         <Route path="/provider/services" element={<ProviderServicesPage />} />
@@ -121,6 +125,7 @@ function App() {
         <Route path="/search/provider/:id" element={<ProviderPage />} />
         <Route path="/patient/booking/:id" element={<BookingPage />} />
         <Route path="/patient/booking/success" element={<BookingSuccessPage />} />
+        <Route path="/patient/booking/request-success" element={<BookingRequestSuccessPage />} />
         <Route path="/payment/callback" element={<PaymentCallback />} />
 
         {/* Patient pages with PatientLayout */}

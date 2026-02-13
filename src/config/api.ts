@@ -171,9 +171,14 @@ export const API_ENDPOINTS = {
         ADDRESS: {
             UPDATE: '/api/v1/providers/me/address',
         },
+        REQUEST_TO_BOOK: '/api/v1/providers/me/request-to-book',
         APPOINTMENTS: {
             CREATE: '/api/v1/appointments', // Provider creating appointment manually
             GET_ALL: '/api/v1/providers/appointments',
+            GET_PENDING: '/api/v1/providers/appointments/pending',
+            UPDATE_STATUS: (id: string) => `/api/v1/appointments/${id}/confirm`, // User specified this endpoint structure
+            ACCEPT_ALL: '/api/v1/providers/appointments/pending/accept-all',
+            REJECT_ALL: '/api/v1/providers/appointments/pending/reject-all',
         },
         PATIENTS: {
             GET_ALL: '/api/v1/providers/patients',

@@ -418,37 +418,7 @@ const ProviderPage = () => {
     }, [favoriteStatusData]);
 
     // Ensure services are set when booking modal opens
-    useEffect(() => {
-        if (showBookingModal && providerData) {
-            // Ensure services are available
-            if (providerData.services && providerData.services.length > 0) {
-                // Set bookingSelectedService if not already set
-                if (!bookingSelectedService && providerData.services[0]) {
-                    setBookingSelectedService(providerData.services[0]);
-                }
-            } else if (providerFromApi?.services) {
-                // Extract services from API if not in providerData
-                const servicesFromApi = (providerFromApi.services || []).map((s: any) => {
-                    if (typeof s === 'string') {
-                        return s;
-                    } else if (s && typeof s === 'object') {
-                        return s.name || s.serviceName || String(s);
-                    }
-                    return String(s);
-                });
 
-                if (servicesFromApi.length > 0) {
-                    setProviderData((prev: any) => ({
-                        ...prev,
-                        services: servicesFromApi
-                    }));
-                    if (!bookingSelectedService) {
-                        setBookingSelectedService(servicesFromApi[0]);
-                    }
-                }
-            }
-        }
-    }, [showBookingModal, providerData, providerFromApi, bookingSelectedService]);
 
     const ratingDistribution = useMemo(() => {
         if (!providerData?.reviews || providerData.reviews.length === 0) {
@@ -884,12 +854,13 @@ const ProviderPage = () => {
                 continue;
             }
 
-            // Generate time slots (every 60 minutes)
+            // Generate time slots based on service duration (default 30 minutes)
             const startMinutes = toMinutes(wh.startTime);
             const endMinutes = toMinutes(wh.endTime);
             const times: string[] = [];
+            const slotDuration = 30; // Default for calendar view
 
-            for (let m = startMinutes; m + 30 <= endMinutes; m += 60) {
+            for (let m = startMinutes; m + slotDuration <= endMinutes; m += slotDuration) {
                 times.push(formatTime(m));
             }
 
@@ -954,24 +925,51 @@ const ProviderPage = () => {
         return `${h}:${pad(mm)} ${mer}`;
     };
 
-    const generateSlotsFromWH = (isoDate: string): string[] => {
+    // Get the duration of the selected service
+    const getSelectedServiceDuration = (serviceName?: string): number => {
+        const targetService = serviceName || bookingSelectedService;
+        if (!targetService) return 30; // Default 30 minutes
+
+        // Find the service object from the API data
+        const services = (providerFromApi as any)?.services || [];
+        const selectedSvc = services.find((s: any) => {
+            if (typeof s === 'string') return s === targetService;
+            if (typeof s === 'object') {
+                const name = s?.name || s?.serviceName || s?.service;
+                return name === targetService;
+            }
+            return false;
+        });
+
+        // Return the duration from the service object, default to 30 if not found
+        if (selectedSvc && typeof selectedSvc === 'object') {
+            return selectedSvc.duration || 30;
+        }
+        return 30;
+    };
+
+    const generateSlotsFromWH = (isoDate: string, serviceDuration?: number): string[] => {
         const wh = getWHForDate(isoDate);
         if (!wh?.isAvailable || !wh?.startTime || !wh?.endTime) return [];
         const start = toMinutes(wh.startTime);
         const end = toMinutes(wh.endTime);
         if (isNaN(start) || isNaN(end) || start >= end) return [];
+
+        // Use the service duration or default to 30 minutes
+        const duration = serviceDuration || getSelectedServiceDuration();
+
         const times: string[] = [];
-        for (let m = start; m + 30 <= end; m += 60) {
+        // Generate slots based on the service duration
+        for (let m = start; m + duration <= end; m += duration) {
             times.push(fmtTime(m));
         }
         return times;
     };
 
-    const slotsForDate = (isoDate: string): string[] => {
-        const daySlots = availabilityByDate[isoDate] || [];
-        if (daySlots.length > 0) return daySlots;
-        // fallback to working hours if available
-        return generateSlotsFromWH(isoDate);
+    const slotsForDate = (isoDate: string, serviceName?: string): string[] => {
+        // Use generateSlotsFromWH directly to ensure dynamic duration is respectful of the specific service requested
+        // Using availabilityByDate cache would limit us to the default 30-min slots calculated for the calendar view
+        return generateSlotsFromWH(isoDate, getSelectedServiceDuration(serviceName));
     };
 
     const sortedAvailabilityDates = useMemo(() => {
@@ -1029,6 +1027,66 @@ const ProviderPage = () => {
         const slotMinutes = timeStringToMinutes(timeStr);
         return slotMinutes <= nowMinutes; // past or equal not selectable
     };
+
+    // Ensure services and initial time slot are set when booking modal opens
+    useEffect(() => {
+        if (showBookingModal && providerData) {
+            // 1. Ensure services are available
+            if (providerData.services && providerData.services.length > 0) {
+                // Set bookingSelectedService if not already set
+                if (!bookingSelectedService && providerData.services[0]) {
+                    setBookingSelectedService(providerData.services[0]);
+                }
+            } else if (providerFromApi?.services) {
+                // Extract services from API if not in providerData
+                const servicesFromApi = (providerFromApi.services || []).map((s: any) => {
+                    if (typeof s === 'string') {
+                        return s;
+                    } else if (s && typeof s === 'object') {
+                        return s.name || s.serviceName || String(s);
+                    }
+                    return String(s);
+                });
+
+                if (servicesFromApi.length > 0) {
+                    setProviderData((prev: any) => ({
+                        ...prev,
+                        services: servicesFromApi
+                    }));
+                    if (!bookingSelectedService) {
+                        setBookingSelectedService(servicesFromApi[0]);
+                    }
+                }
+            }
+
+            // 2. Auto-select first available time slot if not set
+            // Only runs if no time is selected yet, to update initial state
+            if (!selectedTime && selectedDate) {
+                const slots = slotsForDate(selectedDate);
+                const firstAvailable = slots.find(time => !isPastForToday(selectedDate, time));
+                if (firstAvailable) {
+                    setSelectedTime(firstAvailable);
+                    setShowDateTimeError(false);
+                }
+            }
+        }
+    }, [showBookingModal, providerData, providerFromApi, bookingSelectedService, selectedDate, selectedTime]);
+
+    // Recalculate time slots when service changes
+    useEffect(() => {
+        if (showBookingModal && bookingSelectedService && selectedDate) {
+            // Clear selected time when service changes to force re-selection
+            setSelectedTime('');
+
+            // Auto-select first available slot for the new service
+            const slots = slotsForDate(selectedDate);
+            const firstAvailable = slots.find(time => !isPastForToday(selectedDate, time));
+            if (firstAvailable) {
+                setSelectedTime(firstAvailable);
+                setShowDateTimeError(false);
+            }
+        }
+    }, [bookingSelectedService]);
 
     const monthLabel = useMemo(() => {
         return new Date(calendarYear, calendarMonth, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
@@ -1148,6 +1206,14 @@ const ProviderPage = () => {
                                     <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" /></svg>
                                 </div>
                             </div>
+                            {selectedService && (
+                                <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <span>Duration: {getSelectedServiceDuration(selectedService)} minutes</span>
+                                </div>
+                            )}
                         </div>
 
                         {/* Time Slots */}
@@ -1162,27 +1228,48 @@ const ProviderPage = () => {
                                 <div>
                                     <h4 className="text-base font-medium text-gray-900 mb-3">Today</h4>
                                     <div className="grid grid-cols-3 gap-2">
-                                        {slotsForDate(todayISO).slice(0, 6).map((slot: string) => (
-                                            <button
-                                                key={`today-${slot}`}
-                                                onClick={() => {
-                                                    setSelectedDate(todayISO);
-                                                    handleTimeSlotSelect(slot);
-                                                    setShowBookingModal(true);
-                                                    setBookingSelectedService(selectedService);
-                                                    setSelectedTime(slot);
-                                                }}
-                                                className={`px-2 py-2 rounded-full text-xs border transition-colors text-center ${selectedDate === todayISO && selectedTime && timeStringToMinutes(selectedTime) === timeStringToMinutes(slot)
-                                                    ? 'bg-[#06202E] text-white border-[#06202E]'
-                                                    : 'border-gray-200 text-gray-700 hover:border-blue-500 hover:text-blue-600'
-                                                    }`}
-                                            >
-                                                {slot}
-                                            </button>
-                                        ))}
-                                        {slotsForDate(todayISO).length === 0 && (
-                                            <div className="col-span-3 text-sm text-gray-500 italic">No slots available</div>
-                                        )}
+                                        {(() => {
+                                            const slots = slotsForDate(todayISO, selectedService);
+                                            const hasMore = slots.length > 6;
+                                            const displaySlots = hasMore ? slots.slice(0, 5) : slots.slice(0, 6);
+                                            return (
+                                                <>
+                                                    {displaySlots.map((slot: string) => (
+                                                        <button
+                                                            key={`today-${slot}`}
+                                                            onClick={() => {
+                                                                setSelectedDate(todayISO);
+                                                                handleTimeSlotSelect(slot);
+                                                                setShowBookingModal(true);
+                                                                setBookingSelectedService(selectedService);
+                                                                setSelectedTime(slot);
+                                                            }}
+                                                            className={`px-2 py-2 rounded-full text-xs border transition-colors text-center ${selectedDate === todayISO && selectedTime && timeStringToMinutes(selectedTime) === timeStringToMinutes(slot)
+                                                                ? 'bg-[#06202E] text-white border-[#06202E]'
+                                                                : 'border-gray-200 text-gray-700 hover:border-blue-500 hover:text-blue-600'
+                                                                }`}
+                                                        >
+                                                            {slot}
+                                                        </button>
+                                                    ))}
+                                                    {hasMore && (
+                                                        <button
+                                                            onClick={() => {
+                                                                setSelectedDate(todayISO);
+                                                                setShowBookingModal(true);
+                                                                setBookingSelectedService(selectedService);
+                                                            }}
+                                                            className="px-2 py-2 rounded-full text-xs border border-blue-100 text-blue-600 bg-blue-50 hover:bg-blue-100 hover:border-blue-200 transition-colors text-center font-medium"
+                                                        >
+                                                            +{slots.length - 5} slots
+                                                        </button>
+                                                    )}
+                                                    {slots.length === 0 && (
+                                                        <div className="col-span-3 text-sm text-gray-500 italic">No slots available</div>
+                                                    )}
+                                                </>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
 
@@ -1192,27 +1279,48 @@ const ProviderPage = () => {
                                         {new Date(tomorrowISO).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'long' })}, Tomorrow
                                     </h4>
                                     <div className="grid grid-cols-3 gap-2">
-                                        {slotsForDate(tomorrowISO).slice(0, 6).map((slot: string) => (
-                                            <button
-                                                key={`tomorrow-${slot}`}
-                                                onClick={() => {
-                                                    setSelectedDate(tomorrowISO);
-                                                    handleTimeSlotSelect(slot);
-                                                    setShowBookingModal(true);
-                                                    setBookingSelectedService(selectedService);
-                                                    setSelectedTime(slot);
-                                                }}
-                                                className={`px-2 py-2 rounded-full text-xs border transition-colors text-center ${selectedDate === tomorrowISO && selectedTime && timeStringToMinutes(selectedTime) === timeStringToMinutes(slot)
-                                                    ? 'bg-[#06202E] text-white border-[#06202E]'
-                                                    : 'border-gray-200 text-gray-700 hover:border-blue-500 hover:text-blue-600'
-                                                    }`}
-                                            >
-                                                {slot}
-                                            </button>
-                                        ))}
-                                        {slotsForDate(tomorrowISO).length === 0 && (
-                                            <div className="col-span-3 text-sm text-gray-500 italic">No slots available</div>
-                                        )}
+                                        {(() => {
+                                            const slots = slotsForDate(tomorrowISO, selectedService);
+                                            const hasMore = slots.length > 6;
+                                            const displaySlots = hasMore ? slots.slice(0, 5) : slots.slice(0, 6);
+                                            return (
+                                                <>
+                                                    {displaySlots.map((slot: string) => (
+                                                        <button
+                                                            key={`tomorrow-${slot}`}
+                                                            onClick={() => {
+                                                                setSelectedDate(tomorrowISO);
+                                                                handleTimeSlotSelect(slot);
+                                                                setShowBookingModal(true);
+                                                                setBookingSelectedService(selectedService);
+                                                                setSelectedTime(slot);
+                                                            }}
+                                                            className={`px-2 py-2 rounded-full text-xs border transition-colors text-center ${selectedDate === tomorrowISO && selectedTime && timeStringToMinutes(selectedTime) === timeStringToMinutes(slot)
+                                                                ? 'bg-[#06202E] text-white border-[#06202E]'
+                                                                : 'border-gray-200 text-gray-700 hover:border-blue-500 hover:text-blue-600'
+                                                                }`}
+                                                        >
+                                                            {slot}
+                                                        </button>
+                                                    ))}
+                                                    {hasMore && (
+                                                        <button
+                                                            onClick={() => {
+                                                                setSelectedDate(tomorrowISO);
+                                                                setShowBookingModal(true);
+                                                                setBookingSelectedService(selectedService);
+                                                            }}
+                                                            className="px-2 py-2 rounded-full text-xs border border-blue-100 text-blue-600 bg-blue-50 hover:bg-blue-100 hover:border-blue-200 transition-colors text-center font-medium"
+                                                        >
+                                                            +{slots.length - 5} slots
+                                                        </button>
+                                                    )}
+                                                    {slots.length === 0 && (
+                                                        <div className="col-span-3 text-sm text-gray-500 italic">No slots available</div>
+                                                    )}
+                                                </>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
 
@@ -1223,24 +1331,45 @@ const ProviderPage = () => {
                                             {new Date(nextAvailableFromTomorrowISO).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'long' })}
                                         </h4>
                                         <div className="grid grid-cols-3 gap-2">
-                                            {slotsForDate(nextAvailableFromTomorrowISO).slice(0, 6).map((slot: string) => (
-                                                <button
-                                                    key={`next-${slot}`}
-                                                    onClick={() => {
-                                                        setSelectedDate(nextAvailableFromTomorrowISO);
-                                                        handleTimeSlotSelect(slot);
-                                                        setShowBookingModal(true);
-                                                        setBookingSelectedService(selectedService);
-                                                        setSelectedTime(slot);
-                                                    }}
-                                                    className={`px-2 py-2 rounded-full text-xs border transition-colors text-center ${selectedDate === nextAvailableFromTomorrowISO && selectedTime && timeStringToMinutes(selectedTime) === timeStringToMinutes(slot)
-                                                        ? 'bg-[#06202E] text-white border-[#06202E]'
-                                                        : 'border-gray-200 text-gray-700 hover:border-blue-500 hover:text-blue-600'
-                                                        }`}
-                                                >
-                                                    {slot}
-                                                </button>
-                                            ))}
+                                            {(() => {
+                                                const slots = slotsForDate(nextAvailableFromTomorrowISO, selectedService);
+                                                const hasMore = slots.length > 6;
+                                                const displaySlots = hasMore ? slots.slice(0, 5) : slots.slice(0, 6);
+                                                return (
+                                                    <>
+                                                        {displaySlots.map((slot: string) => (
+                                                            <button
+                                                                key={`next-${slot}`}
+                                                                onClick={() => {
+                                                                    setSelectedDate(nextAvailableFromTomorrowISO);
+                                                                    handleTimeSlotSelect(slot);
+                                                                    setShowBookingModal(true);
+                                                                    setBookingSelectedService(selectedService);
+                                                                    setSelectedTime(slot);
+                                                                }}
+                                                                className={`px-2 py-2 rounded-full text-xs border transition-colors text-center ${selectedDate === nextAvailableFromTomorrowISO && selectedTime && timeStringToMinutes(selectedTime) === timeStringToMinutes(slot)
+                                                                    ? 'bg-[#06202E] text-white border-[#06202E]'
+                                                                    : 'border-gray-200 text-gray-700 hover:border-blue-500 hover:text-blue-600'
+                                                                    }`}
+                                                            >
+                                                                {slot}
+                                                            </button>
+                                                        ))}
+                                                        {hasMore && (
+                                                            <button
+                                                                onClick={() => {
+                                                                    setSelectedDate(nextAvailableFromTomorrowISO);
+                                                                    setShowBookingModal(true);
+                                                                    setBookingSelectedService(selectedService);
+                                                                }}
+                                                                className="px-2 py-2 rounded-full text-xs border border-blue-100 text-blue-600 bg-blue-50 hover:bg-blue-100 hover:border-blue-200 transition-colors text-center font-medium"
+                                                            >
+                                                                +{slots.length - 5} slots
+                                                            </button>
+                                                        )}
+                                                    </>
+                                                );
+                                            })()}
                                         </div>
                                     </div>
                                 )}
@@ -2623,8 +2752,15 @@ const ProviderPage = () => {
                                                         if ((!isPastDay || isToday) && isWeekdayAvailable) {
                                                             setSelectedDate(iso);
                                                             setShowDateTimeError(false);
-                                                            // Clear time selection when date changes
-                                                            setSelectedTime('');
+
+                                                            // Auto-select first available slot for the new date
+                                                            const slots = slotsForDate(iso);
+                                                            const firstAvailable = slots.find(time => !isPastForToday(iso, time));
+                                                            if (firstAvailable) {
+                                                                setSelectedTime(firstAvailable);
+                                                            } else {
+                                                                setSelectedTime('');
+                                                            }
                                                         }
                                                     }}
                                                     disabled={(isPastDay && !isToday) || !isWeekdayAvailable}
@@ -2657,12 +2793,20 @@ const ProviderPage = () => {
                                                 ))
                                             )}
                                         </select>
+                                        {bookingSelectedService && (
+                                            <div className="mt-2 flex items-center gap-2 text-sm text-gray-600">
+                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                </svg>
+                                                <span>Duration: {getSelectedServiceDuration()} minutes</span>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Next Available */}
                                     <div>
                                         <h3 className="text-lg font-semibold text-gray-900 mb-2">Select Time <span className="text-red-500">*</span></h3>
-                                        <p className="text-xs text-gray-500 mb-4">Choose a time slot for your appointment</p>
+                                        <p className="text-xs text-gray-500 mb-4">Available time slots based on service duration and provider's working hours</p>
                                         <h3 className="text-lg font-semibold text-gray-900 mb-4">Next available</h3>
 
                                         {/* Selected Day */}
