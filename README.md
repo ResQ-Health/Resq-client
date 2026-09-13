@@ -1,10 +1,37 @@
-# RESQ Frontend Application
+# RESQ Client Web Application
 
-A React + TypeScript + Vite application for the RESQ healthcare platform.
+A modern React + TypeScript + Vite application for the RESQ Healthcare platform.
+
+For complete API integration documentation, endpoints registry, and React Query hook references, see [**CLIENT_API_DOCUMENTATION.md**](./CLIENT_API_DOCUMENTATION.md).
+
+---
+
+## Technical Stack & Architecture
+
+- **Core Framework:** React 18, TypeScript, Vite
+- **Styling:** TailwindCSS, Lucide Icons, Framer Motion
+- **State Management & Caching:** `@tanstack/react-query`, React Context (`AuthContext`, `FilterContext`, `ProviderSearchContext`), `localStorage` persistence
+- **HTTP Client:** Axios with request/response interceptors (`src/config/api.ts`)
+- **Authentication:** JWT Bearer tokens, Firebase OAuth 2.0 (Google, Facebook, Apple), OTP verification
+- **Form & Validation:** Custom TypeScript types and forms
+
+---
+
+## API Architecture Overview
+
+The client application connects to the ResQ Healthcare Backend Server via a structured service layer:
+
+- **`src/config/api.ts`**: Central Axios configuration with `baseURL` (`https://server-16pz.onrender.com` in production or proxy in dev), authorization header injection, global `401 Unauthorized` token handling, and `API_ENDPOINTS` object mapping.
+- **`src/services/authService.ts`**: Authentication services (register, login, verify OTP, forgot/reset password, OAuth, profile fetch, account deletion).
+- **`src/services/userService.ts`**: Patient profile management, avatar uploads, favorite providers toggling, and appointment history.
+- **`src/services/providerService.ts`**: Provider dashboard analytics, slot management, appointment confirmation/rejection, service catalog management, support tickets, bank payout account verification, and multi-part profile updates.
+- **`src/services/paymentService.ts`**: Payment method tokenization, saved card management, Paystack checkout initialization, and receipt email delivery.
+
+---
 
 ## Environment Setup
 
-This application requires environment variables for Firebase configuration. Create a `.env` file in the root directory with the following variables:
+Create a `.env` file in the root directory with your Firebase configuration:
 
 ```env
 # Firebase Configuration
@@ -18,90 +45,35 @@ VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id
 ```
 
 **Important Security Notes:**
-- Never commit `.env` files to version control
-- The `.env` file is already included in `.gitignore`
-- Get your Firebase credentials from [Firebase Console](https://console.firebase.google.com/)
-- All environment variables must be prefixed with `VITE_` to be accessible in the frontend
-
-## Getting Started
-
-1. Install dependencies:
-```bash
-npm install
-```
-
-2. Create a `.env` file with your Firebase credentials (see above)
-
-3. Start the development server:
-```bash
-npm run dev
-```
-
-4. Build for production:
-```bash
-npm run build
-```
-
-## Security
-
-- All API keys and sensitive configuration are stored in environment variables
-- Authentication tokens are stored in localStorage (standard practice for JWT tokens)
-- Console logging is disabled in production builds
-- No hardcoded credentials are present in the codebase
+- Never commit `.env` files to version control (enforced via `.gitignore`)
+- Obtain credentials from the [Firebase Console](https://console.firebase.google.com/)
+- All environment variables must be prefixed with `VITE_`
 
 ---
 
-## React + TypeScript + Vite
+## Getting Started
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+1. **Install dependencies:**
+   ```bash
+   npm install
+   ```
 
-Currently, two official plugins are available:
+2. **Create `.env` file:** (See above)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+3. **Start development server:**
+   ```bash
+   npm run dev
+   ```
 
-## Expanding the ESLint configuration
+4. **Build for production:**
+   ```bash
+   npm run build
+   ```
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+---
 
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
-```
+## Documentation Links
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-})
-```
+- [Client API Integration Manual (`CLIENT_API_DOCUMENTATION.md`)](./CLIENT_API_DOCUMENTATION.md)
+- [Patient Settings API Guide (`PATIENT_SETTINGS_API_DOCS.md`)](./PATIENT_SETTINGS_API_DOCS.md)
+- [Test Results Summary (`TEST_RESULTS_SUMMARY.md`)](./TEST_RESULTS_SUMMARY.md)
