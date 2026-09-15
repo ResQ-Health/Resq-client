@@ -24,7 +24,7 @@ import { RiDeleteBinLine } from 'react-icons/ri';
 import { LiaTimesCircle } from 'react-icons/lia';
 import { useNavigate } from 'react-router-dom';
 import { usePatientAppointments, useDeleteAppointment, Appointment } from '../../services/userService';
-import { fetchPaymentReceipt, PaymentReceiptData, useInitializePayment, useConfirmAppointmentPayment } from '../../services/providerService';
+import { fetchPaymentReceipt, PaymentReceiptData, useInitializePayment } from '../../services/providerService';
 import { useQueryClient } from '@tanstack/react-query';
 import Pagination from '../../components/Pagination';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
@@ -64,7 +64,6 @@ export default function BookingHistoryPage() {
 
     const deleteAppointmentMutation = useDeleteAppointment();
     const initializePaymentMutation = useInitializePayment();
-    const confirmPaymentMutation = useConfirmAppointmentPayment();
     const [isPayingId, setIsPayingId] = useState<string | null>(null);
     const [openDropdownIndex, setOpenDropdownIndex] = useState<number | null>(null);
     const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -625,37 +624,6 @@ export default function BookingHistoryPage() {
         } finally {
             setIsPayingId(null);
         }
-    };
-
-    const handleDirectConfirmPayment = async (appointment: any) => {
-        if (!appointment?.id) return;
-        const confirmed = window.confirm(`Confirm payment for appointment #${appointment.id}?`);
-        if (!confirmed) return;
-
-        const rawAmt = getAppointmentAmount(appointment);
-        const numAmount = typeof rawAmt === 'number' ? rawAmt : (rawAmt ? Number(String(rawAmt).replace(/[^0-9.]/g, '')) || undefined : undefined);
-
-        confirmPaymentMutation.mutate({
-            appointmentId: appointment.id,
-            paymentMethod: 'Card Payment',
-            reference: `REF-PAY-${Date.now()}`,
-            amount: numAmount,
-        }, {
-            onSuccess: () => {
-                setSelectedAppointment((prev: any) => prev ? {
-                    ...prev,
-                    isPaid: true,
-                    status: 'confirmed',
-                    payment: {
-                        ...(prev.payment || {}),
-                        status: 'completed',
-                        amount: numAmount,
-                        method: 'Card Payment',
-                        paidAt: new Date().toISOString()
-                    }
-                } : null);
-            }
-        });
     };
 
     const cancelDelete = () => {
@@ -1520,30 +1488,20 @@ export default function BookingHistoryPage() {
                             </div>
                             <div className="flex items-center gap-3">
                                 {getPaymentInfo(selectedAppointment).status !== 'paid' && (
-                                    <>
-                                        <button
-                                            onClick={() => handlePay(selectedAppointment)}
-                                            disabled={isPayingId === selectedAppointment.id}
-                                            className="px-5 py-2.5 text-white bg-blue-600 hover:bg-blue-700 font-medium rounded-xl transition-colors flex items-center gap-2 text-sm shadow-sm disabled:opacity-50"
-                                        >
-                                            {isPayingId === selectedAppointment.id ? (
-                                                <>
-                                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                                    Connecting...
-                                                </>
-                                            ) : (
-                                                'Pay with Paystack'
-                                            )}
-                                        </button>
-                                        <button
-                                            onClick={() => handleDirectConfirmPayment(selectedAppointment)}
-                                            disabled={confirmPaymentMutation.isPending}
-                                            className="px-4 py-2.5 text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 font-medium rounded-xl transition-colors text-sm disabled:opacity-50"
-                                            title="Direct Payment Confirmation"
-                                        >
-                                            {confirmPaymentMutation.isPending ? 'Confirming...' : 'Direct Confirm'}
-                                        </button>
-                                    </>
+                                    <button
+                                        onClick={() => handlePay(selectedAppointment)}
+                                        disabled={isPayingId === selectedAppointment.id}
+                                        className="px-5 py-2.5 text-white bg-blue-600 hover:bg-blue-700 font-medium rounded-xl transition-colors flex items-center gap-2 text-sm shadow-sm disabled:opacity-50"
+                                    >
+                                        {isPayingId === selectedAppointment.id ? (
+                                            <>
+                                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                                Connecting...
+                                            </>
+                                        ) : (
+                                            'Pay with Paystack'
+                                        )}
+                                    </button>
                                 )}
                                 {getPaymentInfo(selectedAppointment).status === 'paid' && (
                                     <button
