@@ -1,6 +1,20 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { MdOutlineSearch, MdArrowUpward, MdArrowDownward, MdFilterList, MdSort, MdRefresh, MdSchedule, MdCheckCircle, MdCancel, MdToday, MdEvent, MdHistory, MdClear } from 'react-icons/md';
-import { FaPlus, FaRegClock, FaHourglassHalf } from 'react-icons/fa';
+import { 
+    FaPlus, 
+    FaRegClock, 
+    FaHourglassHalf, 
+    FaUserMd, 
+    FaCopy, 
+    FaCheck, 
+    FaNotesMedical, 
+    FaHospital, 
+    FaFileInvoiceDollar, 
+    FaIdCard, 
+    FaUserCheck, 
+    FaExclamationTriangle,
+    FaClock
+} from 'react-icons/fa';
 import { FiEye, FiDownload } from 'react-icons/fi';
 import { BsThreeDotsVertical } from 'react-icons/bs';
 import { IoCheckmarkDone, IoTimeOutline } from 'react-icons/io5';
@@ -10,7 +24,7 @@ import { RiDeleteBinLine } from 'react-icons/ri';
 import { LiaTimesCircle } from 'react-icons/lia';
 import { useNavigate } from 'react-router-dom';
 import { usePatientAppointments, useDeleteAppointment, Appointment } from '../../services/userService';
-import { fetchPaymentReceipt, PaymentReceiptData } from '../../services/providerService';
+import { fetchPaymentReceipt, PaymentReceiptData, useInitializePayment, useConfirmAppointmentPayment } from '../../services/providerService';
 import { useQueryClient } from '@tanstack/react-query';
 import Pagination from '../../components/Pagination';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
@@ -35,15 +49,40 @@ export default function BookingHistoryPage() {
         }
     }, [isAuthenticated, navigate]);
 
+    // Handle return from payment provider (Paystack callback)
+    useEffect(() => {
+        const searchParams = new URLSearchParams(window.location.search);
+        const reference = searchParams.get('reference') || searchParams.get('trxref');
+        if (reference) {
+            toast.success('Payment completed! Updating your appointments...');
+            queryClient.invalidateQueries({ queryKey: ['patientAppointments'] });
+            refetch();
+            // Clean up query parameters from URL without reloading page
+            window.history.replaceState({}, document.title, window.location.pathname);
+        }
+    }, [queryClient, refetch]);
+
     const deleteAppointmentMutation = useDeleteAppointment();
+    const initializePaymentMutation = useInitializePayment();
+    const confirmPaymentMutation = useConfirmAppointmentPayment();
+    const [isPayingId, setIsPayingId] = useState<string | null>(null);
     const [openDropdownIndex, setOpenDropdownIndex] = useState<number | null>(null);
+    const [copiedId, setCopiedId] = useState<string | null>(null);
+
+    const handleCopy = (text: string, label: string) => {
+        if (!text) return;
+        navigator.clipboard.writeText(text);
+        setCopiedId(text);
+        toast.success(`${label} copied!`);
+        setTimeout(() => setCopiedId(null), 2000);
+    };
 
     // State for search, filter, sort, and pagination
     const [activeTab, setActiveTab] = useState<'all' | 'upcoming' | 'past' | 'today'>('all');
     const [searchTerm, setSearchTerm] = useState('');
     const [selectedStatus, setSelectedStatus] = useState('all'); // 'all' = no filter
-    const [sortField, setSortField] = useState<string>('paidAt'); // Default sort by paidAt
-    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc'); // Default desc (most recent paid first)
+    const [sortField, setSortField] = useState<string>('date'); // Default sort by date (latest appointment first)
+    const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc'); // Default desc (most recent first)
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage] = useState(10);
     const [showSortDropdown, setShowSortDropdown] = useState(false);
@@ -55,6 +94,7 @@ export default function BookingHistoryPage() {
     const filterDropdownRef = useRef<HTMLDivElement>(null);
     const receiptRef = useRef<HTMLDivElement>(null);
     const [receiptData, setReceiptData] = useState<PaymentReceiptData | null>(null);
+    const [currentReceiptAppointmentId, setCurrentReceiptAppointmentId] = useState<string | null>(null);
     const [isGeneratingReceipt, setIsGeneratingReceipt] = useState(false);
 
     // Transform API data to match component expectations
@@ -69,13 +109,91 @@ export default function BookingHistoryPage() {
         rawAppointments = rawData.data.appointments;
     }
 
+    // Helper function to extract accurate payment status
+    const getPaymentInfo = (apt: any) => {
+        if (!apt) return { status: 'unpaid', label: 'Unpaid', color: 'bg-red-100 text-red-800 border-red-200' };
+
+        const rawStatus = (apt.payment?.status || apt.paymentStatus || '').toLowerCase();
+
+        // 1. Explicitly paid or payment status is paid/completed/successful
+        if (apt.isPaid === true || rawStatus === 'paid' || rawStatus === 'completed' || rawStatus === 'successful') {
+            return {
+                status: 'paid',
+                label: 'Paid',
+                color: 'bg-green-100 text-green-800 border-green-200'
+            };
+        }
+
+        // 2. Pending payment
+        if (rawStatus === 'pending' || (!apt.isPaid && rawStatus === 'pending') || (apt.isPaid === false && apt.paymentRequired)) {
+            return {
+                status: 'pending',
+                label: 'Pending',
+                color: 'bg-yellow-100 text-yellow-800 border-yellow-200'
+            };
+        }
+
+        // 3. Failed payment
+        if (rawStatus === 'failed' || rawStatus === 'error') {
+            return {
+                status: 'failed',
+                label: 'Failed',
+                color: 'bg-red-100 text-red-800 border-red-200'
+            };
+        }
+
+        // 4. Default / Unpaid
+        return {
+            status: 'unpaid',
+            label: 'Unpaid',
+            color: 'bg-red-100 text-red-800 border-red-200'
+        };
+    };
+
+    // Helper function to extract exact payment amount from any API property
+    const getAppointmentAmount = (apt: any) => {
+        if (!apt) return null;
+        const candidates = [
+            apt.payment?.amount,
+            apt.amount,
+            apt.service?.price,
+            apt.price,
+            apt.totalAmount,
+            apt.total,
+            apt.fee,
+            apt.formData?.amount,
+            apt.formData?.price,
+            apt.referral?.amount,
+            apt.referral?.price,
+        ];
+        for (const val of candidates) {
+            if (val !== undefined && val !== null && val !== '') {
+                return val;
+            }
+        }
+        return null;
+    };
+
+    const formatAmount = (val: any) => {
+        if (val === undefined || val === null || val === '') return 'N/A';
+        if (typeof val === 'number') return `₦${val.toLocaleString()}`;
+        if (typeof val === 'string') {
+            if (val.startsWith('₦') || val.startsWith('$')) return val;
+            const num = Number(val);
+            if (!isNaN(num)) return `₦${num.toLocaleString()}`;
+            return val;
+        }
+        return String(val);
+    };
+
     const appointments: Appointment[] = rawAppointments.map((apt: any) => {
-        console.log('Appointment:', apt.id, 'Status:', apt.status, 'PaymentStatus:', apt.paymentStatus, 'Payment:', apt.payment);
+        const paymentInfo = getPaymentInfo(apt);
         const bookingType = apt.bookingType || apt.contact?.bookingType || 'Self';
         const communicationPreference = apt.communicationPreference || apt.contact?.communicationPreference || 'Booker';
 
         return {
             ...apt,
+            paymentStatus: paymentInfo.status as 'paid' | 'pending' | 'unpaid',
             bookingType: bookingType,
             communicationPreference: communicationPreference,
             contact: {
@@ -165,6 +283,101 @@ export default function BookingHistoryPage() {
         return preference;
     };
 
+    // Helper function to safely format receipt location avoiding undefined
+    const formatReceiptLocation = (receipt: PaymentReceiptData | null, targetAptId?: string | null): string => {
+        if (!receipt) return 'Hospital / Facility';
+
+        // 1. Check receipt.appointment.location
+        const loc = (receipt.appointment as any)?.location;
+        if (typeof loc === 'string' && loc.trim() && !loc.toLowerCase().includes('undefined') && loc !== 'null') {
+            return loc.trim();
+        }
+        if (loc && typeof loc === 'object') {
+            const parts = [loc.street, loc.city, loc.state, loc.postal_code, loc.country]
+                .filter((p: any) => p && typeof p === 'string' && p.trim() && p.toLowerCase() !== 'undefined' && p.toLowerCase() !== 'null')
+                .map((p: any) => p.trim());
+            if (parts.length > 0) {
+                return parts.join(', ');
+            }
+            if (loc.address && typeof loc.address === 'string' && loc.address.trim() && !loc.address.toLowerCase().includes('undefined')) {
+                return loc.address.trim();
+            }
+            if (loc.name && typeof loc.name === 'string' && loc.name.trim() && !loc.name.toLowerCase().includes('undefined')) {
+                return loc.name.trim();
+            }
+        }
+
+        // 2. Fallback to matched appointment from appointments state or selectedAppointment
+        const matchedApt = (targetAptId ? appointments?.find((a: any) => a.id === targetAptId) : null) ||
+                           appointments?.find((a: any) => a.id === receipt.appointment?.booking_id) ||
+                           selectedAppointment;
+
+        if (matchedApt) {
+            if (matchedApt.provider_name && typeof matchedApt.provider_name === 'string' && matchedApt.provider_name.trim()) {
+                const prov = matchedApt.provider_name.trim();
+                const addr = matchedApt.contact?.address || matchedApt.formData?.patientAddress;
+                if (addr && typeof addr === 'string' && addr.trim() && !addr.toLowerCase().includes('undefined')) {
+                    return `${prov}, ${addr.trim()}`;
+                }
+                return prov;
+            }
+            if (typeof matchedApt.location === 'string' && matchedApt.location.trim() && !matchedApt.location.toLowerCase().includes('undefined')) {
+                return matchedApt.location.trim();
+            }
+            if (matchedApt.contact?.address && typeof matchedApt.contact.address === 'string' && matchedApt.contact.address.trim() && !matchedApt.contact.address.toLowerCase().includes('undefined')) {
+                return matchedApt.contact.address.trim();
+            }
+        }
+
+        // 3. Fallback to patient address
+        if (receipt.patient?.address && typeof receipt.patient.address === 'string' && receipt.patient.address.trim() && !receipt.patient.address.toLowerCase().includes('undefined')) {
+            return receipt.patient.address.trim();
+        }
+
+        return 'Hospital / Clinic Facility';
+    };
+
+    // Helper function to extract exact timestamp for latest appointment sorting
+    const getAppointmentDateScore = (apt: any): number => {
+        if (!apt) return 0;
+
+        // 1. Check createdAt / created_at / bookingDate / bookedAt (when booking was made)
+        const createdRaw = apt.createdAt || apt.created_at || apt.bookingDate || apt.bookedAt;
+        if (createdRaw) {
+            const t = new Date(createdRaw).getTime();
+            if (!isNaN(t) && t > 0) return t;
+        }
+
+        // 2. Check scheduled date & start_time
+        if (apt.date) {
+            try {
+                const d = new Date(apt.date);
+                if (apt.start_time && typeof apt.start_time === 'string') {
+                    const parts = apt.start_time.trim().split(' ');
+                    const timePart = parts[0];
+                    const period = parts[1];
+                    const [hours, minutes] = timePart.split(':').map(Number);
+                    let hour24 = isNaN(hours) ? 0 : hours;
+                    if (period?.toLowerCase() === 'pm' && hour24 !== 12) hour24 += 12;
+                    if (period?.toLowerCase() === 'am' && hour24 === 12) hour24 = 0;
+                    d.setHours(hour24, isNaN(minutes) ? 0 : minutes, 0, 0);
+                }
+                const t = d.getTime();
+                if (!isNaN(t) && t > 0) return t;
+            } catch {
+                // ignore
+            }
+        }
+
+        // 3. Fallback to paidAt
+        if (apt.payment?.paidAt) {
+            const t = new Date(apt.payment.paidAt).getTime();
+            if (!isNaN(t) && t > 0) return t;
+        }
+
+        return 0;
+    };
+
     // Filter and search logic
     const filteredAppointments = useMemo(() => {
         let filtered = appointments || [];
@@ -180,12 +393,17 @@ export default function BookingHistoryPage() {
 
         // 2. Search filter
         if (searchTerm) {
+            const query = searchTerm.toLowerCase();
             filtered = filtered.filter((appointment) =>
-                appointment.service?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                appointment.provider_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                appointment.contact?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                appointment.contact?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                appointment.contact?.phone?.toLowerCase().includes(searchTerm.toLowerCase())
+                appointment.id?.toLowerCase().includes(query) ||
+                appointment.service?.name?.toLowerCase().includes(query) ||
+                appointment.provider_name?.toLowerCase().includes(query) ||
+                appointment.contact?.name?.toLowerCase().includes(query) ||
+                appointment.contact?.email?.toLowerCase().includes(query) ||
+                appointment.contact?.phone?.toLowerCase().includes(query) ||
+                appointment.clinician?.name?.toLowerCase().includes(query) ||
+                appointment.formData?.clinicianName?.toLowerCase().includes(query) ||
+                appointment.notes?.toLowerCase().includes(query)
             );
         }
 
@@ -202,51 +420,44 @@ export default function BookingHistoryPage() {
             }
         }
 
-        // 4. Sorting logic
+        // 4. Sorting logic: Default orders by latest appointment first
         filtered = [...filtered].sort((a, b) => {
-            // Default sort: by paidAt (most recent paid first)
+            // Default and explicit date sort: latest appointment first
+            if (sortField === 'date') {
+                const aScore = getAppointmentDateScore(a);
+                const bScore = getAppointmentDateScore(b);
+                return sortDirection === 'desc' ? bScore - aScore : aScore - bScore;
+            }
+
+            // Sort by payment date
             if (sortField === 'paidAt') {
                 const aPaidAt = a.payment?.paidAt ? new Date(a.payment.paidAt).getTime() : 0;
                 const bPaidAt = b.payment?.paidAt ? new Date(b.payment.paidAt).getTime() : 0;
 
-                // If both have paidAt, sort by paidAt
                 if (aPaidAt > 0 && bPaidAt > 0) {
                     return sortDirection === 'desc' ? bPaidAt - aPaidAt : aPaidAt - bPaidAt;
                 }
-                // If only one has paidAt, prioritize the one with paidAt
                 if (aPaidAt > 0 && bPaidAt === 0) return -1;
                 if (aPaidAt === 0 && bPaidAt > 0) return 1;
-                // If neither has paidAt, sort by appointment date as fallback
-                const aDate = new Date(a.date).getTime();
-                const bDate = new Date(b.date).getTime();
-                return sortDirection === 'desc' ? bDate - aDate : aDate - bDate;
+
+                const aScore = getAppointmentDateScore(a);
+                const bScore = getAppointmentDateScore(b);
+                return sortDirection === 'desc' ? bScore - aScore : aScore - bScore;
             }
 
             // Manual sort options
-            if (sortField && sortField !== 'date') {
-                let aValue = a[sortField as keyof typeof a];
-                let bValue = b[sortField as keyof typeof b];
-
-                if (sortField === 'service') {
-                    aValue = a.service?.name || '';
-                    bValue = b.service?.name || '';
-                } else if (sortField === 'provider') {
-                    aValue = a.provider_name || '';
-                    bValue = b.provider_name || '';
-                } else if (sortField === 'date') {
-                    aValue = new Date(a.date).getTime();
-                    bValue = new Date(b.date).getTime();
-                }
-
-                if (typeof aValue === 'string' && typeof bValue === 'string') {
-                    return sortDirection === 'asc'
-                        ? aValue.localeCompare(bValue)
-                        : bValue.localeCompare(aValue);
-                }
-
-                if (typeof aValue === 'number' && typeof bValue === 'number') {
-                    return sortDirection === 'asc' ? aValue - bValue : bValue - aValue;
-                }
+            if (sortField === 'service') {
+                const aValue = a.service?.name || '';
+                const bValue = b.service?.name || '';
+                return sortDirection === 'asc'
+                    ? aValue.localeCompare(bValue)
+                    : bValue.localeCompare(aValue);
+            } else if (sortField === 'provider') {
+                const aValue = a.provider_name || '';
+                const bValue = b.provider_name || '';
+                return sortDirection === 'asc'
+                    ? aValue.localeCompare(bValue)
+                    : bValue.localeCompare(aValue);
             } else if (sortField === 'status') {
                 const aStatus = a.status.toLowerCase() === 'cancelled' || a.status.toLowerCase() === 'canceled' ? 'rejected' : a.status.toLowerCase();
                 const bStatus = b.status.toLowerCase() === 'cancelled' || b.status.toLowerCase() === 'canceled' ? 'rejected' : b.status.toLowerCase();
@@ -255,41 +466,10 @@ export default function BookingHistoryPage() {
                     : bStatus.localeCompare(aStatus);
             }
 
-            // Fallback: Automatic date-based sorting: Upcoming → Today → Past
-            const aIsUpcoming = isUpcoming(a.date, a.start_time);
-            const bIsUpcoming = isUpcoming(b.date, b.start_time);
-            const aIsToday = isToday(a.date);
-            const bIsToday = isToday(b.date);
-            const aIsPast = isPast(a.date, a.start_time);
-            const bIsPast = isPast(b.date, b.start_time);
-
-            // Priority order: Upcoming (1) → Today (2) → Past (3)
-            const getPriority = (isUpcoming: boolean, isToday: boolean, isPast: boolean) => {
-                if (isUpcoming) return 1;
-                if (isToday) return 2;
-                if (isPast) return 3;
-                return 4; // fallback
-            };
-
-            const aPriority = getPriority(aIsUpcoming, aIsToday, aIsPast);
-            const bPriority = getPriority(bIsUpcoming, bIsToday, bIsPast);
-
-            // First sort by priority (upcoming → today → past)
-            if (aPriority !== bPriority) {
-                return aPriority - bPriority;
-            }
-
-            // Within same priority, sort by date (ascending for upcoming/today, descending for past)
-            const aDate = new Date(a.date).getTime();
-            const bDate = new Date(b.date).getTime();
-
-            if (aIsPast) {
-                // For past appointments, show most recent first (descending)
-                return bDate - aDate;
-            } else {
-                // For upcoming and today, show earliest first (ascending)
-                return aDate - bDate;
-            }
+            // Fallback: Latest appointment first
+            const aScore = getAppointmentDateScore(a);
+            const bScore = getAppointmentDateScore(b);
+            return bScore - aScore;
         });
 
         return filtered;
@@ -335,13 +515,13 @@ export default function BookingHistoryPage() {
         setActiveTab('all');
         setSearchTerm('');
         setSelectedStatus('all');
-        setSortField('paidAt');
+        setSortField('date');
         setSortDirection('desc');
         setCurrentPage(1);
     };
 
     // Check if any filters are active
-    const hasActiveFilters = activeTab !== 'all' || searchTerm !== '' || selectedStatus !== 'all' || sortField !== 'paidAt' || sortDirection !== 'desc';
+    const hasActiveFilters = activeTab !== 'all' || searchTerm !== '' || selectedStatus !== 'all' || sortField !== 'date' || sortDirection !== 'desc';
 
     const handleSort = (field: string) => {
         if (sortField === field) {
@@ -398,6 +578,84 @@ export default function BookingHistoryPage() {
 
     const confirmDelete = () => {
         setShowDeleteConfirm(true);
+    };
+
+    const handlePay = async (appointment: any) => {
+        if (!appointment?.id) return;
+        setIsPayingId(appointment.id);
+        const toastId = toast.loading('Initializing checkout...');
+
+        try {
+            const rawAmt = getAppointmentAmount(appointment);
+            const numAmount = typeof rawAmt === 'number' ? rawAmt : (rawAmt ? Number(String(rawAmt).replace(/[^0-9.]/g, '')) || undefined : undefined);
+
+            // Option 2: Initialize Paystack checkout
+            const res = await initializePaymentMutation.mutateAsync({
+                appointmentId: appointment.id,
+                amount: numAmount,
+                email: appointment.contact?.email,
+                callback_url: `${window.location.origin}/booking-history`,
+            });
+
+            if (res?.data?.authorization_url) {
+                toast.success('Redirecting to checkout...', { id: toastId });
+                window.location.href = res.data.authorization_url;
+                return;
+            }
+
+            // Fallback: If paymentLink is available on appointment, redirect to it
+            if (appointment.paymentLink) {
+                toast.success('Redirecting to payment link...', { id: toastId });
+                const targetUrl = appointment.paymentLink.replace(/http:\/\/(localhost|127\.0\.0\.1):517[0-9]/, window.location.origin);
+                window.location.href = targetUrl;
+                return;
+            }
+
+            toast.error(res?.message || 'No checkout URL returned', { id: toastId });
+        } catch (err: any) {
+            console.error('Payment initialization error:', err);
+            // If initialize fails, check if appointment has fallback paymentLink
+            if (appointment.paymentLink) {
+                toast.success('Redirecting to payment link...', { id: toastId });
+                const targetUrl = appointment.paymentLink.replace(/http:\/\/(localhost|127\.0\.0\.1):517[0-9]/, window.location.origin);
+                window.location.href = targetUrl;
+                return;
+            }
+            toast.error(err.response?.data?.message || 'Failed to initialize checkout', { id: toastId });
+        } finally {
+            setIsPayingId(null);
+        }
+    };
+
+    const handleDirectConfirmPayment = async (appointment: any) => {
+        if (!appointment?.id) return;
+        const confirmed = window.confirm(`Confirm payment for appointment #${appointment.id}?`);
+        if (!confirmed) return;
+
+        const rawAmt = getAppointmentAmount(appointment);
+        const numAmount = typeof rawAmt === 'number' ? rawAmt : (rawAmt ? Number(String(rawAmt).replace(/[^0-9.]/g, '')) || undefined : undefined);
+
+        confirmPaymentMutation.mutate({
+            appointmentId: appointment.id,
+            paymentMethod: 'Card Payment',
+            reference: `REF-PAY-${Date.now()}`,
+            amount: numAmount,
+        }, {
+            onSuccess: () => {
+                setSelectedAppointment((prev: any) => prev ? {
+                    ...prev,
+                    isPaid: true,
+                    status: 'confirmed',
+                    payment: {
+                        ...(prev.payment || {}),
+                        status: 'completed',
+                        amount: numAmount,
+                        method: 'Card Payment',
+                        paidAt: new Date().toISOString()
+                    }
+                } : null);
+            }
+        });
     };
 
     const cancelDelete = () => {
@@ -473,6 +731,7 @@ export default function BookingHistoryPage() {
     const handleDownloadReceipt = async (appointmentId: string) => {
         const toastId = toast.loading('Fetching receipt details...');
         setIsGeneratingReceipt(true);
+        setCurrentReceiptAppointmentId(appointmentId);
 
         try {
             const response = await fetchPaymentReceipt(appointmentId);
@@ -507,16 +766,19 @@ export default function BookingHistoryPage() {
                         toast.error('Failed to generate PDF', { id: toastId });
                     } finally {
                         setReceiptData(null); // Clear data to hide template
+                        setCurrentReceiptAppointmentId(null);
                         setIsGeneratingReceipt(false);
                     }
                 }, 1000);
             } else {
                 toast.error('Failed to fetch receipt details', { id: toastId });
+                setCurrentReceiptAppointmentId(null);
                 setIsGeneratingReceipt(false);
             }
         } catch (err) {
             console.error('Fetch Receipt Error:', err);
             toast.error('Failed to download receipt', { id: toastId });
+            setCurrentReceiptAppointmentId(null);
             setIsGeneratingReceipt(false);
         }
     };
@@ -677,8 +939,8 @@ export default function BookingHistoryPage() {
                                     <div className="absolute top-full right-0 mt-2 bg-white border border-gray-100 rounded-xl shadow-xl z-30 min-w-[180px] overflow-hidden py-1">
                                         <div className="px-4 py-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">Sort by</div>
                                         {[
-                                            { id: 'paidAt', label: 'Paid At' },
-                                            { id: 'date', label: 'Date' },
+                                            { id: 'date', label: 'Date (Latest First)' },
+                                            { id: 'paidAt', label: 'Payment Date' },
                                             { id: 'service', label: 'Service' },
                                             { id: 'provider', label: 'Provider' },
                                             { id: 'status', label: 'Status' },
@@ -738,11 +1000,11 @@ export default function BookingHistoryPage() {
                         <table className="w-full">
                             <thead className="bg-gray-50/50 text-xs uppercase tracking-wider text-gray-500 font-medium">
                                 <tr>
-                                    <th className="text-left p-4 pl-6">Service</th>
+                                    <th className="text-left p-4 pl-6">Service & ID</th>
                                     <th className="text-left p-4">Provider</th>
                                     <th className="text-left p-4">Date & Time</th>
-                                    <th className="text-left p-4">Contact</th>
-                                    <th className="text-left p-4">Booking For</th>
+                                    <th className="text-left p-4">Patient</th>
+                                    <th className="text-left p-4">Fee / Amount</th>
                                     <th className="text-left p-4">Status</th>
                                     <th className="text-left p-4 pr-6">Actions</th>
                                 </tr>
@@ -783,22 +1045,39 @@ export default function BookingHistoryPage() {
                                                 className={`group transition-colors hover:bg-gray-50/80 ${appointmentIsToday ? 'bg-blue-50/30' : ''}`}
                                             >
                                                 <td className="p-4 pl-6">
-                                                    <div>
-                                                        <div className="font-semibold text-gray-900">{appointment.service?.name || 'Unknown Service'}</div>
-                                                        <div className="text-xs text-gray-500 mt-0.5">{appointment.service?.category}</div>
+                                                    <div className="flex flex-col gap-1">
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            <span className="font-semibold text-gray-900">{appointment.service?.name || 'Unknown Service'}</span>
+                                                            <span className="font-mono text-[11px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded border border-gray-200">
+                                                                #{appointment.id}
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center gap-2 text-xs text-gray-500">
+                                                            {appointment.service?.category && (
+                                                                <span className="capitalize">{appointment.service.category}</span>
+                                                            )}
+                                                        </div>
+                                                        {(appointment.bookedByClinician || appointment.clinician || appointment.formData?.bookedByClinician) && (
+                                                            <div className="inline-flex items-center gap-1.5 text-[11px] font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-md px-2 py-0.5 w-fit mt-0.5">
+                                                                <FaUserMd className="w-3 h-3 text-purple-600 shrink-0" />
+                                                                <span className="truncate max-w-[200px]">
+                                                                    Referred by {appointment.clinician?.name || appointment.formData?.clinicianName || 'Clinician'}
+                                                                </span>
+                                                            </div>
+                                                        )}
                                                     </div>
                                                 </td>
                                                 <td className="p-4">
                                                     <div className="flex items-center gap-2">
-                                                        <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-xs font-medium text-gray-600">
-                                                            {appointment.provider_name?.charAt(0) || '?'}
+                                                        <div className="w-8 h-8 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center text-xs font-semibold text-blue-700 shrink-0">
+                                                            {appointment.provider_name?.charAt(0) || 'H'}
                                                         </div>
-                                                        <div className="font-medium text-gray-700">{appointment.provider_name}</div>
+                                                        <div className="font-medium text-gray-800 text-sm">{appointment.provider_name}</div>
                                                     </div>
                                                 </td>
                                                 <td className="p-4">
                                                     <div className="flex flex-col">
-                                                        <span className={`font-medium text-sm ${appointmentIsToday ? 'text-blue-700' : 'text-gray-900'}`}>
+                                                        <span className={`font-medium text-sm ${appointmentIsToday ? 'text-blue-700 font-semibold' : 'text-gray-900'}`}>
                                                             {formatDate(appointment.date)}
                                                         </span>
                                                         <span className="text-xs text-gray-500 mt-0.5">
@@ -807,25 +1086,54 @@ export default function BookingHistoryPage() {
                                                     </div>
                                                 </td>
                                                 <td className="p-4">
-                                                    <div className="text-sm text-gray-900">{appointment.contact?.name}</div>
-                                                    <div className="text-xs text-gray-500">{appointment.contact?.phone}</div>
-                                                </td>
-                                                <td className="p-4">
-                                                    <div className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${appointment.bookingType === 'Self'
-                                                        ? 'bg-green-100 text-green-700'
-                                                        : 'bg-indigo-100 text-indigo-700'
-                                                        }`}>
-                                                        {appointment.bookingType === 'Self' ? 'Myself' : 'Someone else'}
+                                                    <div className="flex flex-col gap-0.5">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className="text-sm font-medium text-gray-900">
+                                                                {appointment.contact?.name || appointment.formData?.patientName || 'N/A'}
+                                                            </span>
+                                                            <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded ${
+                                                                appointment.bookingType === 'Self' ? 'bg-green-100 text-green-700' : 'bg-indigo-100 text-indigo-700'
+                                                            }`}>
+                                                                {appointment.bookingType === 'Self' ? 'Myself' : 'Other'}
+                                                            </span>
+                                                        </div>
+                                                        <div className="text-xs text-gray-500">
+                                                            {appointment.contact?.phone || appointment.formData?.patientPhone || appointment.contact?.email || ''}
+                                                        </div>
                                                     </div>
                                                 </td>
                                                 <td className="p-4">
-                                                    <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${getStatusColor(appointment.status)}`}>
-                                                        <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60"></span>
-                                                        {(appointment.status.toLowerCase() === 'cancelled' || appointment.status.toLowerCase() === 'canceled') ? 'rejected' : appointment.status}
+                                                    <div className="font-semibold text-gray-900 text-sm">
+                                                        {formatAmount(getAppointmentAmount(appointment))}
+                                                    </div>
+                                                    <div className="text-[11px] text-gray-400 capitalize">
+                                                        {appointment.service?.price ? 'Standard Fee' : 'Consultation'}
+                                                    </div>
+                                                </td>
+                                                <td className="p-4">
+                                                    <div className="flex flex-col gap-1.5 items-start">
+                                                        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${getStatusColor(appointment.status)}`}>
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60"></span>
+                                                            {(appointment.status.toLowerCase() === 'cancelled' || appointment.status.toLowerCase() === 'canceled') ? 'rejected' : appointment.status}
+                                                        </div>
+                                                        <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border ${getPaymentInfo(appointment).color}`}>
+                                                            <span className="w-1 h-1 rounded-full bg-current opacity-60"></span>
+                                                            <span>Payment: {getPaymentInfo(appointment).label}</span>
+                                                        </div>
                                                     </div>
                                                 </td>
                                                 <td className="p-4 pr-6">
                                                     <div className="flex items-center gap-2">
+                                                        {getPaymentInfo(appointment).status !== 'paid' && (
+                                                            <button
+                                                                onClick={() => handlePay(appointment)}
+                                                                disabled={isPayingId === appointment.id}
+                                                                className="px-2.5 py-1 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-1 shadow-sm disabled:opacity-50"
+                                                                title="Pay for Appointment"
+                                                            >
+                                                                {isPayingId === appointment.id ? '...' : 'Pay'}
+                                                            </button>
+                                                        )}
                                                         <button
                                                             onClick={() => handleViewDetails(appointment)}
                                                             className="p-2 text-gray-400 hover:text-[#16202E] hover:bg-gray-100 rounded-lg transition-all"
@@ -833,14 +1141,16 @@ export default function BookingHistoryPage() {
                                                         >
                                                             <FiEye className="w-4 h-4" />
                                                         </button>
-                                                        <button
-                                                            onClick={() => handleDownloadReceipt(appointment.id)}
-                                                            className="p-2 text-gray-400 hover:text-[#16202E] hover:bg-gray-100 rounded-lg transition-all"
-                                                            title="Download Receipt"
-                                                            disabled={isGeneratingReceipt}
-                                                        >
-                                                            <FiDownload className="w-4 h-4" />
-                                                        </button>
+                                                        {getPaymentInfo(appointment).status === 'paid' && (
+                                                            <button
+                                                                onClick={() => handleDownloadReceipt(appointment.id)}
+                                                                className="p-2 text-gray-400 hover:text-[#16202E] hover:bg-gray-100 rounded-lg transition-all"
+                                                                title="Download Receipt"
+                                                                disabled={isGeneratingReceipt}
+                                                            >
+                                                                <FiDownload className="w-4 h-4" />
+                                                            </button>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -874,165 +1184,384 @@ export default function BookingHistoryPage() {
                         className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="flex items-center justify-between p-6 border-b border-gray-100">
-                            <h2 className="text-xl font-bold text-[#16202E]">Appointment Details</h2>
-                            <button onClick={closeDetailsModal} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
+                        {/* Modal Header */}
+                        <div className="flex items-center justify-between p-6 border-b border-gray-100 bg-gray-50/50">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 rounded-xl bg-[#16202E] text-white flex items-center justify-center font-bold text-lg shadow-sm">
+                                    <MdEvent className="w-5 h-5" />
+                                </div>
+                                <div>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <h2 className="text-xl font-bold text-[#16202E]">Appointment Details</h2>
+                                        <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-md px-2 py-0.5 text-xs font-mono text-gray-700">
+                                            <span>#{selectedAppointment.id}</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleCopy(selectedAppointment.id, 'Appointment ID')}
+                                                className="text-gray-400 hover:text-gray-700 transition-colors ml-1"
+                                                title="Copy Appointment ID"
+                                            >
+                                                {copiedId === selectedAppointment.id ? (
+                                                    <FaCheck className="w-3 h-3 text-green-600" />
+                                                ) : (
+                                                    <FaCopy className="w-3 h-3" />
+                                                )}
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-0.5">Complete record & clinical breakdown</p>
+                                </div>
+                            </div>
+                            <button onClick={closeDetailsModal} className="p-2 hover:bg-gray-200/60 rounded-full transition-colors">
                                 <LiaTimesCircle className="w-6 h-6 text-gray-500" />
                             </button>
                         </div>
 
                         <div className="p-6 space-y-6">
-                            {/* Service Info */}
-                            <div className="flex items-start gap-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
-                                <div className="w-12 h-12 bg-white rounded-lg flex items-center justify-center shadow-sm text-xl">
-                                    🏥
+                            {/* Hero Card: Service & Facility */}
+                            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-5 bg-gradient-to-r from-gray-50 to-blue-50/30 rounded-2xl border border-gray-100">
+                                <div className="flex items-start gap-4">
+                                    <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm border border-gray-100 text-2xl shrink-0">
+                                        🏥
+                                    </div>
+                                    <div>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                            <h3 className="font-bold text-gray-900 text-lg">{selectedAppointment.service?.name || 'Medical Service'}</h3>
+                                            {selectedAppointment.service?.category && (
+                                                <span className="text-xs bg-white px-2 py-0.5 rounded-full border border-gray-200 text-gray-600 capitalize font-medium">
+                                                    {selectedAppointment.service.category}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <p className="text-sm font-medium text-gray-600 mt-0.5 flex items-center gap-1.5">
+                                            <FaHospital className="w-3.5 h-3.5 text-gray-400" />
+                                            {selectedAppointment.provider_name}
+                                        </p>
+                                    </div>
                                 </div>
-                                <div>
-                                    <h3 className="font-semibold text-gray-900 text-lg">{selectedAppointment.service?.name}</h3>
-                                    <p className="text-gray-500">{selectedAppointment.provider_name}</p>
-                                    <div className="flex items-center gap-3 mt-2">
-                                        <span className="text-sm bg-white px-2 py-1 rounded border border-gray-200 text-gray-600">
-                                            {selectedAppointment.service?.category}
-                                        </span>
-                                        <span className="text-sm font-medium text-[#16202E]">
-                                            ₦{selectedAppointment.service?.price?.toLocaleString()}
-                                        </span>
+                                <div className="flex sm:flex-col items-end gap-1.5 shrink-0 self-stretch sm:self-auto justify-between border-t sm:border-t-0 pt-3 sm:pt-0 border-gray-200/50">
+                                    <div className="text-xs text-gray-500 uppercase tracking-wider font-semibold">Total Fee</div>
+                                    <div className="text-xl font-extrabold text-[#16202E]">
+                                        {formatAmount(getAppointmentAmount(selectedAppointment))}
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {/* Schedule & Status Section */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {/* Time & Date */}
-                                <div className="space-y-4">
-                                    <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Time & Date</h4>
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-600">
-                                            <MdEvent className="w-5 h-5" />
-                                        </div>
-                                        <div>
-                                            <p className="font-medium text-gray-900">{new Date(selectedAppointment.date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
-                                            <p className="text-sm text-gray-500">{selectedAppointment.start_time} - {selectedAppointment.end_time}</p>
-                                        </div>
+                                <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100">
+                                    <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                        <MdEvent className="w-4 h-4 text-blue-600" />
+                                        Schedule & Time
+                                    </h4>
+                                    <div className="font-semibold text-gray-900 text-base">
+                                        {new Date(selectedAppointment.date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                                    </div>
+                                    <div className="text-sm text-gray-600 mt-1 flex items-center gap-1">
+                                        <FaClock className="w-3 h-3 text-gray-400" />
+                                        <span>{selectedAppointment.start_time} - {selectedAppointment.end_time}</span>
                                     </div>
                                 </div>
 
-                                {/* Status */}
-                                <div className="space-y-4">
-                                    <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wider">Status</h4>
-                                    <div className="flex items-center gap-3">
-                                        <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getStatusColor(selectedAppointment.status).replace('text-', 'bg-').replace('bg-', 'text-').split(' ')[0]} bg-opacity-10`}>
-                                            <IoCheckmarkDone className={`w-5 h-5 ${getStatusColor(selectedAppointment.status).split(' ')[1]}`} />
+                                {/* Appointment Status */}
+                                <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100">
+                                    <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                        <IoCheckmarkDone className="w-4 h-4 text-emerald-600" />
+                                        Booking Status
+                                    </h4>
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                        <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(selectedAppointment.status)}`}>
+                                            <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60"></span>
+                                            {(selectedAppointment.status.toLowerCase() === 'cancelled' || selectedAppointment.status.toLowerCase() === 'canceled') ? 'Rejected' : selectedAppointment.status}
                                         </div>
-                                        <div>
-                                            <p className="font-medium text-gray-900 capitalize">{(selectedAppointment.status.toLowerCase() === 'cancelled' || selectedAppointment.status.toLowerCase() === 'canceled') ? 'rejected' : selectedAppointment.status}</p>
-                                            <p className="text-sm text-gray-500">Current status</p>
+                                        <div className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${getPaymentInfo(selectedAppointment).color}`}>
+                                            <span className="w-1 h-1 rounded-full bg-current opacity-60"></span>
+                                            <span>Payment: {getPaymentInfo(selectedAppointment).label}</span>
                                         </div>
                                     </div>
+                                    <p className="text-xs text-gray-500 mt-1.5">
+                                        {selectedAppointment.status.toLowerCase() === 'confirmed' ? 'Appointment is confirmed by the facility.' : 'Appointment is awaiting confirmation.'}
+                                    </p>
                                 </div>
                             </div>
 
-                            <div className="border-t border-gray-100 pt-6">
-                                <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Contact Information</h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
-                                        <span className="text-xs text-gray-500 block mb-1">Name</span>
-                                        <span className="font-medium text-gray-900">{selectedAppointment.contact?.name || 'N/A'}</span>
+                            {/* Referring Clinician Details (if available) */}
+                            {(selectedAppointment.bookedByClinician || selectedAppointment.clinician || selectedAppointment.formData?.clinicianName) && (
+                                <div className="p-4 bg-purple-50/40 rounded-xl border border-purple-100">
+                                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                                        <h4 className="text-xs font-bold text-purple-900 uppercase tracking-wider flex items-center gap-2">
+                                            <FaUserMd className="w-4 h-4 text-purple-600" />
+                                            Referring Clinician Details
+                                        </h4>
+                                        <span className="text-[11px] font-semibold bg-purple-100 text-purple-700 px-2.5 py-0.5 rounded-full">
+                                            Clinical Referral
+                                        </span>
                                     </div>
-                                    <div className="p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
-                                        <span className="text-xs text-gray-500 block mb-1">Phone</span>
-                                        <span className="font-medium text-gray-900">{selectedAppointment.contact?.phone || 'N/A'}</span>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                        <div className="p-2.5 bg-white rounded-lg border border-purple-100/60 shadow-xs">
+                                            <span className="text-[11px] text-gray-400 block font-medium">Doctor Name</span>
+                                            <span className="font-semibold text-gray-900 text-sm">
+                                                {selectedAppointment.clinician?.name || selectedAppointment.formData?.clinicianName || 'Dr. Medical Clinician'}
+                                            </span>
+                                        </div>
+                                        {(selectedAppointment.clinician?.email || selectedAppointment.formData?.clinicianEmail) && (
+                                            <div className="p-2.5 bg-white rounded-lg border border-purple-100/60 shadow-xs">
+                                                <span className="text-[11px] text-gray-400 block font-medium">Doctor Email</span>
+                                                <span className="font-medium text-gray-900 text-sm truncate block" title={selectedAppointment.clinician?.email || selectedAppointment.formData?.clinicianEmail}>
+                                                    {selectedAppointment.clinician?.email || selectedAppointment.formData?.clinicianEmail}
+                                                </span>
+                                            </div>
+                                        )}
+                                        {selectedAppointment.clinician?.phone && (
+                                            <div className="p-2.5 bg-white rounded-lg border border-purple-100/60 shadow-xs">
+                                                <span className="text-[11px] text-gray-400 block font-medium">Doctor Phone</span>
+                                                <span className="font-medium text-gray-900 text-sm">
+                                                    {selectedAppointment.clinician?.phone}
+                                                </span>
+                                            </div>
+                                        )}
+                                        {(selectedAppointment.clinician?.id || selectedAppointment.clinician_id || selectedAppointment.formData?.clinicianId) && (
+                                            <div className="p-2.5 bg-white rounded-lg border border-purple-100/60 shadow-xs">
+                                                <span className="text-[11px] text-gray-400 block font-medium">Clinician ID</span>
+                                                <span className="font-mono text-gray-800 text-xs">
+                                                    #{selectedAppointment.clinician?.id || selectedAppointment.clinician_id || selectedAppointment.formData?.clinicianId}
+                                                </span>
+                                            </div>
+                                        )}
+                                        <div className="p-2.5 bg-white rounded-lg border border-purple-100/60 shadow-xs sm:col-span-2">
+                                            <span className="text-[11px] text-gray-400 block font-medium">Booking Mode</span>
+                                            <span className="text-xs font-medium text-purple-800">
+                                                Direct referral booked by clinician on behalf of patient
+                                            </span>
+                                        </div>
                                     </div>
-                                    <div className="p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors md:col-span-2">
-                                        <span className="text-xs text-gray-500 block mb-1">Email</span>
-                                        <span className="font-medium text-gray-900">{selectedAppointment.contact?.email || 'N/A'}</span>
+                                </div>
+                            )}
+
+                            {/* Clinical Notes & Referral Information (if available) */}
+                            {(selectedAppointment.notes || selectedAppointment.formData?.comments) && (
+                                <div className="p-4 bg-amber-50/40 rounded-xl border border-amber-100">
+                                    <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+                                        <h4 className="text-xs font-bold text-amber-900 uppercase tracking-wider flex items-center gap-2">
+                                            <FaNotesMedical className="w-4 h-4 text-amber-600" />
+                                            Clinical Notes & Referral Information
+                                        </h4>
+                                        {selectedAppointment.notes && (selectedAppointment.notes.toLowerCase().includes('urgent') || selectedAppointment.notes.toLowerCase().includes('emergency')) && (
+                                            <span className="inline-flex items-center gap-1 text-[11px] font-bold bg-red-100 text-red-700 border border-red-200 px-2 py-0.5 rounded-full">
+                                                <FaExclamationTriangle className="w-3 h-3 text-red-600" />
+                                                Priority: Urgent
+                                            </span>
+                                        )}
                                     </div>
-                                    <div className="p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
-                                        <span className="text-xs text-gray-500 block mb-1">Gender</span>
-                                        <span className="font-medium text-gray-900">{selectedAppointment.contact?.gender || 'N/A'}</span>
-                                    </div>
-                                    <div className="p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
-                                        <span className="text-xs text-gray-500 block mb-1">Date of Birth</span>
-                                        <span className="font-medium text-gray-900">{selectedAppointment.contact?.dob || 'N/A'}</span>
-                                    </div>
-                                    {selectedAppointment.contact?.address && (
-                                        <div className="p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors md:col-span-2">
-                                            <span className="text-xs text-gray-500 block mb-1">Address</span>
-                                            <span className="font-medium text-gray-900">{selectedAppointment.contact.address}</span>
+                                    {selectedAppointment.notes && (
+                                        <div className="bg-white p-3.5 rounded-lg border border-amber-200/60 text-sm text-gray-800 leading-relaxed whitespace-pre-wrap font-sans">
+                                            {selectedAppointment.notes}
+                                        </div>
+                                    )}
+                                    {selectedAppointment.formData?.comments && (
+                                        <div className="mt-3 bg-white p-3 rounded-lg border border-amber-200/60 text-xs text-gray-700">
+                                            <span className="font-semibold text-gray-900 block mb-1">Additional Patient/Clinician Comments:</span>
+                                            <p className="italic text-gray-600">{selectedAppointment.formData.comments}</p>
                                         </div>
                                     )}
                                 </div>
-                            </div>
+                            )}
 
-                            {/* Booking Information */}
-                            <div className="border-t border-gray-100 pt-6">
-                                <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Booking Information</h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
-                                        <span className="text-xs text-gray-500 block mb-1">Booking Type</span>
-                                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium mt-1 ${selectedAppointment.bookingType === 'Self'
-                                            ? 'bg-green-100 text-green-800'
-                                            : 'bg-indigo-100 text-indigo-800'
+                            {/* Patient Profile & Visit Details */}
+                            <div className="border-t border-gray-100 pt-5">
+                                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                    <FaIdCard className="w-4 h-4 text-gray-500" />
+                                    Patient Profile & Visit Details
+                                </h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                    <div className="p-3 rounded-xl border border-gray-100 bg-gray-50/30">
+                                        <span className="text-[11px] text-gray-400 block mb-0.5 font-medium">Patient Full Name</span>
+                                        <span className="font-semibold text-gray-900 text-sm">
+                                            {selectedAppointment.contact?.name || selectedAppointment.formData?.patientName || 'N/A'}
+                                        </span>
+                                    </div>
+                                    <div className="p-3 rounded-xl border border-gray-100 bg-gray-50/30">
+                                        <span className="text-[11px] text-gray-400 block mb-0.5 font-medium">Phone Number</span>
+                                        <span className="font-semibold text-gray-900 text-sm">
+                                            {selectedAppointment.contact?.phone || selectedAppointment.formData?.patientPhone || 'N/A'}
+                                        </span>
+                                    </div>
+                                    <div className="p-3 rounded-xl border border-gray-100 bg-gray-50/30">
+                                        <span className="text-[11px] text-gray-400 block mb-0.5 font-medium">Email Address</span>
+                                        <span className="font-medium text-gray-900 text-sm truncate block" title={selectedAppointment.contact?.email || selectedAppointment.formData?.patientEmail}>
+                                            {selectedAppointment.contact?.email || selectedAppointment.formData?.patientEmail || 'N/A'}
+                                        </span>
+                                    </div>
+                                    <div className="p-3 rounded-xl border border-gray-100 bg-gray-50/30">
+                                        <span className="text-[11px] text-gray-400 block mb-0.5 font-medium">Gender</span>
+                                        <span className="font-medium text-gray-900 text-sm capitalize">
+                                            {selectedAppointment.contact?.gender || selectedAppointment.formData?.patientGender || 'N/A'}
+                                        </span>
+                                    </div>
+                                    <div className="p-3 rounded-xl border border-gray-100 bg-gray-50/30">
+                                        <span className="text-[11px] text-gray-400 block mb-0.5 font-medium">Date of Birth</span>
+                                        <span className="font-medium text-gray-900 text-sm">
+                                            {selectedAppointment.contact?.dob || selectedAppointment.formData?.patientDOB || 'N/A'}
+                                        </span>
+                                    </div>
+                                    <div className="p-3 rounded-xl border border-gray-100 bg-gray-50/30">
+                                        <span className="text-[11px] text-gray-400 block mb-0.5 font-medium">Patient History</span>
+                                        {selectedAppointment.formData?.visitedBefore !== undefined ? (
+                                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-semibold ${
+                                                selectedAppointment.formData.visitedBefore
+                                                    ? 'bg-emerald-100 text-emerald-800'
+                                                    : 'bg-blue-100 text-blue-800'
                                             }`}>
+                                                {selectedAppointment.formData.visitedBefore ? 'Returning Patient' : 'First-time Patient'}
+                                            </span>
+                                        ) : (
+                                            <span className="text-gray-600 text-xs">Standard Patient</span>
+                                        )}
+                                    </div>
+                                    <div className="p-3 rounded-xl border border-gray-100 bg-gray-50/30">
+                                        <span className="text-[11px] text-gray-400 block mb-0.5 font-medium">Booking Target</span>
+                                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${
+                                            selectedAppointment.bookingType === 'Self'
+                                                ? 'bg-green-100 text-green-800'
+                                                : 'bg-indigo-100 text-indigo-800'
+                                        }`}>
                                             {selectedAppointment.bookingType === 'Self' ? 'Myself' : 'Someone else'}
                                         </span>
                                     </div>
-                                    <div className="p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
-                                        <span className="text-xs text-gray-500 block mb-1">Communication Preference</span>
-                                        <span className="font-medium text-gray-900">{formatCommunicationPreference(selectedAppointment.communicationPreference)}</span>
+                                    <div className="p-3 rounded-xl border border-gray-100 bg-gray-50/30">
+                                        <span className="text-[11px] text-gray-400 block mb-0.5 font-medium">Communication Preference</span>
+                                        <span className="font-medium text-gray-900 text-sm">
+                                            {formatCommunicationPreference(selectedAppointment.communicationPreference || selectedAppointment.formData?.communicationPreference)}
+                                        </span>
                                     </div>
+                                    {selectedAppointment.formData?.identificationNumber && (
+                                        <div className="p-3 rounded-xl border border-gray-100 bg-gray-50/30">
+                                            <span className="text-[11px] text-gray-400 block mb-0.5 font-medium">Patient ID / National ID</span>
+                                            <span className="font-mono text-gray-900 text-xs font-semibold">
+                                                {selectedAppointment.formData.identificationNumber}
+                                            </span>
+                                        </div>
+                                    )}
+                                    {(selectedAppointment.contact?.address || selectedAppointment.formData?.patientAddress) && (
+                                        <div className="p-3 rounded-xl border border-gray-100 bg-gray-50/30 sm:col-span-2 md:col-span-3">
+                                            <span className="text-[11px] text-gray-400 block mb-0.5 font-medium">Address</span>
+                                            <span className="font-medium text-gray-900 text-sm">
+                                                {selectedAppointment.contact?.address || selectedAppointment.formData?.patientAddress}
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
-                            {/* Payment Information */}
-                            <div className="border-t border-gray-100 pt-6">
-                                <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">Payment Information</h4>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
-                                        <span className="text-xs text-gray-500 block mb-1">Amount</span>
-                                        <span className="font-medium text-gray-900 text-lg">₦{selectedAppointment.payment?.amount?.toLocaleString() || 'N/A'}</span>
+                            {/* Payment & Billing Breakdown */}
+                            <div className="border-t border-gray-100 pt-5">
+                                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                    <FaFileInvoiceDollar className="w-4 h-4 text-emerald-600" />
+                                    Payment & Billing Breakdown
+                                </h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                                    <div className="p-3 rounded-xl border border-gray-100 bg-gray-50/30">
+                                        <span className="text-[11px] text-gray-400 block mb-0.5 font-medium">Total Amount</span>
+                                        <span className="font-bold text-gray-900 text-base">
+                                            {formatAmount(getAppointmentAmount(selectedAppointment))}
+                                        </span>
                                     </div>
-                                    <div className="p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
-                                        <span className="text-xs text-gray-500 block mb-1">Payment Status</span>
-                                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium mt-1 ${selectedAppointment.payment?.amount ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                                            {selectedAppointment.payment?.amount ? 'Paid' : 'Unpaid'}
+                                    <div className="p-3 rounded-xl border border-gray-100 bg-gray-50/30">
+                                        <span className="text-[11px] text-gray-400 block mb-0.5 font-medium">Payment Status</span>
+                                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold border ${getPaymentInfo(selectedAppointment).color}`}>
+                                            {getPaymentInfo(selectedAppointment).label}
+                                        </span>
+                                    </div>
+                                    <div className="p-3 rounded-xl border border-gray-100 bg-gray-50/30">
+                                        <span className="text-[11px] text-gray-400 block mb-0.5 font-medium">Payment Method</span>
+                                        <span className="font-medium text-gray-900 text-sm">
+                                            {selectedAppointment.payment?.method || selectedAppointment.payment?.paymentMethod || (getPaymentInfo(selectedAppointment).status === 'paid' ? 'Card / Online' : 'Pending')}
                                         </span>
                                     </div>
                                     {selectedAppointment.payment?.paidAt && (
-                                        <div className="p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
-                                            <span className="text-xs text-gray-500 block mb-1">Paid At</span>
-                                            <span className="font-medium text-gray-900">{new Date(selectedAppointment.payment.paidAt).toLocaleString()}</span>
+                                        <div className="p-3 rounded-xl border border-gray-100 bg-gray-50/30">
+                                            <span className="text-[11px] text-gray-400 block mb-0.5 font-medium">Paid At</span>
+                                            <span className="font-medium text-gray-900 text-xs">
+                                                {new Date(selectedAppointment.payment.paidAt).toLocaleString()}
+                                            </span>
                                         </div>
                                     )}
-                                    {selectedAppointment.payment?.paystackReference && (
-                                        <div className="p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
-                                            <span className="text-xs text-gray-500 block mb-1">Reference</span>
-                                            <span className="font-medium text-gray-900 font-mono text-xs">{selectedAppointment.payment.paystackReference}</span>
+                                    {(selectedAppointment.payment?.paystackReference || selectedAppointment.payment?.reference) && (
+                                        <div className="p-3 rounded-xl border border-gray-100 bg-gray-50/30 sm:col-span-2">
+                                            <span className="text-[11px] text-gray-400 block mb-0.5 font-medium">Payment Reference</span>
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-mono text-gray-900 text-xs font-semibold truncate">
+                                                    {selectedAppointment.payment?.paystackReference || selectedAppointment.payment?.reference}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleCopy(selectedAppointment.payment?.paystackReference || selectedAppointment.payment?.reference, 'Payment Reference')}
+                                                    className="text-gray-400 hover:text-gray-700 transition-colors"
+                                                    title="Copy Reference"
+                                                >
+                                                    {copiedId === (selectedAppointment.payment?.paystackReference || selectedAppointment.payment?.reference) ? (
+                                                        <FaCheck className="w-3 h-3 text-green-600" />
+                                                    ) : (
+                                                        <FaCopy className="w-3 h-3" />
+                                                    )}
+                                                </button>
+                                            </div>
                                         </div>
                                     )}
                                 </div>
                             </div>
                         </div>
 
-                        <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex justify-end gap-3 rounded-b-2xl">
-                            {(
-                                (selectedAppointment.payment && (selectedAppointment.payment.status?.toLowerCase() === 'paid' || selectedAppointment.paymentStatus?.toLowerCase() === 'paid')) ||
-                                selectedAppointment.status?.toLowerCase() === 'completed'
-                            ) && (
+                        {/* Modal Footer */}
+                        <div className="p-6 border-t border-gray-100 bg-gray-50/50 flex flex-wrap justify-between items-center gap-3 rounded-b-2xl">
+                            <div className="text-xs text-gray-400 font-mono">
+                                ResQ Healthcare • Booking #{selectedAppointment.id}
+                            </div>
+                            <div className="flex items-center gap-3">
+                                {getPaymentInfo(selectedAppointment).status !== 'paid' && (
+                                    <>
+                                        <button
+                                            onClick={() => handlePay(selectedAppointment)}
+                                            disabled={isPayingId === selectedAppointment.id}
+                                            className="px-5 py-2.5 text-white bg-blue-600 hover:bg-blue-700 font-medium rounded-xl transition-colors flex items-center gap-2 text-sm shadow-sm disabled:opacity-50"
+                                        >
+                                            {isPayingId === selectedAppointment.id ? (
+                                                <>
+                                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                                    Connecting...
+                                                </>
+                                            ) : (
+                                                'Pay with Paystack'
+                                            )}
+                                        </button>
+                                        <button
+                                            onClick={() => handleDirectConfirmPayment(selectedAppointment)}
+                                            disabled={confirmPaymentMutation.isPending}
+                                            className="px-4 py-2.5 text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 font-medium rounded-xl transition-colors text-sm disabled:opacity-50"
+                                            title="Direct Payment Confirmation"
+                                        >
+                                            {confirmPaymentMutation.isPending ? 'Confirming...' : 'Direct Confirm'}
+                                        </button>
+                                    </>
+                                )}
+                                {getPaymentInfo(selectedAppointment).status === 'paid' && (
                                     <button
                                         onClick={() => handleDownloadReceipt(selectedAppointment.id)}
                                         disabled={isGeneratingReceipt}
-                                        className="px-5 py-2.5 text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 font-medium rounded-xl transition-colors flex items-center gap-2"
+                                        className="px-5 py-2.5 text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 font-medium rounded-xl transition-colors flex items-center gap-2 text-sm"
                                     >
                                         {isGeneratingReceipt ? <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-700"></div> : <FiDownload className="w-4 h-4" />}
                                         Download Receipt
                                     </button>
                                 )}
-                            <button
-                                onClick={closeDetailsModal}
-                                className="px-5 py-2.5 text-gray-600 font-medium hover:bg-gray-100 rounded-xl transition-colors"
-                            >
-                                Close
-                            </button>
+                                <button
+                                    onClick={closeDetailsModal}
+                                    className="px-5 py-2.5 text-gray-600 font-medium hover:bg-gray-100 rounded-xl transition-colors text-sm"
+                                >
+                                    Close
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1121,7 +1650,7 @@ export default function BookingHistoryPage() {
                                         day: 'numeric'
                                     })}</p>
                                     <p><span className="font-medium">Time:</span> {receiptData.appointment.time}</p>
-                                    <p><span className="font-medium">Location:</span> {`${receiptData.appointment.location.street}, ${receiptData.appointment.location.city}, ${receiptData.appointment.location.state}`}</p>
+                                    <p><span className="font-medium">Location:</span> {formatReceiptLocation(receiptData, currentReceiptAppointmentId)}</p>
                                 </div>
                             </div>
                         </div>

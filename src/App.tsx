@@ -162,6 +162,7 @@ function App() {
             </OnboardingRoute>
           </ProtectedRoute>
         } />
+        <Route path="/patient/appointments" element={<Navigate to="/booking-history" replace />} />
         <Route path="/favourites" element={
           <ProtectedRoute>
             <OnboardingRoute>

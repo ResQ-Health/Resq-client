@@ -284,7 +284,15 @@ All endpoints used in the frontend are centrally mapped in `src/config/api.ts`:
 - **Hook:** `useInitializePayment()`
 - **HTTP Method:** `POST`
 - **Endpoint:** `/api/v1/payments/initialize`
-- **Payload:** `{ appointmentId, callback_url }`
+- **Payload:** `{ appointmentId, amount?, email?, callback_url }`
+- **Returns:** `{ authorization_url, reference, access_code }`
+
+#### `confirmAppointmentPayment(payload: ConfirmAppointmentPaymentRequest)`
+- **Hook:** `useConfirmAppointmentPayment()`
+- **HTTP Method:** `PUT` (or `POST` for `/payments/confirm-appointment` alias)
+- **Endpoint:** `/api/v1/appointments/${appointmentId}/confirm-payment`
+- **Payload:** `{ appointmentId, paymentMethod, reference, amount }`
+- **Cache Invalidation:** Invalidates `['patientAppointments']` query cache
 
 #### `fetchPaymentReceipt(appointmentId: string)`
 - **Hook:** `usePaymentReceipt(appointmentId)`

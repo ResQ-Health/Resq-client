@@ -1,7 +1,7 @@
 # API Documentation
 
 ## Overview
-The RESQ frontend application communicates with a backend API running on `localhost:6000`. The API integration is built using Axios with React Query for state management.
+The RESQ frontend application communicates with a backend API running on `localhost:5001`. The API integration is built using Axios with React Query for state management.
 
 ## API Configuration
 
@@ -10,7 +10,7 @@ The RESQ frontend application communicates with a backend API running on `localh
 
 ```typescript
 // Dynamic base URL - uses proxy in development
-export const API_BASE_URL = import.meta.env.DEV ? '' : 'http://localhost:6000';
+export const API_BASE_URL = import.meta.env.DEV ? '' : 'http://localhost:5001';
 
 // Axios instance with default config
 export const apiClient = axios.create({
@@ -29,7 +29,7 @@ export const apiClient = axios.create({
 server: {
   proxy: {
     '/api': {
-      target: 'http://localhost:6000',
+      target: 'http://localhost:5001',
       changeOrigin: true,
       secure: false,
       ws: true,

@@ -1,7 +1,10 @@
 import axios from 'axios';
 
-// API Configuration
-export const API_BASE_URL = import.meta.env.DEV ? '' : 'https://server-16pz.onrender.com';
+// API Configuration: In development, requests are proxied via Vite dev server.
+// In production, use VITE_API_URL from environment variables if set, otherwise default to the production server.
+export const API_BASE_URL = import.meta.env.DEV
+    ? ''
+    : (import.meta.env.VITE_API_URL || 'https://server-16pz.onrender.com');
 
 // Create axios instance with default config
 export const apiClient = axios.create({
@@ -122,6 +125,7 @@ export const API_ENDPOINTS = {
             GET_ALL: '/api/v1/appointments/patient',
             BOOK: '/api/v1/appointments/book',
             DELETE: (id: string) => `/api/v1/appointments/${id}`,
+            CONFIRM_PAYMENT: (id: string) => `/api/v1/appointments/${id}/confirm-payment`,
         },
         PROVIDERS: {
             GET_ALL: '/api/v1/providers/all', // Patients searching for providers
@@ -132,6 +136,7 @@ export const API_ENDPOINTS = {
         },
         PAYMENTS: {
             INITIALIZE: '/api/v1/payments/initialize', // For booking payments
+            CONFIRM_APPOINTMENT: '/api/v1/payments/confirm-appointment',
             RECEIPT: (id: string) => `/api/v1/payments/receipt/${id}`,
             SEND_RECEIPT: '/api/v1/payments/receipt/send',
             METHODS: {

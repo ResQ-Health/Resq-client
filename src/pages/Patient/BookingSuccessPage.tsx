@@ -215,7 +215,23 @@ const BookingSuccessPage = () => {
     }
 
     const { patient, appointment, payment_summary } = receiptData.data;
-    const appointmentAddress = appointment.location ? `${appointment.location.street}, ${appointment.location.city}, ${appointment.location.state} ${appointment.location.postal_code}, ${appointment.location.country}` : '';
+    const formatAddress = (loc: any) => {
+        if (!loc) return '';
+        if (typeof loc === 'string') {
+            const cleaned = loc.trim();
+            return !cleaned.toLowerCase().includes('undefined') && cleaned !== 'null' ? cleaned : '';
+        }
+        if (typeof loc === 'object') {
+            const parts = [loc.street, loc.city, loc.state, loc.postal_code, loc.country]
+                .filter((p: any) => p && typeof p === 'string' && p.trim() && p.toLowerCase() !== 'undefined' && p.toLowerCase() !== 'null')
+                .map((p: any) => p.trim());
+            if (parts.length > 0) return parts.join(', ');
+            if (loc.address && typeof loc.address === 'string' && loc.address.trim() && !loc.address.toLowerCase().includes('undefined')) return loc.address.trim();
+            if (loc.name && typeof loc.name === 'string' && loc.name.trim() && !loc.name.toLowerCase().includes('undefined')) return loc.name.trim();
+        }
+        return '';
+    };
+    const appointmentAddress = formatAddress(appointment.location);
     const userAddress = patient.address || '';
 
     return (

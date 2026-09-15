@@ -2091,6 +2091,7 @@ const BookingPage = () => {
                                                                 appointmentId,
                                                                 amount,
                                                                 email: emailToUse,
+                                                                callback_url: `${window.location.origin}/booking-history`,
                                                             });
                                                             const url = res?.data?.authorization_url;
                                                             if (url) {

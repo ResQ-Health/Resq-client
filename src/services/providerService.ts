@@ -473,8 +473,9 @@ export const useBookAppointment = () => {
 // Payments
 export interface InitializePaymentRequest {
     appointmentId: string;
-    amount: number;
-    email: string;
+    amount?: number;
+    email?: string;
+    callback_url?: string;
 }
 
 export interface InitializePaymentResponse {
@@ -488,14 +489,14 @@ export interface InitializePaymentResponse {
 }
 
 export const initializePayment = async (payload: InitializePaymentRequest): Promise<InitializePaymentResponse> => {
-    // Use VITE_APP_URL from environment variables if defined (e.g. set in Vercel or .env),
-    // otherwise fallback to window.location.origin for local development or if not set.
     const publicUrl = import.meta.env.VITE_APP_URL || window.location.origin;
-    // Ensure we don't have double slashes if env var has trailing slash
     const base = String(publicUrl).replace(/\/$/, '');
+    const callback_url = payload.callback_url || `${base}/booking-history`;
     const res = await apiClient.post(API_ENDPOINTS.PATIENT.PAYMENTS.INITIALIZE, {
-        ...payload,
-        callback_url: `${base}/payment/callback`,
+        appointmentId: payload.appointmentId,
+        callback_url,
+        ...(payload.amount ? { amount: payload.amount } : {}),
+        ...(payload.email ? { email: payload.email } : {}),
     });
     return res.data as InitializePaymentResponse;
 };
@@ -503,6 +504,45 @@ export const initializePayment = async (payload: InitializePaymentRequest): Prom
 export const useInitializePayment = () => {
     return useMutation({
         mutationFn: initializePayment,
+    });
+};
+
+// Direct Payment Confirmation (Option 1)
+export interface ConfirmPaymentRequest {
+    appointmentId: string;
+    paymentMethod?: string;
+    reference?: string;
+    amount?: number;
+}
+
+export interface ConfirmPaymentResponse {
+    success: boolean;
+    message?: string;
+    data?: {
+        appointment?: any;
+    };
+}
+
+export const confirmAppointmentPayment = async ({ appointmentId, ...payload }: ConfirmPaymentRequest): Promise<ConfirmPaymentResponse> => {
+    const res = await apiClient.put(API_ENDPOINTS.PATIENT.APPOINTMENTS.CONFIRM_PAYMENT(appointmentId), {
+        paymentMethod: payload.paymentMethod || 'Card Payment',
+        reference: payload.reference || `REF-PAY-${Date.now()}`,
+        amount: payload.amount,
+    });
+    return res.data as ConfirmPaymentResponse;
+};
+
+export const useConfirmAppointmentPayment = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: confirmAppointmentPayment,
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: ['patientAppointments'] });
+            toast.success(data?.message || 'Payment successfully confirmed!');
+        },
+        onError: (err: any) => {
+            toast.error(err.response?.data?.message || 'Failed to confirm payment');
+        }
     });
 };
 

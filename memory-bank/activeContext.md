@@ -25,7 +25,7 @@
 - Verify the payments verification flow end-to-end with the backend.
 - Connect real data to the Provider Dashboard stats and charts (Overview page).
 - Implement other provider pages (Services, Reports, etc.).
-- **Backend Connection**: Ensure the backend server is running on port 6000 and accessible.
+- **Backend Connection**: Ensure the backend server is running on port 5001 and accessible.
 
 ## Active Decisions
 - **Bank List Caching**: Cached the bank list for 24 hours (`staleTime: 24 * 60 * 60 * 1000`) in React Query to reduce API calls, as the list of banks rarely changes.

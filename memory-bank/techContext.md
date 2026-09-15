@@ -48,7 +48,7 @@
 server: {
   proxy: {
     '/api': {
-      target: 'http://localhost:6000',
+      target: 'http://localhost:5001',
       changeOrigin: true,
       secure: false,
       ws: true,

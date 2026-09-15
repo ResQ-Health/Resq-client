@@ -77,6 +77,7 @@ export interface PatientProfileRequest {
 // Appointment types
 export interface Appointment {
     id: string;
+    booking_id?: string;
     providerId: string;
     providerName?: string;
     provider_name?: string; // Add provider_name for compatibility
@@ -90,11 +91,44 @@ export interface Appointment {
     amount: number;
     paymentStatus: 'paid' | 'unpaid' | 'pending';
     paidAt?: string;
+    isPaid?: boolean;
+    paymentRequired?: boolean;
+    paymentLink?: string;
     location?: string;
     bookingType?: string; // Added for compatibility
+    bookedByClinician?: boolean;
+    clinician_id?: string;
+    clinician?: {
+        id?: string;
+        name?: string;
+        email?: string;
+        phone?: string;
+        specialty?: string;
+        [key: string]: any;
+    };
+    notes?: string;
+    formData?: {
+        forWhom?: string;
+        visitedBefore?: boolean;
+        identificationNumber?: string;
+        comments?: string;
+        communicationPreference?: string;
+        patientName?: string;
+        patientEmail?: string;
+        patientPhone?: string;
+        patientAddress?: string;
+        patientGender?: string;
+        patientDOB?: string;
+        bookedByClinician?: boolean;
+        clinicianId?: string;
+        clinicianName?: string;
+        clinicianEmail?: string;
+        [key: string]: any;
+    };
     service?: { 
+        id?: string;
         name: string; 
-        duration: number; 
+        duration?: number; 
         price: number; 
         category?: string; // Added category
     }; 
@@ -111,9 +145,12 @@ export interface Appointment {
     payment?: { 
         amount: number; 
         status: string; 
-        method: string; 
-        date: string; 
+        method?: string; 
+        date?: string; 
         paidAt?: string; // Added paidAt to payment object
+        paystackReference?: string;
+        reference?: string;
+        [key: string]: any;
     }; 
 }
 

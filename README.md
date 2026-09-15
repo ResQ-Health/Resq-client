@@ -72,8 +72,93 @@ VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id
 
 ---
 
+## Recent API Implementations & Changes
+
+### 1. Dynamic Environment & API Routing
+- **Local Dev vs Production:**
+  - `VITE_DEV_API_TARGET`: Configurable development backend proxy target (`http://localhost:5001`).
+  - `VITE_API_URL`: Production backend endpoint (`https://server-16pz.onrender.com`).
+  - `VITE_APP_URL`: Client application URL (`http://localhost:5174` locally).
+  - Vite dev server automatically proxies `/api` requests to `VITE_DEV_API_TARGET` in development.
+
+### 2. Patient Appointment & Referral Data Integration
+- **Endpoint:** `GET /api/v1/appointments/patient`
+- **Hook:** `usePatientAppointments()` (`src/services/userService.ts`)
+- **Key Enhancements:**
+  - **Clinical Referrals:** Full extraction of `bookedByClinician`, `clinician` object (Doctor name, email, phone, clinician ID), and `notes`.
+  - **Clinical Notes & Scans:** Displays diagnostic scan types, clinical instructions, and automatically flags urgency (`Priority: Urgent`).
+  - **Patient Visit History:** Tracks `visitedBefore` (`Returning Patient` vs `First-Time Patient`) and `identificationNumber` (Hospital / National ID).
+  - **Booking Target:** Differentiates `Self` (`Myself`) from third-party bookings (`Someone else`).
+
+### 3. Appointment Payment Integration (Direct & Paystack)
+
+#### Option 1: Direct Payment Confirmation
+For direct card settlement, testing, or clinician-initiated payments:
+- **Endpoint:** `PUT /api/v1/appointments/:appointmentId/confirm-payment`
+- **Alias Endpoint:** `POST /api/v1/payments/confirm-appointment`
+- **Hook:** `useConfirmAppointmentPayment()` (`src/services/providerService.ts`)
+- **Headers:** `Content-Type: application/json`, `Authorization: Bearer <token>` (optional/public)
+- **Request Body:**
+  ```json
+  {
+    "paymentMethod": "Card Payment",
+    "reference": "REF-PAY-1789419999",
+    "amount": 32500
+  }
+  ```
+- **Response:**
+  ```json
+  {
+    "success": true,
+    "message": "Payment successfully confirmed! Appointment is now confirmed and paid for.",
+    "data": {
+      "appointment": {
+        "id": "00bYJ5_vwx",
+        "status": "confirmed",
+        "isPaid": true,
+        "payment": {
+          "status": "completed",
+          "amount": 32500,
+          "method": "Card Payment",
+          "paidAt": "2026-09-14T22:00:00.000Z"
+        }
+      }
+    }
+  }
+  ```
+
+#### Option 2: Paystack Checkout Initialization
+For online gateway checkouts via Paystack popup/redirect:
+- **Endpoint:** `POST /api/v1/payments/initialize`
+- **Hook:** `useInitializePayment()` (`src/services/providerService.ts`)
+- **Request Body:**
+  ```json
+  {
+    "appointmentId": "00bYJ5_vwx",
+    "amount": 32500,
+    "email": "patient@example.com",
+    "callback_url": "http://localhost:5174/booking-history"
+  }
+  ```
+- **Callback & Return Handling:**
+  - The payment gateway redirects to `${window.location.origin}/booking-history?reference=...&trxref=...`.
+  - The booking page listens for return parameters, invalidates the `patientAppointments` cache, refetches latest records, displays a success toast, and clears query params from the browser history cleanly.
+
+### 4. Dynamic Fee Calculation & Status Evaluation
+- **Fee Extractor (`getAppointmentAmount`):** Reads exact fee dynamically from `payment.amount`, `amount`, `service.price`, `totalAmount`, or `formData.amount` without relying on hardcoded defaults.
+- **Payment Status Resolver (`getPaymentInfo`):** Evaluates appointment state into four distinct statuses: `paid`, `pending`, `unpaid`, and `failed`.
+
+### 5. Chronological Ordering (Latest Appointment First)
+- **Default Sort Order:** Sorted by latest appointment descending (`date` with `desc`).
+- **Timestamp Engine (`getAppointmentDateScore`):**
+  - First evaluates booking creation timestamps (`createdAt`, `created_at`, `bookingDate`) to ensure newly booked appointments are always at the top.
+  - Correctly evaluates scheduled appointment `date` + `start_time` (e.g. `10:30 AM`) so appointments are chronologically ordered.
+
+---
+
 ## Documentation Links
 
 - [Client API Integration Manual (`CLIENT_API_DOCUMENTATION.md`)](./CLIENT_API_DOCUMENTATION.md)
 - [Patient Settings API Guide (`PATIENT_SETTINGS_API_DOCS.md`)](./PATIENT_SETTINGS_API_DOCS.md)
 - [Test Results Summary (`TEST_RESULTS_SUMMARY.md`)](./TEST_RESULTS_SUMMARY.md)
+
