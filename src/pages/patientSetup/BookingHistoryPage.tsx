@@ -1499,7 +1499,7 @@ export default function BookingHistoryPage() {
                                                 Connecting...
                                             </>
                                         ) : (
-                                            'Pay with Paystack'
+                                            'Pay'
                                         )}
                                     </button>
                                 )}
