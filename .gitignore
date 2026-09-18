@@ -12,13 +12,14 @@ dist
 dist-ssr
 *.local
 
-# Environment variables
+# Environment variables & local credentials
 .env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-.env*.local
+.env.*
+*.env
+*.env.*
+env-fixed
+*.tmp
+*.pdf
 
 # Editor directories and files
 .vscode/*
@@ -31,5 +32,3 @@ dist-ssr
 *.sln
 *.sw?
 
-# Cloned backend server
-server/
