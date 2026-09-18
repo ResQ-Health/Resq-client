@@ -1,4 +1,4 @@
-// Authentication middleware
+const mongoose = require('mongoose');
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { redisClient } = require('../config/redis');
@@ -32,7 +32,7 @@ const protect = async (req, res, next) => {
         // Verify JWT token
         try {
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
-            const userId = decoded.userId;
+            const userId = decoded.userId || decoded.id;
 
             // Try to get user from Redis cache first
             let user = null;
@@ -44,7 +44,7 @@ const protect = async (req, res, next) => {
                         // Convert to Mongoose-like object for compatibility
                         req.user = {
                             ...user,
-                            _id: user.id,
+                            _id: user.id || user._id,
                             toObject: () => user,
                             toJSON: () => user
                         };
@@ -57,7 +57,12 @@ const protect = async (req, res, next) => {
 
             // If not in cache, get from database
             if (!user) {
-                user = await User.findOne({ id: userId }).select('-password').lean();
+                const userFilters = [];
+                if (userId) userFilters.push({ id: userId });
+                if (userId && mongoose.Types.ObjectId.isValid(userId)) userFilters.push({ _id: userId });
+                if (decoded.email) userFilters.push({ email: decoded.email.toLowerCase().trim() });
+
+                user = await User.findOne(userFilters.length > 1 ? { $or: userFilters } : (userFilters[0] || { id: userId })).select('-password').lean();
 
                 if (!user) {
                     return res.status(404).json({
@@ -77,7 +82,7 @@ const protect = async (req, res, next) => {
 
                 req.user = {
                     ...user,
-                    _id: user.id,
+                    _id: user.id || user._id,
                     toObject: () => user,
                     toJSON: () => user
                 };
@@ -176,7 +181,7 @@ const optionalAuth = async (req, res, next) => {
 
         try {
             const decoded = jwt.verify(token, process.env.JWT_SECRET);
-            const userId = decoded.userId;
+            const userId = decoded.userId || decoded.id;
 
             // Try Redis cache first
             let user = null;
@@ -187,7 +192,7 @@ const optionalAuth = async (req, res, next) => {
                         user = JSON.parse(cachedUser);
                         req.user = {
                             ...user,
-                            _id: user.id,
+                            _id: user.id || user._id,
                             toObject: () => user,
                             toJSON: () => user
                         };
@@ -200,7 +205,12 @@ const optionalAuth = async (req, res, next) => {
 
             // If not in cache, get from database
             if (!user) {
-                user = await User.findOne({ id: userId }).select('-password').lean();
+                const userFilters = [];
+                if (userId) userFilters.push({ id: userId });
+                if (userId && mongoose.Types.ObjectId.isValid(userId)) userFilters.push({ _id: userId });
+                if (decoded.email) userFilters.push({ email: decoded.email.toLowerCase().trim() });
+
+                user = await User.findOne(userFilters.length > 1 ? { $or: userFilters } : (userFilters[0] || { id: userId })).select('-password').lean();
                 if (user) {
                     // Cache for future requests
                     try {
@@ -212,7 +222,7 @@ const optionalAuth = async (req, res, next) => {
                     }
                     req.user = {
                         ...user,
-                        _id: user.id,
+                        _id: user.id || user._id,
                         toObject: () => user,
                         toJSON: () => user
                     };

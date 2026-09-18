@@ -600,17 +600,31 @@ const bookAppointment = async (req, res) => {
       (hours) => hours.day === dayName,
     );
     const isWorkingDay = workingHoursForDay && workingHoursForDay.isAvailable;
+    const isReferralOrClinician = Boolean(
+      isClinicianBooking ||
+      formData?.bookedByClinician ||
+      formData?.referralId ||
+      formData?.identificationNumber ||
+      req.body.referralId ||
+      req.body.identificationNumber
+    );
 
     if (!isWorkingDay) {
-      return res.status(400).json({
-        success: false,
-        message: `${provider.provider_name} does not work on ${dayName}s.`,
-      });
+      if (isReferralOrClinician) {
+        console.log(`[Book Appointment] Clinical referral/booking on non-standard working day (${dayName}) for ${provider.provider_name}, accepting under clinical discretion.`);
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: `${provider.provider_name} does not work on ${dayName}s.`,
+        });
+      }
     }
 
     // Validate that the requested time is within the provider's working hours
-    const providerStartTime = parseTimeString(workingHoursForDay.startTime);
-    const providerEndTime = parseTimeString(workingHoursForDay.endTime);
+    const defaultStart = { hours: 8, minutes: 0 };
+    const defaultEnd = { hours: 21, minutes: 0 };
+    const providerStartTime = workingHoursForDay ? parseTimeString(workingHoursForDay.startTime) : defaultStart;
+    const providerEndTime = workingHoursForDay ? parseTimeString(workingHoursForDay.endTime) : defaultEnd;
     const requestedStartTime = parseTimeString(start_time);
     const requestedEndTime = parseTimeString(end_time);
 
@@ -626,10 +640,14 @@ const bookAppointment = async (req, res) => {
       requestedStartMinutes < providerStartMinutes ||
       requestedEndMinutes > providerEndMinutes
     ) {
-      return res.status(400).json({
-        success: false,
-        message: `The requested time is outside of ${provider.provider_name}'s working hours (${workingHoursForDay.startTime} - ${workingHoursForDay.endTime}).`,
-      });
+      if (isReferralOrClinician) {
+        console.log(`[Book Appointment] Clinical referral/booking requested slot (${start_time} - ${end_time}) outside standard provider hours, accepting under clinical discretion.`);
+      } else {
+        return res.status(400).json({
+          success: false,
+          message: `The requested time is outside of ${provider.provider_name}'s working hours (${workingHoursForDay ? workingHoursForDay.startTime : '8:00 AM'} - ${workingHoursForDay ? workingHoursForDay.endTime : '5:00 PM'}).`,
+        });
+      }
     }
 
     // Check for existing appointments at the same time
@@ -771,6 +789,30 @@ const bookAppointment = async (req, res) => {
       console.log(
         `[Book Appointment] Successfully created appointment ${appointment.id} for patient ${patientId}. Status: ${appointment.status}, is_deleted: ${appointment.is_deleted}`,
       );
+
+      // Link and update matching Referral in MongoDB if this booking is from a referral
+      const referralIdToMatch = formData?.referralId || formData?.identificationNumber || req.body.referralId || req.body.identificationNumber;
+      if (referralIdToMatch) {
+        try {
+          const ReferralModel = mongoose.models.Referral || mongoose.model("Referral", new mongoose.Schema({}, { strict: false }));
+          ReferralModel.updateMany(
+            { referralId: referralIdToMatch },
+            {
+              $set: {
+                patientAppointmentId: appointment.id,
+                clinicianAppointmentId: appointment.id,
+                patientSyncStatus: "Synced",
+                clinicianSyncStatus: "Synced",
+                patientSyncError: "",
+                clinicianSyncError: "",
+                status: appointment.status === "confirmed" ? "Confirmed" : "Booking in Progress",
+              },
+            }
+          ).catch((e) => console.warn("[Book Appointment] Referral update error:", e.message));
+        } catch (syncErr) {
+          console.warn("[Book Appointment] Referral sync notice:", syncErr.message);
+        }
+      }
 
       // Verify the appointment was saved correctly
       const verifyAppointment = await Appointment.findOne({ id: appointment.id });
@@ -1100,10 +1142,13 @@ const getPatientAppointments = async (req, res) => {
     // Fetch patient details once (used for all appointments)
     const patient = await User.findOne({ id: patientId }).select('id full_name email phone_number contact_details location_details personal_details').lean();
 
-    // Build query - ensure we match by patient ID or by patient email in formData
+    // Build query - ensure we match by patient ID, patient email, or phone number in formData
     const patientFilters = [{ patient_id: patientId }];
     if (patient?.email) {
       patientFilters.push({ "formData.patientEmail": new RegExp(`^${patient.email.trim()}$`, "i") });
+    }
+    if (patient?.phone_number) {
+      patientFilters.push({ "formData.patientPhone": patient.phone_number.trim() });
     }
 
     const query = {
@@ -1122,6 +1167,142 @@ const getPatientAppointments = async (req, res) => {
       .sort({ "payment.paidAt": -1, created_at: -1 })
       .maxTimeMS(10000)
       .lean(); // Use lean() for performance since we don't need Mongoose document methods on the list
+
+    // Auto-Reconcile: Check for any clinician referrals in the shared Referral collection
+    // for this patient's email or phone number that do not yet have a matching Appointment.
+    try {
+      const ReferralModel = mongoose.models.Referral || mongoose.model("Referral", new mongoose.Schema({}, { strict: false }));
+      const refFilters = [];
+      if (patient?.email) {
+        refFilters.push({ patientEmail: new RegExp(`^${patient.email.trim()}$`, "i") });
+      }
+      if (patient?.phone_number) {
+        refFilters.push({ patientPhone: patient.phone_number.trim() });
+      }
+      if (refFilters.length > 0) {
+        const referrals = await ReferralModel.find({ $or: refFilters }).lean();
+        for (const ref of referrals) {
+          const alreadyInList = appointments.some((a) =>
+            (ref.referralId && (a.formData?.referralId === ref.referralId || a.formData?.identificationNumber === ref.referralId)) ||
+            (ref.patientAppointmentId && a.id === ref.patientAppointmentId) ||
+            (ref.clinicianAppointmentId && a.id === ref.clinicianAppointmentId)
+          );
+          if (!alreadyInList) {
+            let existingInDb = await Appointment.findOne({
+              $or: [
+                { "formData.referralId": ref.referralId },
+                { "formData.identificationNumber": ref.referralId },
+                { id: ref.patientAppointmentId },
+                { id: ref.clinicianAppointmentId },
+              ].filter(Boolean),
+              is_deleted: { $ne: true },
+            }).lean();
+
+            if (existingInDb) {
+              if (existingInDb.patient_id !== patientId) {
+                Appointment.updateOne({ id: existingInDb.id }, { $set: { patient_id: patientId } }).catch(() => {});
+                existingInDb.patient_id = patientId;
+              }
+              appointments.push(existingInDb);
+            } else {
+              const newApptId = nanoid(10);
+              const scanName = ref.serviceName || (ref.scanType ? `${ref.scanType}${ref.bodyPart ? ` (${ref.bodyPart})` : ''}` : 'Diagnostic Scan');
+              const amount = Number(ref.facilityPrice || ref.price || ref.amount || 0);
+
+              let apptDate = new Date();
+              if (ref.slot?.date) {
+                const parsed = new Date(ref.slot.date);
+                if (!isNaN(parsed.getTime())) apptDate = parsed;
+              }
+              apptDate.setHours(0, 0, 0, 0);
+
+              const startTime = ref.slot?.time || '10:00 AM';
+              let endTime = '10:30 AM';
+              try {
+                const match = startTime.match(/^(\d{1,2}):(\d{2})\s*(am|pm)?$/i);
+                if (match) {
+                  let h = parseInt(match[1], 10);
+                  let m = parseInt(match[2], 10) + 30;
+                  const p = match[3] ? match[3].toUpperCase() : '';
+                  if (m >= 60) {
+                    m -= 60;
+                    h = (h + 1) % 24;
+                  }
+                  endTime = `${h}:${String(m).padStart(2, '0')} ${p}`.trim();
+                }
+              } catch (_) {}
+
+              const isPaid = (ref.paymentStatus === 'Paid' || ref.status === 'Confirmed');
+              const apptStatus = isPaid ? 'confirmed' : 'pending';
+
+              const createdAppt = await Appointment.create({
+                id: newApptId,
+                patient_id: patientId,
+                provider_id: ref.providerId || 'CWZDBt9Xmv',
+                service_id: ref.serviceId || 'P7S_Vf3fBt',
+                clinician_id: ref.doctorEmail || undefined,
+                time_slot_id: `REF_${newApptId}_${Date.now()}`,
+                formData: {
+                  forWhom: 'Other',
+                  visitedBefore: false,
+                  identificationNumber: ref.referralId,
+                  referralId: ref.referralId,
+                  serviceName: scanName,
+                  facilityPrice: amount,
+                  price: amount,
+                  amount: amount,
+                  scanType: ref.scanType || '',
+                  bodyPart: ref.bodyPart || '',
+                  facilityName: ref.facilityName || 'Accredited ResQ Diagnostic Network',
+                  comments: `Referral #${ref.referralId} - ${scanName}. ${ref.clinicalNote ? `Note: ${ref.clinicalNote}` : ''}`,
+                  communicationPreference: 'Both',
+                  patientName: ref.patientName || patient.full_name,
+                  patientEmail: ref.patientEmail || patient.email,
+                  patientPhone: ref.patientPhone || patient.phone_number,
+                  patientAddress: ref.patientAddress || patient.location_details?.address || '',
+                  patientGender: ref.patientGender || patient.personal_details?.gender || '',
+                  patientDOB: ref.patientDob || patient.personal_details?.date_of_birth || '',
+                  bookedByClinician: true,
+                  clinicianId: ref.doctorEmail || '',
+                  clinicianName: ref.doctorName || 'Referring Clinician',
+                  clinicianEmail: ref.doctorEmail || '',
+                },
+                payment: {
+                  status: isPaid ? 'completed' : 'pending',
+                  amount: amount,
+                  method: ref.paymentDetails?.method || 'Paystack',
+                  paystackReference: ref.paymentDetails?.reference,
+                  paidAt: ref.paymentDetails?.paidAt,
+                },
+                appointment_date: apptDate,
+                start_time: startTime,
+                end_time: endTime,
+                status: apptStatus,
+                notes: ref.clinicalNote || `Medical Referral #${ref.referralId} from ${ref.doctorName || 'Doctor'}.`,
+              });
+
+              appointments.push(createdAppt.toObject ? createdAppt.toObject() : createdAppt);
+
+              ReferralModel.updateOne(
+                { _id: ref._id },
+                {
+                  $set: {
+                    patientAppointmentId: newApptId,
+                    clinicianAppointmentId: newApptId,
+                    patientSyncStatus: 'Synced',
+                    clinicianSyncStatus: 'Synced',
+                    patientSyncError: '',
+                    clinicianSyncError: '',
+                  },
+                }
+              ).catch((e) => console.warn('Referral update error:', e.message));
+            }
+          }
+        }
+      }
+    } catch (reconcileErr) {
+      console.warn('[Get Patient Appointments] Referral reconciliation notice:', reconcileErr.message);
+    }
 
     // Attempt auto-verify of payments that have a Paystack reference but are still pending
     // We do this in parallel but limit concurrency if needed, and update IN MEMORY to avoid re-fetch
@@ -2194,15 +2375,15 @@ const bookAppointmentByClinician = async (req, res) => {
     const workingHoursForDay = provider.working_hours.find(
       (h) => h.day === dayName,
     );
-    if (!workingHoursForDay || !workingHoursForDay.isAvailable) {
-      return res.status(400).json({
-        success: false,
-        message: `${provider.provider_name} does not work on ${dayName}s.`,
-      });
+    const isWorkingDay = workingHoursForDay && workingHoursForDay.isAvailable;
+    if (!isWorkingDay) {
+      console.log(`[Clinician Book Appointment] Booking on non-working day (${dayName}) for ${provider.provider_name}, accepting under clinical discretion.`);
     }
 
-    const providerStartTime = parseTimeString(workingHoursForDay.startTime);
-    const providerEndTime = parseTimeString(workingHoursForDay.endTime);
+    const defaultStart = { hours: 8, minutes: 0 };
+    const defaultEnd = { hours: 21, minutes: 0 };
+    const providerStartTime = workingHoursForDay ? parseTimeString(workingHoursForDay.startTime) : defaultStart;
+    const providerEndTime = workingHoursForDay ? parseTimeString(workingHoursForDay.endTime) : defaultEnd;
     const requestedStartTime = parseTimeString(start_time);
     const requestedEndTime = parseTimeString(end_time);
     const toMinutes = (time) => time.hours * 60 + time.minutes;
@@ -2211,10 +2392,7 @@ const bookAppointmentByClinician = async (req, res) => {
       toMinutes(requestedStartTime) < toMinutes(providerStartTime) ||
       toMinutes(requestedEndTime) > toMinutes(providerEndTime)
     ) {
-      return res.status(400).json({
-        success: false,
-        message: `The requested time is outside of ${provider.provider_name}'s working hours (${workingHoursForDay.startTime} - ${workingHoursForDay.endTime}).`,
-      });
+      console.log(`[Clinician Book Appointment] Booking slot (${start_time} - ${end_time}) outside standard provider hours, accepting under clinical discretion.`);
     }
 
     // Check collision
@@ -2344,6 +2522,28 @@ const bookAppointmentByClinician = async (req, res) => {
         }
       }, 100);
     });
+
+    // Link and update matching Referral in MongoDB
+    const referralIdToMatch = formData?.referralId || formData?.identificationNumber || req.body.referralId || req.body.identificationNumber;
+    if (referralIdToMatch) {
+      try {
+        const ReferralModel = mongoose.models.Referral || mongoose.model("Referral", new mongoose.Schema({}, { strict: false }));
+        ReferralModel.updateMany(
+          { referralId: referralIdToMatch },
+          {
+            $set: {
+              patientAppointmentId: appointment.id,
+              clinicianAppointmentId: appointment.id,
+              patientSyncStatus: "Synced",
+              clinicianSyncStatus: "Synced",
+              patientSyncError: "",
+              clinicianSyncError: "",
+              status: "Booking in Progress",
+            },
+          }
+        ).catch((err) => console.warn("[Clinician Book] Referral sync error:", err.message));
+      } catch (_) {}
+    }
 
     return res.status(201).json({
       success: true,
