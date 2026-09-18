@@ -1,10 +1,9 @@
 import axios from 'axios';
 
-// API Configuration: In development, requests are proxied via Vite dev server.
-// In production, use VITE_API_URL from environment variables if set, otherwise default to the production server.
-export const API_BASE_URL = import.meta.env.DEV
-    ? ''
-    : (import.meta.env.VITE_API_URL || 'https://server-16pz.onrender.com');
+// API Configuration:
+// When deployed directly on Vercel or running locally with Vite proxy, all API requests use same-origin relative paths ('').
+// If an explicit VITE_API_URL is specified in environment variables, it will use that; otherwise it defaults to same-origin ('').
+export const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
 
 // Create axios instance with default config
 export const apiClient = axios.create({
@@ -12,7 +11,7 @@ export const apiClient = axios.create({
     headers: {
         'Content-Type': 'application/json',
     },
-    timeout: 10000, // 10 seconds
+    timeout: 15000, // 15 seconds
 });
 
 // Request interceptor for adding auth token

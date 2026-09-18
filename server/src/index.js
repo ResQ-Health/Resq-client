@@ -13,8 +13,11 @@ try {
     console.log('Firebase Admin SDK not available, push notifications will be disabled');
 }
 
-// Load environment variables
+// Load environment variables (supports root, server subfolder, and Vercel environment)
+const path = require('path');
 dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../../server/.env') });
 
 // Initialize Firebase Admin for push notifications if credential available
 let firebaseInitialized = false;
@@ -66,7 +69,6 @@ connectDB().then(() => {
     console.log('MongoDB connection complete');
 }).catch(err => {
     console.error('MongoDB connection error:', err);
-    process.exit(1); // Exit if MongoDB connection fails as it's critical
 });
 
 // Connect to Redis - application can still function without Redis
@@ -87,6 +89,16 @@ app.use(express.json()); // Parse JSON request body
 app.use(express.urlencoded({ extended: false })); // Parse URL-encoded request body
 app.use(cors()); // Enable CORS
 app.use(helmet()); // Security headers
+
+// Ensure database connection before handling requests (crucial for serverless environments like Vercel)
+app.use(async (req, res, next) => {
+    try {
+        await connectDB();
+    } catch (err) {
+        console.error('Database connection error in request middleware:', err.message);
+    }
+    next();
+});
 
 // Request logging
 if (process.env.NODE_ENV === 'development') {
@@ -127,8 +139,12 @@ app.use('/api/v1/locations', locationRoutes);
 app.use(notFound);
 app.use(errorHandler);
 
-// Start server
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
-}); 
+// Start server if not running in serverless environment (e.g., Vercel)
+if (!process.env.VERCEL) {
+    const PORT = process.env.PORT || 3000;
+    app.listen(PORT, () => {
+        console.log(`Server running in ${process.env.NODE_ENV || 'development'} mode on port ${PORT}`);
+    });
+}
+
+module.exports = app; 
