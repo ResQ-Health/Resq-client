@@ -172,7 +172,11 @@ All endpoints used in the frontend are centrally mapped in `src/config/api.ts`:
 - **Hook:** `useForgotPassword()`
 - **HTTP Method:** `POST`
 - **Endpoint:** `/api/v1/auth/forgot-password`
-- **Payload:** `{ email }`
+- **Access:** Public
+- **Backend Handler:** `authController.forgotPassword`
+- **Backend Validation:** `validateForgotPassword`
+- **Payload:** `{ email: string }`
+- **Response:** `{ success: boolean, message: string }`
 
 #### `resetPassword(data: ResetPasswordRequest)`
 - **Hook:** `useResetPassword()`

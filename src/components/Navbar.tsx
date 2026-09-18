@@ -99,11 +99,11 @@ function Navbar() {
     );
   } else if (location.pathname === '/providers/signin' || location.pathname === '/providers/signup') {
     rightContent = (
-      <div className="flex items-center gap-4">
-        <span className="text-[#06202E] font-medium text-sm">Are you a patient?</span>
+      <div className="flex items-center gap-2 sm:gap-4">
+        <span className="text-[#06202E] font-medium text-xs sm:text-sm hidden sm:inline">Are you a patient?</span>
         <Link
           to="/sign-in-patient"
-          className="px-6 py-2 border border-gray-300 rounded-[6px] text-[#06202E] hover:bg-gray-50 transition-colors font-medium text-sm"
+          className="px-3 sm:px-6 py-1.5 sm:py-2 border border-gray-300 rounded-[6px] text-[#06202E] hover:bg-gray-50 transition-colors font-medium text-xs sm:text-sm whitespace-nowrap"
         >
           Login
         </Link>
@@ -111,11 +111,11 @@ function Navbar() {
     );
   } else if (isLoginPage) {
     rightContent = (
-      <div className="flex items-center gap-4">
-        <span className="text-[#06202E] font-medium text-sm">No account?</span>
+      <div className="flex items-center gap-2 sm:gap-4">
+        <span className="text-[#06202E] font-medium text-xs sm:text-sm hidden sm:inline">No account?</span>
         <Link
           to="/"
-          className="px-6 py-2 border border-gray-300 rounded-[6px] text-[#06202E] hover:bg-gray-50 transition-colors font-medium text-sm"
+          className="px-3 sm:px-6 py-1.5 sm:py-2 border border-gray-300 rounded-[6px] text-[#06202E] hover:bg-gray-50 transition-colors font-medium text-xs sm:text-sm whitespace-nowrap"
         >
           Sign up
         </Link>
@@ -123,9 +123,9 @@ function Navbar() {
     );
   } else if (location.pathname === '/' || location.pathname === '/onboarding' || location.pathname === '/login') {
     rightContent = (
-      <div className="flex items-center space-x-4">
-        <span className="text-gray-700">Are you a provider?</span>
-        <Link to="/providers/signin" className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:text-gray-900">
+      <div className="flex items-center space-x-2 sm:space-x-4">
+        <span className="text-gray-700 text-xs sm:text-sm hidden sm:inline">Are you a provider?</span>
+        <Link to="/providers/signin" className="px-3 sm:px-4 py-1.5 sm:py-2 border border-gray-300 rounded-md text-gray-700 hover:text-gray-900 text-xs sm:text-sm whitespace-nowrap">
           Sign in
         </Link>
       </div>
@@ -134,9 +134,9 @@ function Navbar() {
     rightContent = null;
   } else {
     rightContent = (
-      <div className="flex items-center space-x-4">
-        <span className="text-gray-700">Are you a provider?</span>
-        <Link to="/providers/signin" className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:text-gray-900">
+      <div className="flex items-center space-x-2 sm:space-x-4">
+        <span className="text-gray-700 text-xs sm:text-sm hidden sm:inline">Are you a provider?</span>
+        <Link to="/providers/signin" className="px-3 sm:px-4 py-1.5 sm:py-2 border border-gray-300 rounded-md text-gray-700 hover:text-gray-900 text-xs sm:text-sm whitespace-nowrap">
           Sign in
         </Link>
       </div>
@@ -145,11 +145,11 @@ function Navbar() {
 
   return (
     <>
-      <nav className={`bg-white border-b border-[#E1E3E6] py-3 px-16 transition-colors duration-200`}>
-        <div className="flex justify-between items-center max-w-[1440px] mx-auto">
+      <nav className={`bg-white border-b border-[#E1E3E6] py-3 px-4 sm:px-8 lg:px-16 transition-colors duration-200 sticky top-0 z-50`}>
+        <div className="flex justify-between items-center max-w-[1440px] mx-auto gap-2">
           {/* Left section - Logo */}
-          <div className={`text-lg flex items-center gap-2 font-bold w-1/4 text-[#06202E]`}>
-            <img src={logo} alt="RESQ" className="w-10 h-10" />
+          <div className={`text-base sm:text-lg flex items-center gap-2 font-bold shrink-0 text-[#06202E]`}>
+            <img src={logo} alt="RESQ" className="w-8 h-8 sm:w-10 sm:h-10" />
             RESQ
           </div>
 
@@ -159,8 +159,8 @@ function Navbar() {
           </div>
 
           {/* Right section - Search and Profile/Login */}
-          <div className="flex justify-end w-1/4">
-            <div className="flex items-center gap-4">
+          <div className="flex justify-end shrink-0">
+            <div className="flex items-center gap-2 sm:gap-4">
               {/* Search bar - only show on search page */}
               {isSearchPage && (
                 <div className="relative">
