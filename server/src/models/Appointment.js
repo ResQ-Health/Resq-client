@@ -17,6 +17,35 @@ const formDataSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
+    referralId: {
+        type: String,
+        trim: true
+    },
+    serviceName: {
+        type: String,
+        trim: true
+    },
+    scanType: {
+        type: String,
+        trim: true
+    },
+    bodyPart: {
+        type: String,
+        trim: true
+    },
+    facilityName: {
+        type: String,
+        trim: true
+    },
+    facilityPrice: {
+        type: Number
+    },
+    price: {
+        type: Number
+    },
+    amount: {
+        type: Number
+    },
     comments: {
         type: String,
         trim: true
@@ -103,6 +132,11 @@ const appointmentSchema = new mongoose.Schema({
         default: () => nanoid(10),
         unique: true,
         required: true
+    },
+    referralId: {
+        type: String,
+        trim: true,
+        index: true
     },
     patient_id: {
         type: String,

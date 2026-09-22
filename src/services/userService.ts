@@ -156,7 +156,7 @@ export interface Appointment {
 
 export interface PatientAppointmentsResponse {
     success: boolean;
-    data: Appointment[];
+    data: any;
     message?: string;
 }
 
@@ -245,8 +245,13 @@ export const uploadProfilePicture = async (file: File): Promise<any> => {
     return response.data;
 };
 
-export const getPatientAppointments = async (): Promise<PatientAppointmentsResponse> => {
-    const response = await apiClient.get(API_ENDPOINTS.PATIENT.APPOINTMENTS.GET_ALL);
+export const getPatientAppointments = async (params?: { referralId?: string; search?: string }): Promise<PatientAppointmentsResponse> => {
+    const response = await apiClient.get(API_ENDPOINTS.PATIENT.APPOINTMENTS.GET_ALL, { params });
+    return response.data;
+};
+
+export const claimReferralAppointment = async (referralId: string): Promise<any> => {
+    const response = await apiClient.post(API_ENDPOINTS.PATIENT.APPOINTMENTS.CLAIM_REFERRAL, { referralId });
     return response.data;
 };
 
@@ -475,10 +480,10 @@ export const useFavoriteStatus = (providerId: string | undefined) => {
     });
 };
 
-export const usePatientAppointments = () => {
+export const usePatientAppointments = (params?: { referralId?: string; search?: string }) => {
     return useQuery({
-        queryKey: ['patientAppointments'],
-        queryFn: getPatientAppointments,
+        queryKey: ['patientAppointments', params],
+        queryFn: () => getPatientAppointments(params),
     });
 };
 
@@ -493,6 +498,21 @@ export const useDeleteAppointment = () => {
         },
         onError: () => {
             toast.error('Failed to delete appointment');
+        },
+    });
+};
+
+export const useClaimReferral = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: claimReferralAppointment,
+        onSuccess: (data) => {
+            queryClient.invalidateQueries({ queryKey: ['patientAppointments'] });
+            toast.success(data?.message || 'Referral appointment successfully linked!');
+        },
+        onError: (err: any) => {
+            toast.error(err.response?.data?.message || 'Failed to link referral appointment');
         },
     });
 };

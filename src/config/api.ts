@@ -125,6 +125,7 @@ export const API_ENDPOINTS = {
             BOOK: '/api/v1/appointments/book',
             DELETE: (id: string) => `/api/v1/appointments/${id}`,
             CONFIRM_PAYMENT: (id: string) => `/api/v1/appointments/${id}/confirm-payment`,
+            CLAIM_REFERRAL: '/api/v1/appointments/claim-referral',
         },
         PROVIDERS: {
             GET_ALL: '/api/v1/providers/all', // Patients searching for providers

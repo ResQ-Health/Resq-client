@@ -60,6 +60,20 @@ router.get(
   appointmentController.getPatientAppointments,
 );
 
+// Claim / link a referral appointment to the authenticated patient
+router.post(
+  "/claim-referral",
+  protect,
+  patientOnly,
+  appointmentController.claimReferralAppointment,
+);
+router.post(
+  "/claim",
+  protect,
+  patientOnly,
+  appointmentController.claimReferralAppointment,
+);
+
 // Get provider's appointments
 router.get(
   "/provider",

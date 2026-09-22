@@ -1137,18 +1137,72 @@ const getPatientAppointments = async (req, res) => {
   try {
     res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
     const patientId = req.user.id;
-    const { status } = req.query;
+    const { status, referralId: queryRefId, search: querySearch } = req.query;
+    const explicitRefId = (queryRefId || (querySearch && querySearch.startsWith("REF-") ? querySearch : "") || "").trim();
 
     // Fetch patient details once (used for all appointments)
     const patient = await User.findOne({ id: patientId }).select('id full_name email phone_number contact_details location_details personal_details').lean();
 
-    // Build query - ensure we match by patient ID, patient email, or phone number in formData
-    const patientFilters = [{ patient_id: patientId }];
-    if (patient?.email) {
-      patientFilters.push({ "formData.patientEmail": new RegExp(`^${patient.email.trim()}$`, "i") });
+    // Discover any related accounts that belong to this same patient (e.g. secondary email or same phone)
+    let relatedPatientIds = [patientId];
+    let relatedEmails = patient?.email ? [patient.email.trim()] : [];
+    let relatedPhones = patient?.phone_number ? [patient.phone_number.trim()] : [];
+
+    if (patient?.full_name && patient.full_name.trim().length >= 4) {
+      const trimmedName = patient.full_name.trim();
+      const escapedName = trimmedName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const relatedQuery = [{ full_name: new RegExp(`^${escapedName}$`, 'i') }];
+      if (patient.phone_number && patient.phone_number.trim()) {
+        relatedQuery.push({ phone_number: patient.phone_number.trim() });
+      }
+
+      try {
+        const relatedUsers = await User.find({ $or: relatedQuery }).select('id email phone_number full_name').lean();
+        for (const u of relatedUsers) {
+          if (u.id && !relatedPatientIds.includes(u.id)) relatedPatientIds.push(u.id);
+          if (u.email && !relatedEmails.some(e => e.toLowerCase() === u.email.trim().toLowerCase())) {
+            relatedEmails.push(u.email.trim());
+          }
+          if (u.phone_number && !relatedPhones.includes(u.phone_number.trim())) {
+            relatedPhones.push(u.phone_number.trim());
+          }
+        }
+      } catch (userLookupErr) {
+        console.warn('[Get Patient Appointments] Related user lookup warning:', userLookupErr.message);
+      }
     }
-    if (patient?.phone_number) {
-      patientFilters.push({ "formData.patientPhone": patient.phone_number.trim() });
+
+    // Build query - match by all related patient IDs, emails, phone numbers, or clinician bookings for patient's name
+    const patientFilters = [{ patient_id: { $in: relatedPatientIds } }];
+
+    for (const em of relatedEmails) {
+      patientFilters.push({ "formData.patientEmail": new RegExp(`^${em}$`, "i") });
+    }
+    for (const ph of relatedPhones) {
+      patientFilters.push({ "formData.patientPhone": ph });
+    }
+
+    if (patient?.full_name && patient.full_name.trim().length >= 4) {
+      const escapedName = patient.full_name.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      patientFilters.push({
+        $and: [
+          { "formData.patientName": new RegExp(`^${escapedName}$`, "i") },
+          {
+            $or: [
+              { "formData.bookedByClinician": true },
+              { "formData.identificationNumber": { $exists: true, $ne: "" } },
+              { "formData.referralId": { $exists: true, $ne: "" } },
+              { referralId: { $exists: true, $ne: "" } }
+            ]
+          }
+        ]
+      });
+    }
+
+    if (explicitRefId) {
+      patientFilters.push({ "formData.identificationNumber": explicitRefId });
+      patientFilters.push({ "formData.referralId": explicitRefId });
+      patientFilters.push({ referralId: explicitRefId });
     }
 
     const query = {
@@ -1169,15 +1223,22 @@ const getPatientAppointments = async (req, res) => {
       .lean(); // Use lean() for performance since we don't need Mongoose document methods on the list
 
     // Auto-Reconcile: Check for any clinician referrals in the shared Referral collection
-    // for this patient's email or phone number that do not yet have a matching Appointment.
+    // for this patient's email, phone number, name, or explicit referral ID
     try {
       const ReferralModel = mongoose.models.Referral || mongoose.model("Referral", new mongoose.Schema({}, { strict: false }));
       const refFilters = [];
-      if (patient?.email) {
-        refFilters.push({ patientEmail: new RegExp(`^${patient.email.trim()}$`, "i") });
+      for (const em of relatedEmails) {
+        refFilters.push({ patientEmail: new RegExp(`^${em}$`, "i") });
       }
-      if (patient?.phone_number) {
-        refFilters.push({ patientPhone: patient.phone_number.trim() });
+      for (const ph of relatedPhones) {
+        refFilters.push({ patientPhone: ph });
+      }
+      if (patient?.full_name && patient.full_name.trim().length >= 4) {
+        const escapedName = patient.full_name.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        refFilters.push({ patientName: new RegExp(`^${escapedName}$`, "i") });
+      }
+      if (explicitRefId) {
+        refFilters.push({ referralId: explicitRefId });
       }
       if (refFilters.length > 0) {
         const referrals = await ReferralModel.find({ $or: refFilters }).lean();
@@ -1409,6 +1470,14 @@ const getPatientAppointments = async (req, res) => {
       await Promise.allSettled(verificationPromises);
     }
 
+    // Ensure all returned appointments have their patient_id consolidated to active patient
+    for (const appt of appointments) {
+      if (appt && appt.id && appt.patient_id !== patientId) {
+        Appointment.updateOne({ id: appt.id }, { $set: { patient_id: patientId } }).catch(() => {});
+        appt.patient_id = patientId;
+      }
+    }
+
     // Batch Fetching: Get all unique Provider IDs, Service IDs, and Clinician IDs
     const providerIds = [...new Set(appointments.map(a => a.provider_id).filter(Boolean))];
     const serviceIds = [...new Set(appointments.map(a => a.service_id).filter(Boolean))];
@@ -1468,8 +1537,11 @@ const getPatientAppointments = async (req, res) => {
           appointment.clinician_id || appointment.formData?.bookedByClinician,
         );
 
+        const refCode = appointment.referralId || appointment.formData?.referralId || appointment.formData?.identificationNumber || undefined;
+
         return {
           id: appointment.id,
+          referralId: refCode,
           provider_id: appointment.provider_id,
           provider_name: provider ? provider.provider_name : "Unknown Provider",
           patient_id: appointment.patient_id,
@@ -2820,12 +2892,125 @@ const sendAppointmentPaymentEmail = async (req, res) => {
   }
 };
 
+// @desc    Claim / link a clinician referral booking to the currently logged in patient
+// @route   POST /api/v1/appointments/claim-referral
+// @access  Private (patient)
+const claimReferralAppointment = async (req, res) => {
+  try {
+    const patientId = req.user.id;
+    const { referralId } = req.body;
+
+    if (!referralId || typeof referralId !== 'string') {
+      return res.status(400).json({
+        success: false,
+        message: 'Referral ID is required'
+      });
+    }
+
+    const trimmedRefId = referralId.trim();
+
+    // 1. Check if appointment exists for this referral ID
+    let appointment = await Appointment.findOne({
+      $or: [
+        { "formData.referralId": trimmedRefId },
+        { "formData.identificationNumber": trimmedRefId },
+        { referralId: trimmedRefId }
+      ],
+      is_deleted: { $ne: true }
+    });
+
+    // 2. Check referral collection
+    const ReferralModel = mongoose.models.Referral || mongoose.model("Referral", new mongoose.Schema({}, { strict: false }));
+    const referral = await ReferralModel.findOne({ referralId: trimmedRefId }).lean();
+
+    if (!appointment && !referral) {
+      return res.status(404).json({
+        success: false,
+        message: `No booking or referral found for ID "${trimmedRefId}". Please check the code and try again.`
+      });
+    }
+
+    if (appointment) {
+      appointment.patient_id = patientId;
+      if (!appointment.formData) appointment.formData = {};
+      appointment.formData.referralId = trimmedRefId;
+      appointment.referralId = trimmedRefId;
+      await appointment.save();
+    } else if (referral) {
+      // Create appointment from referral
+      const newApptId = nanoid(10);
+      const scanName = referral.serviceName || (referral.scanType ? `${referral.scanType}${referral.bodyPart ? ` (${referral.bodyPart})` : ''}` : 'Diagnostic Scan');
+      const amount = Number(referral.facilityPrice || referral.price || referral.amount || 0);
+      let apptDate = new Date();
+      if (referral.slot?.date) {
+        const parsed = new Date(referral.slot.date);
+        if (!isNaN(parsed.getTime())) apptDate = parsed;
+      }
+      apptDate.setHours(0, 0, 0, 0);
+
+      const isPaid = (referral.paymentStatus === 'Paid' || referral.status === 'Confirmed');
+      appointment = await Appointment.create({
+        id: newApptId,
+        patient_id: patientId,
+        provider_id: referral.providerId || 'CWZDBt9Xmv',
+        service_id: referral.serviceId || 'P7S_Vf3fBt',
+        clinician_id: referral.doctorEmail || undefined,
+        time_slot_id: `REF_${newApptId}_${Date.now()}`,
+        formData: {
+          forWhom: 'Other',
+          visitedBefore: false,
+          identificationNumber: trimmedRefId,
+          referralId: trimmedRefId,
+          serviceName: scanName,
+          facilityPrice: amount,
+          price: amount,
+          amount: amount,
+          patientName: referral.patientName || req.user.full_name,
+          patientEmail: referral.patientEmail || req.user.email,
+          patientPhone: referral.patientPhone || req.user.phone_number,
+          bookedByClinician: true,
+          clinicianName: referral.doctorName || 'Referring Clinician',
+          clinicianEmail: referral.doctorEmail || '',
+        },
+        payment: {
+          status: isPaid ? 'completed' : 'pending',
+          amount: amount,
+          method: 'Paystack',
+        },
+        appointment_date: apptDate,
+        start_time: referral.slot?.time || '10:00 AM',
+        end_time: '10:30 AM',
+        status: isPaid ? 'confirmed' : 'pending',
+        notes: `Referral #${trimmedRefId} claimed by patient ${req.user.email}.`,
+      });
+
+      await ReferralModel.updateOne(
+        { referralId: trimmedRefId },
+        { $set: { patientAppointmentId: newApptId, patientSyncStatus: 'Synced' } }
+      );
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: `Referral #${trimmedRefId} successfully linked to your account!`,
+      data: appointment
+    });
+  } catch (err) {
+    console.error('[Claim Referral Error]:', err);
+    return res.status(500).json({
+      success: false,
+      message: 'Failed to link referral booking'
+    });
+  }
+};
+
 module.exports = {
   getAvailableSlots,
   bookAppointment,
   bookAppointmentByClinician,
   getClinicianAppointments,
   getPatientAppointments,
+  claimReferralAppointment,
   getProviderAppointments,
   getAppointmentById,
   sendAppointmentPaymentEmail,

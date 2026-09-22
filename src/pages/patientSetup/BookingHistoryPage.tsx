@@ -23,7 +23,7 @@ import { SlHome } from 'react-icons/sl';
 import { RiDeleteBinLine } from 'react-icons/ri';
 import { LiaTimesCircle } from 'react-icons/lia';
 import { useNavigate } from 'react-router-dom';
-import { usePatientAppointments, useDeleteAppointment, Appointment } from '../../services/userService';
+import { usePatientAppointments, useDeleteAppointment, useClaimReferral, Appointment } from '../../services/userService';
 import { fetchPaymentReceipt, PaymentReceiptData, useInitializePayment } from '../../services/providerService';
 import { useQueryClient } from '@tanstack/react-query';
 import Pagination from '../../components/Pagination';
@@ -38,6 +38,9 @@ export default function BookingHistoryPage() {
     const navigate = useNavigate();
     const queryClient = useQueryClient();
     const { data: appointmentsData, isLoading, error, refetch, isFetching } = usePatientAppointments();
+    const claimReferralMutation = useClaimReferral();
+    const [showLinkModal, setShowLinkModal] = useState(false);
+    const [manualRefId, setManualRefId] = useState('');
 
     // Check if user is authenticated
     const isAuthenticated = !!localStorage.getItem('authToken');
@@ -49,9 +52,20 @@ export default function BookingHistoryPage() {
         }
     }, [isAuthenticated, navigate]);
 
-    // Handle return from payment provider (Paystack callback)
+    // Handle referralId from URL or return from payment provider (Paystack callback)
     useEffect(() => {
         const searchParams = new URLSearchParams(window.location.search);
+        const refParam = searchParams.get('referralId') || searchParams.get('ref');
+        if (refParam && isAuthenticated) {
+            claimReferralMutation.mutate(refParam, {
+                onSuccess: () => {
+                    queryClient.invalidateQueries({ queryKey: ['patientAppointments'] });
+                    refetch();
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                }
+            });
+        }
+
         const reference = searchParams.get('reference') || searchParams.get('trxref');
         if (reference) {
             toast.success('Payment completed! Updating your appointments...');
@@ -60,7 +74,7 @@ export default function BookingHistoryPage() {
             // Clean up query parameters from URL without reloading page
             window.history.replaceState({}, document.title, window.location.pathname);
         }
-    }, [queryClient, refetch]);
+    }, [queryClient, refetch, isAuthenticated]);
 
     const deleteAppointmentMutation = useDeleteAppointment();
     const initializePaymentMutation = useInitializePayment();
@@ -402,7 +416,11 @@ export default function BookingHistoryPage() {
                 appointment.contact?.phone?.toLowerCase().includes(query) ||
                 appointment.clinician?.name?.toLowerCase().includes(query) ||
                 appointment.formData?.clinicianName?.toLowerCase().includes(query) ||
-                appointment.notes?.toLowerCase().includes(query)
+                appointment.notes?.toLowerCase().includes(query) ||
+                appointment.formData?.identificationNumber?.toLowerCase().includes(query) ||
+                appointment.formData?.referralId?.toLowerCase().includes(query) ||
+                (appointment as any).referralId?.toLowerCase().includes(query) ||
+                (appointment as any).identificationNumber?.toLowerCase().includes(query)
             );
         }
 
@@ -788,13 +806,23 @@ export default function BookingHistoryPage() {
                         <h1 className="text-2xl md:text-3xl font-bold text-[#16202E] tracking-tight">Bookings</h1>
                         <p className="text-gray-500 mt-1">Manage and track your medical appointments</p>
                     </div>
-                    <button
-                        className='bg-[#16202E] hover:bg-[#0F1C26] flex items-center gap-2 text-white px-5 py-2.5 rounded-xl font-medium transition-all duration-200 shadow-lg shadow-gray-200 hover:shadow-xl transform hover:-translate-y-0.5'
-                        onClick={() => navigate('/search')}
-                    >
-                        <FaPlus className="w-3.5 h-3.5" />
-                        New Appointment
-                    </button>
+                    <div className="flex items-center gap-3 flex-wrap">
+                        <button
+                            onClick={() => setShowLinkModal(true)}
+                            className="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium transition-all duration-200 shadow-sm text-sm"
+                            title="Link a referral code provided by your clinician"
+                        >
+                            <FaNotesMedical className="w-3.5 h-3.5 text-purple-600" />
+                            Link Referral
+                        </button>
+                        <button
+                            className='bg-[#16202E] hover:bg-[#0F1C26] flex items-center gap-2 text-white px-5 py-2.5 rounded-xl font-medium transition-all duration-200 shadow-lg shadow-gray-200 hover:shadow-xl transform hover:-translate-y-0.5 text-sm'
+                            onClick={() => navigate('/search')}
+                        >
+                            <FaPlus className="w-3.5 h-3.5" />
+                            New Appointment
+                        </button>
+                    </div>
                 </div>
 
                 {/* Tabs & Controls Container */}
@@ -1019,6 +1047,19 @@ export default function BookingHistoryPage() {
                                                             <span className="font-mono text-[11px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded border border-gray-200">
                                                                 #{appointment.id}
                                                             </span>
+                                                            {(appointment.formData?.referralId || (appointment as any).referralId || (appointment.formData?.identificationNumber && appointment.formData.identificationNumber.startsWith('REF-'))) && (
+                                                                <span
+                                                                    onClick={(e) => {
+                                                                        e.stopPropagation();
+                                                                        handleCopy(appointment.formData?.referralId || (appointment as any).referralId || appointment.formData?.identificationNumber, 'Referral ID');
+                                                                    }}
+                                                                    className="cursor-pointer font-mono text-[11px] bg-purple-50 hover:bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded border border-purple-200 transition-colors inline-flex items-center gap-1 font-medium"
+                                                                    title="Click to copy Referral ID"
+                                                                >
+                                                                    <span>Ref: {appointment.formData?.referralId || (appointment as any).referralId || appointment.formData?.identificationNumber}</span>
+                                                                    <FaCopy className="w-2.5 h-2.5 opacity-60" />
+                                                                </span>
+                                                            )}
                                                         </div>
                                                         <div className="flex items-center gap-2 text-xs text-gray-500">
                                                             {appointment.service?.category && (
@@ -1403,7 +1444,27 @@ export default function BookingHistoryPage() {
                                             {formatCommunicationPreference(selectedAppointment.communicationPreference || selectedAppointment.formData?.communicationPreference)}
                                         </span>
                                     </div>
-                                    {selectedAppointment.formData?.identificationNumber && (
+                                    {(selectedAppointment.referralId || selectedAppointment.formData?.referralId || (selectedAppointment.formData?.identificationNumber && selectedAppointment.formData.identificationNumber.startsWith('REF-'))) && (
+                                        <div className="p-3 rounded-xl border border-purple-200 bg-purple-50/50">
+                                            <span className="text-[11px] text-purple-700 block mb-0.5 font-semibold flex items-center gap-1">
+                                                <FaNotesMedical className="w-3 h-3 text-purple-600" />
+                                                Clinician Referral ID
+                                            </span>
+                                            <div className="flex items-center justify-between">
+                                                <span className="font-mono text-purple-900 text-xs font-bold">
+                                                    {selectedAppointment.referralId || selectedAppointment.formData?.referralId || selectedAppointment.formData?.identificationNumber}
+                                                </span>
+                                                <button
+                                                    onClick={() => handleCopy(selectedAppointment.referralId || selectedAppointment.formData?.referralId || selectedAppointment.formData?.identificationNumber, 'Referral ID')}
+                                                    className="text-purple-600 hover:text-purple-800 p-1 rounded hover:bg-purple-100 transition-colors"
+                                                    title="Copy Referral ID"
+                                                >
+                                                    <FaCopy className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {selectedAppointment.formData?.identificationNumber && !selectedAppointment.formData.identificationNumber.startsWith('REF-') && (
                                         <div className="p-3 rounded-xl border border-gray-100 bg-gray-50/30">
                                             <span className="text-[11px] text-gray-400 block mb-0.5 font-medium">Patient ID / National ID</span>
                                             <span className="font-mono text-gray-900 text-xs font-semibold">
@@ -1643,6 +1704,80 @@ export default function BookingHistoryPage() {
                             <p className="mb-2">Thank you for choosing RESQ Health.</p>
                             <p>For any inquiries, please contact us at Hello@resq.africa or +2347072779831</p>
                         </div>
+                    </div>
+                </div>
+            )}
+            {/* Link Referral Code Modal */}
+            {showLinkModal && (
+                <div className="fixed inset-0 z-50 overflow-y-auto bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-gray-100 relative animate-in fade-in zoom-in-95 duration-200">
+                        <button
+                            onClick={() => {
+                                setShowLinkModal(false);
+                                setManualRefId('');
+                            }}
+                            className="absolute top-4 right-4 p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
+                        >
+                            <LiaTimesCircle className="w-5 h-5" />
+                        </button>
+                        <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center mb-4">
+                            <FaNotesMedical className="w-6 h-6" />
+                        </div>
+                        <h3 className="text-lg font-bold text-gray-900 mb-1">Link Clinician Referral</h3>
+                        <p className="text-sm text-gray-500 mb-4">
+                            Enter the referral code provided by your doctor (e.g. <span className="font-mono font-medium text-purple-700">REF-20260921-37970</span>) to instantly attach this booking to your account.
+                        </p>
+                        <form
+                            onSubmit={(e) => {
+                                e.preventDefault();
+                                if (!manualRefId.trim()) {
+                                    toast.error('Please enter a referral ID');
+                                    return;
+                                }
+                                claimReferralMutation.mutate(manualRefId.trim(), {
+                                    onSuccess: () => {
+                                        queryClient.invalidateQueries({ queryKey: ['patientAppointments'] });
+                                        refetch();
+                                        setShowLinkModal(false);
+                                        setManualRefId('');
+                                    }
+                                });
+                            }}
+                            className="space-y-4"
+                        >
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wider mb-1.5">
+                                    Referral Code / Booking ID
+                                </label>
+                                <input
+                                    type="text"
+                                    placeholder="REF-XXXXXXXX-XXXXX"
+                                    value={manualRefId}
+                                    onChange={(e) => setManualRefId(e.target.value.toUpperCase())}
+                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl font-mono text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 bg-gray-50/50 uppercase"
+                                    autoFocus
+                                />
+                            </div>
+                            <div className="flex gap-3 pt-2">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setShowLinkModal(false);
+                                        setManualRefId('');
+                                    }}
+                                    className="flex-1 py-2.5 px-4 rounded-xl border border-gray-200 text-gray-700 hover:bg-gray-50 font-medium text-sm transition-colors"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="submit"
+                                    disabled={claimReferralMutation.isPending || !manualRefId.trim()}
+                                    className="flex-1 py-2.5 px-4 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-medium text-sm transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                                >
+                                    {claimReferralMutation.isPending ? 'Linking...' : 'Link to Account'}
+                                </button>
+                            </div>
+                        </form>
                     </div>
                 </div>
             )}
