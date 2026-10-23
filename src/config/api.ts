@@ -4,9 +4,11 @@ import axios from 'axios';
 // When running locally with Vite dev server proxy, API requests use relative paths ('').
 // In production builds, requests point to the backend API server (configured via VITE_API_URL or staging fallback).
 const getApiBaseUrl = (): string => {
-    // 1. Explicit environment variable override
-    if (import.meta.env.VITE_API_URL) {
-        return import.meta.env.VITE_API_URL.replace(/\/+$/, '');
+    const envUrl = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
+
+    // 1. Explicit environment variable override (ignore if accidentally set to marketing landing domain)
+    if (envUrl && envUrl !== 'https://resqhealth.africa' && envUrl !== 'https://www.resqhealth.africa') {
+        return envUrl;
     }
 
     // 2. Local development: use relative path for Vite proxy
@@ -19,7 +21,7 @@ const getApiBaseUrl = (): string => {
         return '';
     }
 
-    // 4. Fallback for production deployment
+    // 4. Fallback for production deployment: point to the active backend API server
     return 'https://resq-client.vercel.app';
 };
 
