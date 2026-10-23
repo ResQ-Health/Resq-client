@@ -1219,27 +1219,6 @@ const ProviderPage = () => {
         return filteredServicesList.slice(start, start + SERVICES_PER_PAGE);
     }, [filteredServicesList, servicesPage]);
 
-    if (loading) {
-        return <LoadingSpinner />;
-    }
-
-    if (error || !providerData) {
-        return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-                <div className="text-center">
-                    <h1 className="text-2xl font-bold text-gray-900 mb-4">Provider Not Found</h1>
-                    <p className="text-gray-600 mb-4">{error || 'The provider you are looking for does not exist.'}</p>
-                    <button
-                        onClick={() => window.history.back()}
-                        className="bg-[#06202E] text-white px-4 py-2 rounded-md hover:bg-[#0a2e42] transition-colors"
-                    >
-                        Go Back
-                    </button>
-                </div>
-            </div>
-        );
-    }
-
     const providerStructuredData = useMemo(() => {
         if (!providerData) return undefined;
         return {
@@ -1262,6 +1241,27 @@ const ProviderPage = () => {
             url: `https://resqhealth.africa/search/provider/${id}`,
         };
     }, [providerData, id]);
+
+    if (loading) {
+        return <LoadingSpinner />;
+    }
+
+    if (error || !providerData) {
+        return (
+            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center">
+                    <h1 className="text-2xl font-bold text-gray-900 mb-4">Provider Not Found</h1>
+                    <p className="text-gray-600 mb-4">{error || 'The provider you are looking for does not exist.'}</p>
+                    <button
+                        onClick={() => window.history.back()}
+                        className="bg-[#06202E] text-white px-4 py-2 rounded-md hover:bg-[#0a2e42] transition-colors"
+                    >
+                        Go Back
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen w-full bg-gray-50">
