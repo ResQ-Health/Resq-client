@@ -1,9 +1,30 @@
 import axios from 'axios';
 
 // API Configuration:
-// When deployed directly on Vercel or running locally with Vite proxy, all API requests use same-origin relative paths ('').
-// If an explicit VITE_API_URL is specified in environment variables, it will use that; otherwise it defaults to same-origin ('').
-export const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+// When running locally with Vite dev server proxy, API requests use relative paths ('').
+// In production builds (or when accessed via www.resqhealth.africa / resqhealth.africa),
+// requests point to the backend API server (https://rego.resqhealth.africa).
+const getApiBaseUrl = (): string => {
+    // 1. Explicit environment variable override
+    if (import.meta.env.VITE_API_URL) {
+        return import.meta.env.VITE_API_URL.replace(/\/+$/, '');
+    }
+
+    // 2. Local development: use relative path for Vite proxy
+    if (import.meta.env.DEV) {
+        return '';
+    }
+
+    // 3. Browser runtime check: if running on localhost, use relative path for local proxy
+    if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+        return '';
+    }
+
+    // 4. Default for production deployment: point to the official API server
+    return 'https://rego.resqhealth.africa';
+};
+
+export const API_BASE_URL = getApiBaseUrl();
 
 // Doctor / Clinician Referral System URL
 // Staging URL: https://resq-health-referral-system.vercel.app
@@ -18,6 +39,7 @@ export const apiClient = axios.create({
     headers: {
         'Content-Type': 'application/json',
     },
+    withCredentials: true,
     timeout: 15000, // 15 seconds
 });
 
