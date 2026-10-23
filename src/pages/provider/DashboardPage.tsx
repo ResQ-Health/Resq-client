@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend, ArcElement, Filler } from 'chart.js';
 import { Line } from 'react-chartjs-2';
-import { useProviderDashboardStats } from '../../services/providerService';
+import { useProviderDashboardStats, usePendingAppointments } from '../../services/providerService';
 
 // Register ChartJS components
 ChartJS.register(
@@ -68,7 +68,10 @@ type OverviewRange = 'weekly' | 'monthly' | 'total';
 const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { data, isLoading, isError } = useProviderDashboardStats();
+  const { data: pendingData } = usePendingAppointments();
   const [overviewRange, setOverviewRange] = useState<OverviewRange>('weekly');
+
+  const pendingCount = pendingData?.data?.length || 0;
 
   const overview = data?.data?.overview;
   const financials = data?.data?.financials;
@@ -289,6 +292,31 @@ const DashboardPage: React.FC = () => {
       {isError && (
         <div className="bg-white p-6 rounded-xl border border-red-100 shadow-sm text-red-600">
           Failed to load dashboard stats.
+        </div>
+      )}
+
+      {/* Pending Booking Requests Notification Banner */}
+      {pendingCount > 0 && (
+        <div className="bg-gradient-to-r from-orange-500/10 via-amber-500/5 to-transparent border-l-4 border-orange-500 p-4 rounded-r-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm bg-white">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center font-bold text-sm shrink-0">
+              {pendingCount}
+            </div>
+            <div>
+              <p className="font-semibold text-gray-900 text-sm">
+                You have {pendingCount} new booking request{pendingCount > 1 ? 's' : ''} awaiting review
+              </p>
+              <p className="text-xs text-gray-500">
+                Patients who booked and paid are waiting for you to accept and schedule their appointments.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => navigate('/provider/pending-appointments')}
+            className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm self-start sm:self-auto shrink-0 flex items-center gap-1.5"
+          >
+            Review Requests →
+          </button>
         </div>
       )}
 
