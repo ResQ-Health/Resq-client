@@ -99,9 +99,9 @@ function VerificationPage() {
           // Show success notification
           setNotification('success');
 
-          // Navigate to sign-in page after successful verification
+          // Navigate to unified sign-in page after successful verification
           setTimeout(() => {
-            navigate('/Sign-in-Patient');
+            navigate('/login');
           }, 1500); // Small delay to show success message
         },
         onError: () => {

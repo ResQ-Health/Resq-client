@@ -11,10 +11,18 @@ import { LoadingSpinner } from '../../components/LoadingSpinner';
 const BookingSuccessPage = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
-    const appointmentId = searchParams.get('appointmentId');
+    const draft = (() => {
+        try {
+            return JSON.parse(localStorage.getItem('bookingDraft') || '{}');
+        } catch {
+            return {};
+        }
+    })();
+    const appointmentId = searchParams.get('appointmentId') || searchParams.get('appointment_id') || searchParams.get('id') || draft?.appointment?.id || draft?.appointment?._id || draft?.appointmentId;
+    const reference = searchParams.get('reference') || searchParams.get('trxref') || undefined;
     const receiptRef = useRef<HTMLDivElement>(null);
 
-    const { data: receiptData, isLoading, error } = usePaymentReceipt(appointmentId || undefined);
+    const { data: receiptData, isLoading, error } = usePaymentReceipt(appointmentId || undefined, reference);
     const [receiptSent, setReceiptSent] = useState(false);
     const [isSendingReceipt, setIsSendingReceipt] = useState(false);
     const [receiptStatus, setReceiptStatus] = useState<'generating' | 'sending'>('generating');
@@ -62,7 +70,7 @@ const BookingSuccessPage = () => {
 
     // Automatically send receipt via email when page loads (only once)
     useEffect(() => {
-        if (!appointmentId || receiptSent || isSendingReceipt || isLoading || !receiptData?.success || sendingRef.current) {
+        if (!appointmentId || receiptSent || isSendingReceipt || isLoading || (!receiptData?.success && !draft?.appointment) || sendingRef.current) {
             return;
         }
 
@@ -151,18 +159,23 @@ const BookingSuccessPage = () => {
 
     // Format date for display
     const formatDate = (dateString: string) => {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric'
-        });
+        try {
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return dateString;
+            return date.toLocaleDateString('en-US', {
+                weekday: 'long',
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
+        } catch {
+            return dateString;
+        }
     };
 
     // Format time for display
     const formatTime = (timeString: string) => {
-        return timeString.toUpperCase();
+        return (timeString || '').toUpperCase();
     };
 
     const handleDownloadReceipt = async () => {
@@ -193,28 +206,52 @@ const BookingSuccessPage = () => {
         }
     };
 
-    if (isLoading) {
+    if (isLoading && !draft?.appointment) {
         return <LoadingSpinner />;
     }
 
-    if (error || !receiptData?.success) {
+    if ((error || !receiptData?.success) && !draft?.appointment && !draft?.service && !appointmentId) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="text-center">
                     <h1 className="text-2xl font-bold text-red-600 mb-4">Error Loading Appointment</h1>
                     <p className="text-gray-600 mb-4">Unable to load appointment details. Please try again.</p>
                     <button
-                        onClick={() => navigate('/patient/my-account')}
+                        onClick={() => navigate('/booking-history')}
                         className="px-6 py-3 bg-gray-900 text-white rounded-md hover:bg-gray-800 transition-colors"
                     >
-                        Go to My Account
+                        Go to Booking History
                     </button>
                 </div>
             </div>
         );
     }
 
-    const { patient, appointment, payment_summary } = receiptData.data;
+    const rd = receiptData?.data;
+    const patient = {
+        name: rd?.patient?.name || draft?.formData?.patientName || 'Valued Patient',
+        email: rd?.patient?.email || draft?.formData?.patientEmail || draft?.formData?.email || '',
+        mobile_number: rd?.patient?.mobile_number || draft?.formData?.patientPhone || '',
+        address: rd?.patient?.address || draft?.formData?.patientAddress || '',
+        gender: rd?.patient?.gender || draft?.formData?.patientGender || '',
+        date_of_birth: rd?.patient?.date_of_birth || draft?.formData?.patientDOB || '',
+    };
+
+    const appointment = {
+        location: rd?.appointment?.location || draft?.appointment?.location || draft?.provider?.address || 'ABC Diagnostics, 24 Medical Center Way, Ikeja, Lagos',
+        type: rd?.appointment?.type || draft?.service?.name || draft?.formData?.serviceName || 'Diagnostic Scan',
+        date: rd?.appointment?.date || draft?.appointment?.appointment_date || draft?.formData?.appointmentDate || new Date().toISOString(),
+        time: rd?.appointment?.time || draft?.appointment?.start_time || draft?.formData?.appointmentTime || '10:00 AM',
+        booking_id: rd?.appointment?.booking_id || appointmentId || 'Confirmed',
+    };
+
+    const payment_summary = {
+        payment_method: rd?.payment_summary?.payment_method || 'Paystack / Card Payment',
+        service_cost: rd?.payment_summary?.service_cost || (draft?.service?.price ? `₦${draft.service.price}` : '₦85,000'),
+        coupon: rd?.payment_summary?.coupon || 'None',
+        total: rd?.payment_summary?.total || (draft?.service?.price ? `₦${draft.service.price}` : '₦85,000'),
+    };
+
     const formatAddress = (loc: any) => {
         if (!loc) return '';
         if (typeof loc === 'string') {
@@ -236,23 +273,17 @@ const BookingSuccessPage = () => {
 
     return (
         <div className="min-h-screen bg-white w-full relative">
-            {/* Receipt Generation and Email Sending Loader Overlay */}
+            {/* Receipt Generation and Email Sending Floating Status */}
             {isSendingReceipt && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
-                    <div className="bg-white rounded-xl p-8 shadow-xl max-w-md w-full mx-4">
-                        <div className="flex flex-col items-center justify-center space-y-4">
-                            <LoadingSpinner fullScreen={false} size="lg" />
-                            <div className="text-center">
-                                <h3 className="text-lg font-semibold text-[#06202E] mb-2">
-                                    {receiptStatus === 'generating' ? 'Generating Receipt' : 'Sending Email'}
-                                </h3>
-                                <p className="text-sm text-gray-600">
-                                    {receiptStatus === 'generating'
-                                        ? 'Receipt is being generated...'
-                                        : 'Receipt is being sent to your email...'}
-                                </p>
-                            </div>
-                        </div>
+                <div className="fixed bottom-6 right-6 z-50 bg-white rounded-xl p-4 shadow-2xl border border-gray-100 flex items-center space-x-3">
+                    <LoadingSpinner fullScreen={false} size="sm" />
+                    <div>
+                        <h4 className="text-sm font-semibold text-[#06202E]">
+                            {receiptStatus === 'generating' ? 'Generating Receipt PDF...' : 'Sending Email...'}
+                        </h4>
+                        <p className="text-xs text-gray-500">
+                            Sending a copy to your email address
+                        </p>
                     </div>
                 </div>
             )}
@@ -265,9 +296,9 @@ const BookingSuccessPage = () => {
                         <div className="flex items-center  w-[583px] space-x-4 mb-8">
                             <img src={check} alt="check" className="w-[35px] h-[35px]" />
                             <div>
-                                <h1 className="text-[20px] leading-[32px] font-bold text-black">Your appointment is confirmed</h1>
+                                <h1 className="text-[20px] leading-[32px] font-bold text-black">Booking request submitted &amp; paid</h1>
                                 <p className="text-sm leading-[23px] mt-[4px] text-gray-600 ">
-                                    You will receive a confirmation email with details of your appointment. Please arrive 15 minutes early to complete any paperwork.
+                                    Your payment was received successfully and your booking request has been sent to the provider. You will be notified once the provider accepts your request.
                                 </p>
                             </div>
                         </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useBookAppointment, useInitializePayment, useAllProviders } from '../../services/providerService';
 import { usePatientProfile } from '../../services/userService';
@@ -84,6 +84,7 @@ const BookingPage = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const location = useLocation();
+    const [searchParams, setSearchParams] = useSearchParams();
     const queryClient = useQueryClient();
     const bookAppointmentMutation = useBookAppointment();
     const initializePaymentMutation = useInitializePayment();
@@ -94,8 +95,30 @@ const BookingPage = () => {
     const isBookingInProgressRef = useRef(false);
     const isPaymentInProgressRef = useRef(false);
 
-    // Multi-step booking state
-    const [currentStep, setCurrentStep] = useState('appointment'); // 'appointment', 'patient-details', 'login', 'payment'
+    // Multi-step booking state ('appointment', 'patient-details', 'login', 'payment')
+    const stepParam = searchParams.get('step');
+    const [currentStep, setCurrentStepState] = useState<string>(
+        (stepParam && ['appointment', 'patient-details', 'login', 'payment'].includes(stepParam))
+            ? stepParam
+            : 'appointment'
+    );
+
+    const setCurrentStep = (newStep: string) => {
+        setCurrentStepState(newStep);
+        setSearchParams((prev) => {
+            const next = new URLSearchParams(prev);
+            next.set('step', newStep);
+            return next;
+        }, { replace: true });
+    };
+
+    // Keep state in sync if URL query parameter changes
+    useEffect(() => {
+        const sp = searchParams.get('step');
+        if (sp && sp !== currentStep && ['appointment', 'patient-details', 'login', 'payment'].includes(sp)) {
+            setCurrentStepState(sp);
+        }
+    }, [searchParams]);
 
     // Appointment form state (from previous step)
     const [appointmentFor, setAppointmentFor] = useState('Myself');
@@ -108,6 +131,7 @@ const BookingPage = () => {
     const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'paystack'>('paystack');
     const [couponCode, setCouponCode] = useState('');
     const [couponApplied, setCouponApplied] = useState(false);
+    const [promotions, setPromotions] = useState(true);
 
     // Patient details form state
     const [fullName, setFullName] = useState('');
@@ -165,7 +189,7 @@ const BookingPage = () => {
     const [calendarYear, setCalendarYear] = useState<number>(today.getFullYear());
 
     // Load provider data for edit modal
-    const { data: providersData } = useAllProviders();
+    const { data: providersData, isLoading: isProvidersLoading } = useAllProviders();
     const providerFromApi = useMemo(() => {
         const providers = providersData?.data || [];
         return providers.find((p: any) => (p.id || p._id) === id);
@@ -195,7 +219,7 @@ const BookingPage = () => {
 
     // Load profile for prefilling when booking for Myself and to detect login status
     const { data: profileData } = usePatientProfile();
-    const { login } = useAuth();
+    const { login, user } = useAuth();
     const oauthLoginMutation = useOAuthLogin();
     const isLoggedIn = !!(profileData?.data?.id) || !!localStorage.getItem('authToken');
 
@@ -355,6 +379,7 @@ const BookingPage = () => {
 
         if (initialProvider) {
             setProviderData(initialProvider);
+            setLoading(false);
         } else if (providerFromApi) {
             // If no state/draft, use API data
             setProviderData({
@@ -363,25 +388,25 @@ const BookingPage = () => {
                 address: [providerFromApi.address?.street, providerFromApi.address?.city, providerFromApi.address?.state].filter(Boolean).join(', '),
                 image: providerFromApi.banner_image_url || providerFromApi.logo,
                 services: providerFromApi.services,
-                request_to_book: providerFromApi.request_to_book
+                request_to_book: providerFromApi.request_to_book,
+                auto_confirm_appointments: providerFromApi.auto_confirm_appointments
             });
+            setLoading(false);
+        } else if (!isProvidersLoading) {
+            setLoading(false);
         }
 
         if (initialService) {
             if (typeof initialService === 'string') {
                 setSelectedService(initialService);
             } else {
-                // If object, use it directly or extract name?
-                // The state seems to handle objects later in render: (selectedService as any).name
                 setSelectedService(initialService);
             }
         }
 
         if (initialDate) setSelectedDate(initialDate);
         if (initialTime) setSelectedTime(initialTime);
-
-        setLoading(false);
-    }, [location.state, id, providerFromApi]);
+    }, [location.state, id, providerFromApi, isProvidersLoading]);
 
     // Auto-select first service if no service is selected
     useEffect(() => {
@@ -680,7 +705,7 @@ const BookingPage = () => {
         });
     }, [calendarMonth, calendarYear]);
 
-    if (loading) {
+    if (loading || (isProvidersLoading && !providerData)) {
         return <LoadingSpinner />;
     }
 
@@ -1255,10 +1280,10 @@ const BookingPage = () => {
                                                                 return;
                                                             }
 
-                                                            // Check if booking already exists
+                                                            // If booking appointment was already created in draft, proceed to payment
                                                             const draftCheck = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
                                                             if (draftCheck?.appointment?.id) {
-                                                                toast.error('A booking is already in progress. Please complete the payment first.');
+                                                                setCurrentStep('payment');
                                                                 return;
                                                             }
 
@@ -1298,14 +1323,24 @@ const BookingPage = () => {
                                                                     try {
                                                                         const prev = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
                                                                         const appointment = res?.data?.appointment || {};
+                                                                        const isAutoApprove = (providerFromApi?.auto_confirm_appointments !== false) &&
+                                                                            !providerFromApi?.request_to_book &&
+                                                                            (providerData?.auto_confirm_appointments !== false) &&
+                                                                            !providerData?.request_to_book &&
+                                                                            (res as any)?.data?.isAutoApprove !== false &&
+                                                                            res?.data?.appointment?.status !== 'pending';
+
                                                                         localStorage.setItem('bookingDraft', JSON.stringify({
                                                                             ...prev,
                                                                             appointment,
+                                                                            isAutoApprove,
                                                                         }));
                                                                     } catch { }
                                                                     // Invalidate appointments query to refresh booking history
                                                                     queryClient.invalidateQueries({ queryKey: ['patientAppointments'] });
                                                                     if (res?.message) toast.success(res.message);
+
+                                                                    // Always advance to payment step so patient reaches and reviews the payment side before request success
                                                                     setCurrentStep('payment');
                                                                 },
                                                                 onError: (error: any) => {
@@ -1755,10 +1790,10 @@ const BookingPage = () => {
                                                                 return;
                                                             }
 
-                                                            // Check if booking already exists
+                                                            // If booking appointment was already created in draft, proceed to payment
                                                             const draftCheck = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
                                                             if (draftCheck?.appointment?.id) {
-                                                                toast.error('A booking is already in progress. Please complete the payment first.');
+                                                                setCurrentStep('payment');
                                                                 return;
                                                             }
 
@@ -1797,24 +1832,25 @@ const BookingPage = () => {
                                                                     try {
                                                                         const prev = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
                                                                         const appointment = res?.data?.appointment || {};
+                                                                        const isAutoApprove = (providerFromApi?.auto_confirm_appointments !== false) &&
+                                                                            !providerFromApi?.request_to_book &&
+                                                                            (providerData?.auto_confirm_appointments !== false) &&
+                                                                            !providerData?.request_to_book &&
+                                                                            (res as any)?.data?.isAutoApprove !== false &&
+                                                                            res?.data?.appointment?.status !== 'pending';
+
                                                                         localStorage.setItem('bookingDraft', JSON.stringify({
                                                                             ...prev,
                                                                             appointment,
+                                                                            isAutoApprove,
                                                                         }));
                                                                     } catch { }
                                                                     // Invalidate appointments query to refresh booking history
                                                                     queryClient.invalidateQueries({ queryKey: ['patientAppointments'] });
                                                                     if (res?.message) toast.success(res.message);
 
-                                                                    // Check if provider has request_to_book enabled
-                                                                    // We prefer providerFromApi as it comes from the fresh query, falling back to providerData
-                                                                    const isRequestToBook = providerFromApi?.request_to_book || providerData?.request_to_book || false;
-
-                                                                    if (isRequestToBook && res?.data?.appointment?.id) {
-                                                                        navigate(`/patient/booking/request-success?appointmentId=${res.data.appointment.id}`);
-                                                                    } else {
-                                                                        setCurrentStep('payment');
-                                                                    }
+                                                                    // Always advance to payment step so patient reaches and reviews the payment side before request success
+                                                                    setCurrentStep('payment');
                                                                 },
                                                                 onError: (error: any) => {
                                                                     isBookingInProgressRef.current = false;
@@ -2062,7 +2098,7 @@ const BookingPage = () => {
                                                     </p>
                                                 </div>
 
-                                                {/* Confirm and Pay Button */}
+                                                {/* Confirm and Pay / Booking Request Button */}
                                                 <button
                                                     onClick={async () => {
                                                         // Prevent duplicate payment initializations
@@ -2072,16 +2108,40 @@ const BookingPage = () => {
 
                                                         try {
                                                             const draft = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
-                                                            const appointmentId = draft?.appointment?.id;
-                                                            const s = draft?.service || {};
-                                                            const baseAmount = s?.price ?? s?.amount ?? s?.cost ?? 0;
+                                                            const appointmentId = draft?.appointment?.id || draft?.appointment?._id || draft?.appointmentId;
+
+                                                            if (!appointmentId) {
+                                                                toast.error('Booking details not found. Please select an appointment slot.');
+                                                                setCurrentStep('appointment');
+                                                                return;
+                                                            }
+
+                                                            const s = draft?.service || draft?.appointment?.service || {};
+                                                            const baseAmount = Number(s?.price ?? s?.amount ?? s?.cost ?? draft?.appointment?.payment?.amount ?? 0);
                                                             // Apply 25% discount if coupon is applied
                                                             const amount = couponApplied ? baseAmount * 0.75 : baseAmount;
-                                                            // Use profile email if available, otherwise use the email entered in the form
-                                                            const emailToUse = profileData?.data?.contact_details?.email_address || profileData?.data?.email || email || patientEmail || '';
 
-                                                            if (!appointmentId || !amount || !emailToUse) {
-                                                                if (!emailToUse) toast.error("Email address is missing");
+                                                            // If free / 0 amount, no payment needed, navigate to request-success
+                                                            if (amount <= 0) {
+                                                                navigate(`/patient/booking/request-success?appointmentId=${appointmentId}`);
+                                                                return;
+                                                            }
+
+                                                            // Use profile email if available, otherwise use the email entered in the form or auth user email
+                                                            const emailToUse =
+                                                                profileData?.data?.contact_details?.email_address ||
+                                                                profileData?.data?.email ||
+                                                                user?.email ||
+                                                                email ||
+                                                                patientEmail ||
+                                                                draft?.formData?.patientEmail ||
+                                                                draft?.formData?.email ||
+                                                                draft?.appointment?.patient_email ||
+                                                                draft?.appointment?.patient?.email ||
+                                                                '';
+
+                                                            if (!emailToUse) {
+                                                                toast.error("Please enter a valid email address to proceed with payment.");
                                                                 return;
                                                             }
 
@@ -2091,11 +2151,11 @@ const BookingPage = () => {
                                                                 appointmentId,
                                                                 amount,
                                                                 email: emailToUse,
-                                                                callback_url: `${window.location.origin}/booking-history`,
+                                                                callback_url: `${window.location.origin}/patient/booking/success?appointmentId=${appointmentId}`,
                                                             });
                                                             const url = res?.data?.authorization_url;
                                                             if (url) {
-                                                                // Payment initiated successfully, redirect to payment gateway
+                                                                // Payment initiated successfully, redirect directly to Paystack checkout
                                                                 isPaymentInProgressRef.current = false;
                                                                 window.location.href = url;
                                                             } else {
@@ -2111,7 +2171,25 @@ const BookingPage = () => {
                                                     disabled={isPaymentInProgressRef.current || initializePaymentMutation.isPending}
                                                     className={`w-full bg-gray-900 text-white py-3 px-6 rounded-md transition-colors font-medium mb-4 ${isPaymentInProgressRef.current || initializePaymentMutation.isPending ? 'bg-gray-400 cursor-not-allowed hover:bg-gray-400' : 'hover:bg-gray-800'}`}
                                                 >
-                                                    {isPaymentInProgressRef.current || initializePaymentMutation.isPending ? 'Processing...' : 'Confirm and pay'}
+                                                    {(() => {
+                                                        if (isPaymentInProgressRef.current || initializePaymentMutation.isPending) {
+                                                            return 'Redirecting to Paystack...';
+                                                        }
+                                                        try {
+                                                            const draft = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
+                                                            const isAutoApprove = draft?.isAutoApprove ?? (
+                                                                (providerFromApi?.auto_confirm_appointments !== false) &&
+                                                                !providerFromApi?.request_to_book &&
+                                                                (providerData?.auto_confirm_appointments !== false) &&
+                                                                !providerData?.request_to_book &&
+                                                                draft?.appointment?.status !== 'pending'
+                                                            );
+                                                            if (!isAutoApprove) {
+                                                                return 'Confirm booking request';
+                                                            }
+                                                        } catch { }
+                                                        return 'Confirm and pay';
+                                                    })()}
                                                 </button>
 
                                                 {/* Promotions Checkbox */}
@@ -2119,10 +2197,11 @@ const BookingPage = () => {
                                                     <input
                                                         type="checkbox"
                                                         id="promotions"
-                                                        checked
-                                                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                                                        checked={promotions}
+                                                        onChange={(e) => setPromotions(e.target.checked)}
+                                                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500 cursor-pointer"
                                                     />
-                                                    <label htmlFor="promotions" className="text-sm text-gray-700">
+                                                    <label htmlFor="promotions" className="text-sm text-gray-700 cursor-pointer select-none">
                                                         Get exclusive offers and promotions from Medresq Healthcare
                                                     </label>
                                                 </div>

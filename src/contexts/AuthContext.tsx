@@ -56,6 +56,52 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const queryClient = useQueryClient();
 
     useEffect(() => {
+        // Development helper for test authentication
+        if (import.meta.env.DEV) {
+            const urlParams = new URLSearchParams(window.location.search);
+            const devLogin = urlParams.get('dev_login');
+            if (devLogin === 'patient') {
+                const devPatientToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4MTI1ZGE0M2E3MzIyNzliZDVkNDEzNiIsInVzZXJfdHlwZSI6IlBhdGllbnQiLCJpYXQiOjE3OTI2MDkyNzcsImV4cCI6MTc5MzIxNDA3N30.dRZXDj5wpA1SHhmcwa_ALH2ch-12cWL0e0CjSyE1oYc";
+                const devPatientUser: User = {
+                    id: "-2R9hQGZpp",
+                    full_name: "abdurrahman yusuff",
+                    email: "abdurrahmanyusuph@gmail.com",
+                    phone_number: "08138966213",
+                    user_type: "Patient",
+                    is_admin: false,
+                    email_verified: true,
+                    is_onboarding_complete: true,
+                    created_at: new Date().toISOString()
+                };
+                localStorage.setItem('authToken', devPatientToken);
+                localStorage.setItem('user', JSON.stringify(devPatientUser));
+                setToken(devPatientToken);
+                setUser(devPatientUser);
+                setLoading(false);
+                return;
+            } else if (devLogin === 'provider') {
+                const devProviderToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4MTI2MDIzM2E3MzIyNzliZDVkNDE0NSIsInVzZXJfdHlwZSI6IkRpYWdub3N0aWNQcm92aWRlciIsImlhdCI6MTc5MjYwOTI3NywiZXhwIjoxNzkzMjE0MDc3fQ.mTBYJfqSc3wDf7BxBaBDx6HmWRmniPFBRZiZhNJNMUM";
+                const devProviderUser: User = {
+                    id: "sSgDBhat0H",
+                    full_name: "Enaikele Omoh kelvin",
+                    email: "enaikeleomoh@gmail.com",
+                    phone_number: "9876543210",
+                    user_type: "DiagnosticProvider",
+                    is_admin: false,
+                    email_verified: true,
+                    is_onboarding_complete: true,
+                    profile_complete: true,
+                    created_at: new Date().toISOString()
+                };
+                localStorage.setItem('authToken', devProviderToken);
+                localStorage.setItem('user', JSON.stringify(devProviderUser));
+                setToken(devProviderToken);
+                setUser(devProviderUser);
+                setLoading(false);
+                return;
+            }
+        }
+
         // Check for existing token on app load
         const storedToken = localStorage.getItem('authToken');
         const storedUser = localStorage.getItem('user');

@@ -5,8 +5,8 @@ const PendingAppointmentsPage: React.FC = () => {
     return (
         <div className="space-y-6">
             <div>
-                <h2 className="text-2xl font-bold text-[#16202E]">Pending Appointments</h2>
-                <p className="text-gray-500 mt-1">Manage all your incoming appointment requests.</p>
+                <h2 className="text-2xl font-bold text-[#16202E]">Booking Requests</h2>
+                <p className="text-gray-500 mt-1">Manage incoming appointment requests awaiting your review and approval.</p>
             </div>
             <PendingAppointments />
         </div>

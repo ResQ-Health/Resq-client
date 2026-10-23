@@ -7,6 +7,8 @@ const Layout: React.FC = () => {
   const location = useLocation();
   const hideFooterRoutes = [
     '/',
+    '/login',
+    '/signin',
     '/onboardingPatient',
     '/sign-in-patient',
     '/verify',

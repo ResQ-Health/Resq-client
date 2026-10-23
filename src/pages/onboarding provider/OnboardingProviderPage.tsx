@@ -246,7 +246,7 @@ function OnboardingProviderPage() {
 
       <p className="text-sm text-gray-700 mt-6 font-medium">
         Already have an account?{' '}
-        <Link to="/providers/signin" className="underline text-[#06202E] font-bold">
+        <Link to="/login" className="underline text-[#06202E] font-bold">
           Sign In
         </Link>
       </p>

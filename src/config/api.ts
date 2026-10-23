@@ -5,6 +5,13 @@ import axios from 'axios';
 // If an explicit VITE_API_URL is specified in environment variables, it will use that; otherwise it defaults to same-origin ('').
 export const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
 
+// Doctor / Clinician Referral System URL
+// Staging URL: https://resq-health-referral-system.vercel.app
+// Can be customized via VITE_DOCTOR_REFERRAL_URL in production environment variables
+export const DOCTOR_REFERRAL_URL =
+    import.meta.env.VITE_DOCTOR_REFERRAL_URL ||
+    'https://resq-health-referral-system.vercel.app';
+
 // Create axios instance with default config
 export const apiClient = axios.create({
     baseURL: API_BASE_URL,
@@ -182,6 +189,7 @@ export const API_ENDPOINTS = {
             GET_ALL: '/api/v1/providers/appointments',
             GET_PENDING: '/api/v1/providers/appointments/pending',
             UPDATE_STATUS: (id: string) => `/api/v1/appointments/${id}/confirm`, // User specified this endpoint structure
+            UPDATE_DELIVERY_STATUS: (id: string) => `/api/v1/appointments/${id}/status`,
             ACCEPT_ALL: '/api/v1/providers/appointments/pending/accept-all',
             REJECT_ALL: '/api/v1/providers/appointments/pending/reject-all',
         },

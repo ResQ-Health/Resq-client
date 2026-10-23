@@ -13,7 +13,7 @@ interface OnboardingRouteProps {
  * Redirects to /patient/my-account if onboarding is not complete
  */
 export const OnboardingRoute: React.FC<OnboardingRouteProps> = ({ children }) => {
-    const { isAuthenticated, loading: authLoading } = useAuth();
+    const { isAuthenticated, loading: authLoading, user } = useAuth();
     const location = useLocation();
     const { data: profileData, isLoading: profileLoading } = usePatientProfile();
 
@@ -22,9 +22,15 @@ export const OnboardingRoute: React.FC<OnboardingRouteProps> = ({ children }) =>
         return <LoadingSpinner />;
     }
 
-    // If not authenticated, redirect to login
+    // If not authenticated, redirect to unified login
     if (!isAuthenticated) {
-        return <Navigate to="/sign-in-patient" state={{ from: location }} replace />;
+        return <Navigate to="/login" state={{ from: location }} replace />;
+    }
+
+    // Providers should not be checked by patient onboarding route
+    const userType = user?.user_type?.toLowerCase();
+    if (userType === 'diagnosticprovider' || userType === 'provider' || userType === 'clinician') {
+        return <Navigate to="/provider/dashboard" replace />;
     }
 
     // Check if onboarding is complete

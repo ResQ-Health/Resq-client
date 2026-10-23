@@ -684,13 +684,9 @@ const bookAppointment = async (req, res) => {
     const nanoidSuffix = nanoid(6);
     const timeSlotId = `${providerId}_${date.replace(/-/g, "")}_${start_time.replace(/[: ]/g, "")}_${end_time.replace(/[: ]/g, "")}_${timestamp}_${randomSuffix}_${nanoidSuffix}`;
 
-    // Set initial status based on provider's auto-approve setting
-    // Clinician booking has not yet been paid for, so it MUST always start as pending
-    const initialStatus = isClinicianBooking
-      ? "pending"
-      : provider.auto_confirm_appointments
-      ? "confirmed"
-      : "pending";
+    // All patient bookings start as a pending Booking Request awaiting provider review and acceptance
+    const isAutoApprove = false;
+    const initialStatus = "pending";
 
     // Create appointment with appropriate status
     let appointment;
@@ -783,6 +779,21 @@ const bookAppointment = async (req, res) => {
         start_time: start_time,
         end_time: end_time,
         status: initialStatus, // Set status based on provider's auto-approve setting
+        tracking: initialStatus === "confirmed"
+          ? [{
+              status: "scheduled",
+              label: "Accepted & Scheduled",
+              timestamp: new Date(),
+              updatedBy: "auto-approval",
+              note: "Appointment automatically accepted and scheduled.",
+            }]
+          : [{
+              status: "pending",
+              label: "Booking Requested",
+              timestamp: new Date(),
+              updatedBy: "patient",
+              note: "Appointment booking requested by patient, awaiting provider acceptance.",
+            }],
         notes: notes || "",
       });
 
@@ -842,16 +853,10 @@ const bookAppointment = async (req, res) => {
       throw createError; // Re-throw other errors
     }
 
-    // Log provider's auto-approve setting
-    if (provider.auto_confirm_appointments) {
-      console.log(
-        `Provider ${provider.provider_name} has auto-approve enabled. Appointment ${appointment.id} created with confirmed status.`,
-      );
-    } else {
-      console.log(
-        `Provider ${provider.provider_name} has auto-approve disabled. Appointment ${appointment.id} created with pending status.`,
-      );
-    }
+    // Log appointment creation
+    console.log(
+      `Appointment ${appointment.id} created with pending (requested) status for provider ${provider?.provider_name || providerId}.`,
+    );
 
     // Send notifications in background (completely non-blocking)
     setImmediate(() => {
@@ -873,21 +878,25 @@ const bookAppointment = async (req, res) => {
                 service,
               );
 
-          // All appointments start as pending, so send pending notifications
-          const notificationPromises = [
-            notificationService
-              .sendPendingAppointmentNotification(
+          const providerNotificationPromise = isAutoApprove
+            ? notificationService.sendAppointmentNotifications(
                 patient,
                 provider,
                 appointment,
               )
-              .catch((err) =>
-                console.error("Provider notification failed:", err),
-              ),
-            patientNotificationPromise
-              .catch((err) =>
-                console.error("Patient notification failed:", err),
-              ),
+            : notificationService.sendPendingAppointmentNotification(
+                patient,
+                provider,
+                appointment,
+              );
+
+          const notificationPromises = [
+            providerNotificationPromise.catch((err) =>
+              console.error("Provider notification failed:", err),
+            ),
+            patientNotificationPromise.catch((err) =>
+              console.error("Patient notification failed:", err),
+            ),
           ];
 
           // Don't wait for completion - just fire and forget
@@ -901,9 +910,9 @@ const bookAppointment = async (req, res) => {
     });
 
     // Set response message based on provider's auto-approve setting
-    const responseMessage = provider.auto_confirm_appointments
-      ? "Appointment confirmed successfully. Please complete payment to finalize your booking."
-      : "Appointment request submitted. Please complete payment to confirm your appointment.";
+    const responseMessage = isAutoApprove
+      ? "Appointment confirmed and accepted automatically."
+      : "Appointment booking requested. Awaiting provider confirmation.";
 
     // Determine the correct patient name to display
     const displayPatientName =
@@ -918,6 +927,7 @@ const bookAppointment = async (req, res) => {
       success: true,
       message: responseMessage,
       data: {
+        isAutoApprove,
         appointment: {
           id: appointment.id,
           provider_name: provider.provider_name,
@@ -1030,6 +1040,16 @@ const confirmAppointment = async (req, res) => {
     if (action === "confirm") {
       // Update appointment status to confirmed
       appointment.status = "confirmed";
+      if (!Array.isArray(appointment.tracking) || appointment.tracking.length === 0) {
+        appointment.tracking = normalizeTracking(appointment);
+      }
+      appointment.tracking.push({
+        status: "scheduled",
+        label: "Scheduled",
+        timestamp: new Date(),
+        updatedBy: provider?.provider_name || "Provider",
+        note: "Appointment confirmed and scheduled by provider.",
+      });
       await appointment.save();
 
       // Send confirmation notifications asynchronously (don't wait)
@@ -1046,12 +1066,23 @@ const confirmAppointment = async (req, res) => {
           appointment: {
             id: appointment.id,
             status: "confirmed",
+            tracking: appointment.tracking,
           },
         },
       });
     } else {
       // Reject the appointment
       appointment.status = "rejected";
+      if (!Array.isArray(appointment.tracking) || appointment.tracking.length === 0) {
+        appointment.tracking = normalizeTracking(appointment);
+      }
+      appointment.tracking.push({
+        status: "rejected",
+        label: "Rejected",
+        timestamp: new Date(),
+        updatedBy: provider?.provider_name || "Provider",
+        note: "Appointment request was rejected.",
+      });
       await appointment.save();
 
       // Send rejection notification asynchronously (don't wait)
@@ -1128,6 +1159,109 @@ const resolveAppointmentServiceAndPrice = (appointment, service) => {
     category: service?.category || 'scans',
     price: actualPrice,
   };
+};
+
+/**
+ * Helper to get human-readable status labels for service delivery tracking
+ */
+const getDeliveryStatusLabel = (status) => {
+  switch (status?.toLowerCase()) {
+    case 'scheduled':
+    case 'confirmed':
+      return 'Scheduled';
+    case 'in-progress':
+    case 'in_progress':
+      return 'In Progress';
+    case 'no-show':
+    case 'no_show':
+      return 'No Show';
+    case 'completed':
+      return 'Completed';
+    case 'report-processing':
+    case 'report_processing':
+      return 'Report Processing';
+    case 'report-ready':
+    case 'report_ready':
+      return 'Report Ready';
+    case 'report-delivered':
+    case 'report_delivered':
+      return 'Report Delivered';
+    case 'cancelled':
+    case 'canceled':
+      return 'Cancelled';
+    case 'rejected':
+      return 'Rejected';
+    case 'pending':
+      return 'Pending Approval';
+    default:
+      return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Scheduled';
+  }
+};
+
+/**
+ * Ensures every appointment has a structured tracking history, synthesizing from state if empty
+ */
+const normalizeTracking = (appointment) => {
+  let tracking = Array.isArray(appointment?.tracking) && appointment.tracking.length > 0
+    ? appointment.tracking.map(t => ({
+        status: t.status,
+        label: t.label || getDeliveryStatusLabel(t.status),
+        timestamp: t.timestamp || new Date(),
+        updatedBy: t.updatedBy || 'system',
+        note: t.note || ''
+      }))
+    : [];
+
+  if (tracking.length === 0) {
+    const rawStatus = (appointment?.status || 'scheduled').toLowerCase();
+    const currentStatus = rawStatus === 'confirmed' ? 'scheduled' : rawStatus;
+    const createdAt = appointment?.created_at || appointment?.appointment_date || new Date();
+    const paidAt = appointment?.payment?.paidAt || createdAt;
+
+    if (currentStatus === 'pending') {
+      tracking.push({
+        status: 'pending',
+        label: 'Pending Approval',
+        timestamp: createdAt,
+        updatedBy: 'system',
+        note: 'Appointment request submitted, awaiting confirmation.'
+      });
+    } else {
+      tracking.push({
+        status: 'scheduled',
+        label: 'Scheduled',
+        timestamp: paidAt,
+        updatedBy: 'auto-approval',
+        note: 'Appointment auto-approved and scheduled.'
+      });
+    }
+
+    const linearStages = ['scheduled', 'in-progress', 'completed', 'report-processing', 'report-ready', 'report-delivered'];
+    const idx = linearStages.indexOf(currentStatus);
+
+    if (idx > 0) {
+      for (let i = 1; i <= idx; i++) {
+        const stage = linearStages[i];
+        tracking.push({
+          status: stage,
+          label: getDeliveryStatusLabel(stage),
+          timestamp: appointment?.updated_at || new Date(),
+          updatedBy: 'provider',
+          note: `Stage: ${getDeliveryStatusLabel(stage)}`
+        });
+      }
+    } else if (['no-show', 'cancelled', 'rejected'].includes(currentStatus)) {
+      tracking.push({
+        status: currentStatus,
+        label: getDeliveryStatusLabel(currentStatus),
+        timestamp: appointment?.updated_at || new Date(),
+        updatedBy: 'provider',
+        note: `Appointment marked as ${getDeliveryStatusLabel(currentStatus)}.`
+      });
+    }
+  }
+
+  return tracking;
 };
 
 // @desc    Get patient's appointments
@@ -1391,12 +1525,15 @@ const getPatientAppointments = async (req, res) => {
                 amount: resp.data.data.amount / 100,
                 paidAt: new Date(),
               };
-              appt.status = "confirmed";
+              // Keep appointment status as pending (booking request awaiting provider acceptance)
+              if (!appt.status || appt.status === "pending") {
+                appt.status = "pending";
+              }
               
-              // Persist update to DB asynchronously
+              // Persist payment update to DB asynchronously (preserving existing appointment status)
               Appointment.updateOne(
                 { id: appt.id }, 
-                { $set: { payment: appt.payment, status: "confirmed", updated_at: new Date() } }
+                { $set: { payment: appt.payment, updated_at: new Date() } }
               ).catch(e => console.error(`Failed to persist payment update for ${appt.id}:`, e));
 
               // Also sync matching Referral in shared DB
@@ -1429,15 +1566,7 @@ const getPatientAppointments = async (req, res) => {
             // Ignore verification errors to avoid blocking
           }
         } else if (isCompleted) {
-          // If payment is completed, ensure appointment is marked confirmed and referral is synced
-          if (appt.status !== "confirmed") {
-            appt.status = "confirmed";
-            Appointment.updateOne(
-              { id: appt.id },
-              { $set: { status: "confirmed", updated_at: new Date() } }
-            ).catch(e => console.error(`Failed to update status for ${appt.id}:`, e));
-          }
-
+          // If payment is completed, keep status as pending (booking request awaiting provider acceptance)
           try {
             const ReferralModel = mongoose.models.Referral || mongoose.model("Referral", new mongoose.Schema({}, { strict: false }));
             ReferralModel.updateMany(
@@ -1560,6 +1689,8 @@ const getPatientAppointments = async (req, res) => {
           start_time: appointment.start_time,
           end_time: appointment.end_time,
           status: appointment.status,
+          delivery_status: appointment.status === "confirmed" ? "scheduled" : appointment.status,
+          tracking: normalizeTracking(appointment),
           payment: {
             ...appointment.payment,
             amount: resolveAppointmentServiceAndPrice(appointment, service).price,
@@ -1618,8 +1749,13 @@ const getProviderAppointments = async (req, res) => {
 
     const { status, date } = req.query;
 
+    const providerIds = [provider.id, provider.user_id, String(provider._id)].filter(Boolean);
+
     // Build query
-    const query = { provider_id: provider.id };
+    const query = {
+      provider_id: { $in: providerIds },
+      is_deleted: { $ne: true }
+    };
 
     // Filter by status if provided
     if (status) {
@@ -1641,10 +1777,7 @@ const getProviderAppointments = async (req, res) => {
     }
 
     // Get appointments (exclude soft-deleted)
-    const appointments = await Appointment.find({
-      ...query,
-      is_deleted: false,
-    }).sort({ appointment_date: 1, start_time: 1 });
+    const appointments = await Appointment.find(query).sort({ appointment_date: 1, start_time: 1 });
 
     // Get patient details for each appointment
     const appointmentDetails = await Promise.all(
@@ -1698,6 +1831,8 @@ const getProviderAppointments = async (req, res) => {
           start_time: appointment.start_time,
           end_time: appointment.end_time,
           status: appointment.status,
+          delivery_status: appointment.status === "confirmed" ? "scheduled" : appointment.status,
+          tracking: normalizeTracking(appointment),
           payment: {
             ...appointment.payment,
             amount: resolveAppointmentServiceAndPrice(appointment, service).price,
@@ -1781,6 +1916,16 @@ const cancelAppointment = async (req, res) => {
 
     // Update appointment status
     appointment.status = "cancelled";
+    if (!Array.isArray(appointment.tracking) || appointment.tracking.length === 0) {
+      appointment.tracking = normalizeTracking(appointment);
+    }
+    appointment.tracking.push({
+      status: "cancelled",
+      label: "Cancelled",
+      timestamp: new Date(),
+      updatedBy: req.user.full_name || req.user.user_type || "User",
+      note: req.body?.reason || "Appointment was cancelled.",
+    });
     await appointment.save();
 
     // Get details for notifications
@@ -1978,7 +2123,11 @@ const getAvailableDates = async (req, res) => {
     // Create a map of dates with booked appointments
     const bookedDates = {};
     bookedAppointments.forEach((appointment) => {
-      const dateStr = appointment.appointment_date.toISOString().split("T")[0];
+      const d = new Date(appointment.appointment_date);
+      const y = d.getUTCFullYear();
+      const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+      const dayNum = String(d.getUTCDate()).padStart(2, "0");
+      const dateStr = `${y}-${m}-${dayNum}`;
       if (!bookedDates[dateStr]) {
         bookedDates[dateStr] = [];
       }
@@ -2011,7 +2160,7 @@ const getAvailableDates = async (req, res) => {
       );
       const isWorkingDay = workingHoursForDay && workingHoursForDay.isAvailable;
 
-      const dateStr = date.toISOString().split("T")[0];
+      const dateStr = `${currentYear}-${String(currentMonth).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
       const isPastDate = date < today;
 
       // Check if this is today
@@ -2195,6 +2344,16 @@ const autoConfirmAppointment = async (req, res) => {
 
     // Update appointment status to confirmed
     appointment.status = "confirmed";
+    if (!Array.isArray(appointment.tracking) || appointment.tracking.length === 0) {
+      appointment.tracking = normalizeTracking(appointment);
+    }
+    appointment.tracking.push({
+      status: "scheduled",
+      label: "Scheduled",
+      timestamp: new Date(),
+      updatedBy: "auto-approval",
+      note: "Appointment auto-approved and scheduled.",
+    });
     appointment.updated_at = new Date();
     await appointment.save();
 
@@ -2560,6 +2719,21 @@ const bookAppointmentByClinician = async (req, res) => {
       start_time: start_time,
       end_time: end_time,
       status: initialStatus,
+      tracking: initialStatus === "confirmed"
+        ? [{
+            status: "scheduled",
+            label: "Scheduled",
+            timestamp: new Date(),
+            updatedBy: "auto-approval",
+            note: "Appointment auto-approved and scheduled.",
+          }]
+        : [{
+            status: "pending",
+            label: "Pending Approval",
+            timestamp: new Date(),
+            updatedBy: "clinician",
+            note: "Appointment requested by clinician, awaiting confirmation.",
+          }],
       notes: notes || "",
     });
 
@@ -2810,6 +2984,8 @@ const getAppointmentById = async (req, res) => {
           start_time: appointment.start_time,
           end_time: appointment.end_time,
           status: appointment.status,
+          delivery_status: appointment.status === "confirmed" ? "scheduled" : appointment.status,
+          tracking: normalizeTracking(appointment),
           payment: {
             ...appointment.payment,
             amount: resolveAppointmentServiceAndPrice(appointment, service).price,
@@ -3004,6 +3180,144 @@ const claimReferralAppointment = async (req, res) => {
   }
 };
 
+// @desc    Update appointment service delivery status (with tracking history)
+// @route   PUT /api/appointments/:appointmentId/status
+// @access  Private (Provider / Clinician / Admin)
+const updateAppointmentDeliveryStatus = async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const { status, note } = req.body;
+    const userId = req.user.id;
+
+    if (!status) {
+      return res.status(400).json({
+        success: false,
+        message: "Status is required",
+      });
+    }
+
+    const normalizedStatus = String(status).toLowerCase().trim().replace(/_/g, "-");
+    const validStatuses = [
+      "scheduled",
+      "in-progress",
+      "no-show",
+      "completed",
+      "report-processing",
+      "report-ready",
+      "report-delivered",
+      "cancelled",
+      "rejected",
+      "confirmed",
+      "pending",
+    ];
+
+    if (!validStatuses.includes(normalizedStatus)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid delivery status. Must be one of: ${validStatuses.join(", ")}`,
+      });
+    }
+
+    // Find appointment
+    const appointment = await Appointment.findOne({ id: appointmentId, is_deleted: { $ne: true } });
+    if (!appointment) {
+      return res.status(404).json({
+        success: false,
+        message: "Appointment not found",
+      });
+    }
+
+    // Check authorization: Must be provider, assigned clinician, or admin
+    const provider = await Provider.findOne({ user_id: userId });
+    const isProvider = provider && provider.id === appointment.provider_id;
+    const isClinician =
+      (appointment.clinician_id && appointment.clinician_id === userId) ||
+      (appointment.formData && appointment.formData.clinicianId === userId);
+    const isAdmin = Boolean(req.user.is_admin);
+
+    if (!isProvider && !isClinician && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: "Not authorized to update delivery status for this appointment",
+      });
+    }
+
+    // Initialize tracking if empty
+    if (!Array.isArray(appointment.tracking) || appointment.tracking.length === 0) {
+      appointment.tracking = normalizeTracking(appointment);
+    }
+
+    const finalStatus = normalizedStatus === "confirmed" ? "scheduled" : normalizedStatus;
+    const label = getDeliveryStatusLabel(finalStatus);
+    const updaterName = req.user.full_name || provider?.provider_name || req.user.user_type || "Provider";
+
+    // Append new tracking entry
+    appointment.tracking.push({
+      status: finalStatus,
+      label,
+      timestamp: new Date(),
+      updatedBy: updaterName,
+      note: note || `Stage updated to ${label}`,
+    });
+
+    appointment.status = finalStatus;
+    appointment.updated_at = new Date();
+    await appointment.save();
+
+    // Also sync matching Referral in shared DB if exists
+    try {
+      const ReferralModel = mongoose.models.Referral || mongoose.model("Referral", new mongoose.Schema({}, { strict: false }));
+      let referralStatus = undefined;
+      if (finalStatus === "completed" || finalStatus === "report-delivered") {
+        referralStatus = "Completed";
+      } else if (finalStatus === "in-progress" || finalStatus === "report-processing" || finalStatus === "report-ready") {
+        referralStatus = "In Progress";
+      } else if (finalStatus === "cancelled" || finalStatus === "rejected") {
+        referralStatus = "Cancelled";
+      }
+
+      if (referralStatus) {
+        ReferralModel.updateMany(
+          {
+            $or: [
+              { patientAppointmentId: appointment.id },
+              { clinicianAppointmentId: appointment.id },
+              { referralId: appointment.formData?.referralId },
+              { referralId: appointment.formData?.identificationNumber },
+            ].filter(Boolean),
+          },
+          {
+            $set: {
+              status: referralStatus,
+              updatedAt: new Date(),
+            },
+          }
+        ).catch(() => {});
+      }
+    } catch (_) {}
+
+    return res.json({
+      success: true,
+      message: `Appointment status updated to ${label}`,
+      data: {
+        appointment: {
+          id: appointment.id,
+          status: appointment.status,
+          delivery_status: appointment.status,
+          tracking: appointment.tracking,
+        },
+      },
+    });
+  } catch (error) {
+    console.error("Update appointment delivery status error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server error updating delivery status",
+      error: process.env.NODE_ENV === "development" ? error.message : undefined,
+    });
+  }
+};
+
 module.exports = {
   getAvailableSlots,
   bookAppointment,
@@ -3017,6 +3331,8 @@ module.exports = {
   cancelAppointment,
   confirmAppointment,
   autoConfirmAppointment,
+  updateAppointmentDeliveryStatus,
   deleteAppointment,
   getAvailableDates,
 };
+

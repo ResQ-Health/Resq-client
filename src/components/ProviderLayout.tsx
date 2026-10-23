@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Outlet, useLocation, Link, useNavigate } from 'react-router-dom';
 import { FaRegCalendarAlt, FaStar, FaCog, FaChevronLeft, FaChevronRight, FaPlus } from 'react-icons/fa';
 import { MdDashboard, MdPayment, MdMedicalServices, MdOutlineSupportAgent, MdPeople, MdPendingActions } from 'react-icons/md';
-import { TbReport } from 'react-icons/tb';
+import { TbReport, TbTruckDelivery } from 'react-icons/tb';
 import { IoNotificationsOutline } from 'react-icons/io5';
 import { FiLogOut, FiSearch } from 'react-icons/fi';
 import { useAuth } from '../contexts/AuthContext';
@@ -12,8 +12,9 @@ import logo from '/icons/Logomark (1).png'
 
 const NAV_ITEMS = [
   { label: 'Overview', icon: <MdDashboard size={20} />, path: '/provider/dashboard' },
-  { label: 'Requests', icon: <MdPendingActions size={20} />, path: '/provider/pending-appointments' },
+  { label: 'Booking Requests', icon: <MdPendingActions size={20} />, path: '/provider/pending-appointments' },
   { label: 'Calendar', icon: <FaRegCalendarAlt size={20} />, path: '/provider/calendar' },
+  { label: 'Service Delivery', icon: <TbTruckDelivery size={20} />, path: '/provider/service-delivery' },
   { label: 'Patient Lists', icon: <MdPeople size={20} />, path: '/provider/patients' },
   { label: 'Services', icon: <MdMedicalServices size={20} />, path: '/provider/services' },
   { label: 'Payments', icon: <MdPayment size={20} />, path: '/provider/payments' },

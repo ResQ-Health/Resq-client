@@ -278,18 +278,32 @@ export const useCreateAppointment = () => {
     });
 };
 
-// Fetch Provider Appointments
+export interface TrackingStep {
+    status: string;
+    label: string;
+    timestamp: string | Date;
+    updatedBy: string;
+    note?: string;
+}
+
 // Fetch Provider Appointments
 export interface ProviderAppointment {
     id: string;
     _id: string;
     patient_name: string;
+    patient_email?: string;
+    patient_phone?: string;
+    patient_dob?: string;
+    patient_gender?: string;
+    patient_address?: string;
     service_name: string;
     appointment_date: string;
     start_time: string;
     end_time: string;
     duration?: number;
     status: string;
+    delivery_status?: string;
+    tracking?: TrackingStep[];
     payment?: {
         status: string;
         amount: number;
@@ -309,6 +323,27 @@ export interface ProviderAppointment {
     };
     patient_id?: string;
     service_id?: string;
+    patient?: {
+        full_name?: string;
+        phone_number?: string;
+        email?: string;
+        personal_details?: {
+            first_name?: string;
+            last_name?: string;
+            [key: string]: any;
+        };
+        contact_details?: {
+            phone_number?: string;
+            email_address?: string;
+            [key: string]: any;
+        };
+        [key: string]: any;
+    };
+    service?: {
+        name?: string;
+        price?: number;
+        [key: string]: any;
+    };
     created_at?: string;
     updated_at?: string;
 }
@@ -331,11 +366,20 @@ export const fetchProviderAppointments = async (page = 1, limit = 100): Promise<
     return res.data as ProviderAppointmentsResponse;
 };
 
-export const useProviderAppointments = (page = 1, limit = 100) => {
+export interface UseProviderAppointmentsOptions {
+    refetchInterval?: number | false;
+    staleTime?: number;
+    enabled?: boolean;
+}
+
+export const useProviderAppointments = (page = 1, limit = 100, options?: UseProviderAppointmentsOptions) => {
     return useQuery({
         queryKey: ['providerAppointments', page, limit],
         queryFn: () => fetchProviderAppointments(page, limit),
-        staleTime: 5 * 60 * 1000, // 5 minutes
+        staleTime: options?.staleTime ?? 15 * 1000,
+        refetchInterval: options?.refetchInterval,
+        refetchOnWindowFocus: true,
+        enabled: options?.enabled ?? true,
     });
 };
 
@@ -361,6 +405,119 @@ export const useUpdateAppointmentStatus = () => {
             console.error('Update status error:', error);
             toast.error(error.response?.data?.message || 'Failed to update appointment status');
         }
+    });
+};
+
+export interface UpdateDeliveryStatusPayload {
+    id: string;
+    status: 'scheduled' | 'in-progress' | 'no-show' | 'completed' | 'report-processing' | 'report-ready' | 'report-delivered' | 'cancelled' | string;
+    note?: string;
+}
+
+export const updateAppointmentDeliveryStatus = async ({ id, status, note }: UpdateDeliveryStatusPayload): Promise<any> => {
+    const res = await apiClient.put(API_ENDPOINTS.PROVIDER.APPOINTMENTS.UPDATE_DELIVERY_STATUS(id), { status, note });
+    return res.data;
+};
+
+const formatStatusLabel = (status: string) => {
+    const s = (status || '').toLowerCase().replace(/_/g, '-');
+    switch (s) {
+        case 'scheduled':
+        case 'confirmed':
+            return 'Scheduled';
+        case 'in-progress':
+            return 'In Progress';
+        case 'completed':
+            return 'Completed';
+        case 'report-processing':
+            return 'Report Processing';
+        case 'report-ready':
+            return 'Report Ready';
+        case 'report-delivered':
+            return 'Report Delivered';
+        case 'no-show':
+            return 'No Show';
+        case 'cancelled':
+        case 'canceled':
+            return 'Cancelled';
+        case 'rejected':
+            return 'Rejected';
+        case 'pending':
+            return 'Booking Requested';
+        case 'accepted':
+            return 'Accepted';
+        default:
+            return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Scheduled';
+    }
+};
+
+export const useUpdateAppointmentDeliveryStatus = () => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: ({ id, status, note }: UpdateDeliveryStatusPayload) =>
+            updateAppointmentDeliveryStatus({ id, status, note }),
+        onMutate: async ({ id, status, note }) => {
+            // Cancel outgoing refetches so they don't overwrite optimistic update
+            await queryClient.cancelQueries({ queryKey: ['providerAppointments'] });
+            await queryClient.cancelQueries({ queryKey: ['pendingAppointments'] });
+
+            // Snapshot previous data across all providerAppointments queries
+            const previousData = queryClient.getQueriesData({ queryKey: ['providerAppointments'] });
+
+            const normalizedStatus = String(status).toLowerCase().trim().replace(/_/g, '-');
+            const finalStatus = normalizedStatus === 'confirmed' ? 'scheduled' : normalizedStatus;
+            const label = formatStatusLabel(finalStatus);
+
+            // Optimistically update all matching providerAppointments queries immediately
+            queryClient.setQueriesData<ProviderAppointmentsResponse>(
+                { queryKey: ['providerAppointments'] },
+                (old) => {
+                    if (!old || !old.data) return old;
+                    return {
+                        ...old,
+                        data: old.data.map((apt) => {
+                            if (apt.id === id || apt._id === id) {
+                                const newStep: TrackingStep = {
+                                    status: finalStatus,
+                                    label,
+                                    timestamp: new Date().toISOString(),
+                                    updatedBy: 'Provider',
+                                    note: note || `Stage updated to ${label}`,
+                                };
+                                return {
+                                    ...apt,
+                                    status: finalStatus,
+                                    delivery_status: finalStatus,
+                                    tracking: [...(apt.tracking || []), newStep],
+                                };
+                            }
+                            return apt;
+                        }),
+                    };
+                }
+            );
+
+            return { previousData };
+        },
+        onError: (error: any, _vars, context: any) => {
+            if (context?.previousData) {
+                context.previousData.forEach(([key, data]: [any, any]) => {
+                    queryClient.setQueryData(key, data);
+                });
+            }
+            console.error('Update delivery status error:', error);
+            toast.error(error.response?.data?.message || 'Failed to update delivery status');
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['providerAppointments'] });
+            queryClient.invalidateQueries({ queryKey: ['pendingAppointments'] });
+            queryClient.invalidateQueries({ queryKey: ['patientAppointments'] });
+            queryClient.invalidateQueries({ queryKey: ['appointment'] });
+            queryClient.invalidateQueries({ queryKey: ['providerDashboardStats'] });
+        },
+        onSuccess: (data) => {
+            toast.success(data?.message || 'Delivery status updated successfully');
+        },
     });
 };
 
@@ -491,7 +648,7 @@ export interface InitializePaymentResponse {
 export const initializePayment = async (payload: InitializePaymentRequest): Promise<InitializePaymentResponse> => {
     const publicUrl = import.meta.env.VITE_APP_URL || window.location.origin;
     const base = String(publicUrl).replace(/\/$/, '');
-    const callback_url = payload.callback_url || `${base}/booking-history`;
+    const callback_url = payload.callback_url || `${base}/patient/booking/success?appointmentId=${payload.appointmentId}`;
     const res = await apiClient.post(API_ENDPOINTS.PATIENT.PAYMENTS.INITIALIZE, {
         appointmentId: payload.appointmentId,
         callback_url,
@@ -587,15 +744,16 @@ export interface PaymentReceiptResponse {
     data: PaymentReceiptData;
 }
 
-export const fetchPaymentReceipt = async (appointmentId: string): Promise<PaymentReceiptResponse> => {
-    const res = await apiClient.get(API_ENDPOINTS.PATIENT.PAYMENTS.RECEIPT(appointmentId));
+export const fetchPaymentReceipt = async (appointmentId: string, reference?: string): Promise<PaymentReceiptResponse> => {
+    const query = reference ? `?reference=${encodeURIComponent(reference)}` : '';
+    const res = await apiClient.get(`${API_ENDPOINTS.PATIENT.PAYMENTS.RECEIPT(appointmentId)}${query}`);
     return res.data as PaymentReceiptResponse;
 };
 
-export const usePaymentReceipt = (appointmentId: string | undefined) => {
+export const usePaymentReceipt = (appointmentId: string | undefined, reference?: string) => {
     return useQuery({
-        queryKey: ['paymentReceipt', appointmentId],
-        queryFn: () => fetchPaymentReceipt(appointmentId!),
+        queryKey: ['paymentReceipt', appointmentId, reference],
+        queryFn: () => fetchPaymentReceipt(appointmentId!, reference),
         enabled: !!appointmentId,
         staleTime: 5 * 60 * 1000, // 5 minutes
     });

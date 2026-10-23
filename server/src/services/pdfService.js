@@ -160,8 +160,9 @@ const generateReceiptPDF = (appointment, patient, provider, service) => {
             doc.font(fonts.bold).text('Time: ', col2X, contentY + lineHeight * 2)
                 .font(fonts.regular).text(`${appointment.start_time}`, col2X + 50, contentY + lineHeight * 2);
 
+            const addressStr = typeof provider.address === 'string' ? provider.address : (provider.address && typeof provider.address === 'object' ? [provider.address.street, provider.address.city, provider.address.state].filter(Boolean).join(', ') : 'Healthcare Facility');
             doc.font(fonts.bold).text('Location: ', col2X, contentY + lineHeight * 3)
-                .font(fonts.regular).text(provider.address, col2X + 50, contentY + lineHeight * 3, { width: 200 });
+                .font(fonts.regular).text(addressStr || 'Healthcare Facility', col2X + 50, contentY + lineHeight * 3, { width: 200 });
 
 
             // --- Payment Details Table ---

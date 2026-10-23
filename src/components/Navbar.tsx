@@ -7,6 +7,8 @@ import logo from '/icons/Logomark (1).png'
 // import profileIcon from '../../public/icons/profile.png'
 import { useGetUserProfile } from '../services/authService'
 
+import { DOCTOR_REFERRAL_URL } from '../config/api'
+
 function Navbar() {
   const location = useLocation();
   const { isAuthenticated, user } = useAuth();
@@ -32,7 +34,7 @@ function Navbar() {
   const isSearchPage = location.pathname === '/search';
 
   // Check if we're on a login page
-  const isLoginPage = ['/sign-in-patient', '/providers/signin', '/forgot-password'].includes(location.pathname);
+  const isLoginPage = ['/login', '/sign-in-patient', '/providers/signin', '/forgot-password'].includes(location.pathname);
 
   // Sync search input with filter
   React.useEffect(() => {
@@ -97,47 +99,38 @@ function Navbar() {
         </button>
       </div>
     );
-  } else if (location.pathname === '/providers/signin' || location.pathname === '/providers/signup') {
-    rightContent = (
-      <div className="flex items-center gap-2 sm:gap-4">
-        <span className="text-[#06202E] font-medium text-xs sm:text-sm hidden sm:inline">Are you a patient?</span>
-        <Link
-          to="/sign-in-patient"
-          className="px-3 sm:px-6 py-1.5 sm:py-2 border border-gray-300 rounded-[6px] text-[#06202E] hover:bg-gray-50 transition-colors font-medium text-xs sm:text-sm whitespace-nowrap"
-        >
-          Login
-        </Link>
-      </div>
-    );
-  } else if (isLoginPage) {
-    rightContent = (
-      <div className="flex items-center gap-2 sm:gap-4">
-        <span className="text-[#06202E] font-medium text-xs sm:text-sm hidden sm:inline">No account?</span>
-        <Link
-          to="/"
-          className="px-3 sm:px-6 py-1.5 sm:py-2 border border-gray-300 rounded-[6px] text-[#06202E] hover:bg-gray-50 transition-colors font-medium text-xs sm:text-sm whitespace-nowrap"
-        >
-          Sign up
-        </Link>
-      </div>
-    );
-  } else if (location.pathname === '/' || location.pathname === '/onboarding' || location.pathname === '/login') {
+  } else if (isLoginPage || location.pathname === '/' || location.pathname === '/onboarding' || location.pathname === '/onboardingPatient') {
     rightContent = (
       <div className="flex items-center space-x-2 sm:space-x-4">
-        <span className="text-gray-700 text-xs sm:text-sm hidden sm:inline">Are you a provider?</span>
-        <Link to="/providers/signin" className="px-3 sm:px-4 py-1.5 sm:py-2 border border-gray-300 rounded-md text-gray-700 hover:text-gray-900 text-xs sm:text-sm whitespace-nowrap">
-          Sign in
-        </Link>
+        <a
+          href={DOCTOR_REFERRAL_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-gray-700 hover:text-gray-900 text-xs sm:text-sm hidden sm:inline transition-colors"
+        >
+          Are you a doctor?
+        </a>
+        <a
+          href={DOCTOR_REFERRAL_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="px-3 sm:px-4 py-1.5 sm:py-2 border border-gray-300 rounded-[6px] text-gray-700 hover:text-gray-900 hover:bg-gray-50 transition-colors font-medium text-xs sm:text-sm whitespace-nowrap"
+        >
+          Sign up
+        </a>
       </div>
     );
-  } else if (location.pathname === '/verify') {
+  } else if (location.pathname === '/providers/signup' || location.pathname === '/verify' || location.pathname === '/providers/verify') {
     rightContent = null;
   } else {
     rightContent = (
       <div className="flex items-center space-x-2 sm:space-x-4">
-        <span className="text-gray-700 text-xs sm:text-sm hidden sm:inline">Are you a provider?</span>
-        <Link to="/providers/signin" className="px-3 sm:px-4 py-1.5 sm:py-2 border border-gray-300 rounded-md text-gray-700 hover:text-gray-900 text-xs sm:text-sm whitespace-nowrap">
-          Sign in
+        <span className="text-gray-700 text-xs sm:text-sm hidden sm:inline">Already have an account?</span>
+        <Link
+          to="/login"
+          className="px-3 sm:px-5 py-1.5 sm:py-2 border border-gray-300 rounded-[6px] text-[#06202E] hover:bg-gray-50 transition-colors font-medium text-xs sm:text-sm whitespace-nowrap"
+        >
+          Login
         </Link>
       </div>
     );
@@ -161,35 +154,6 @@ function Navbar() {
           {/* Right section - Search and Profile/Login */}
           <div className="flex justify-end shrink-0">
             <div className="flex items-center gap-2 sm:gap-4">
-              {/* Search bar - only show on search page */}
-              {isSearchPage && (
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                    <svg
-                      className="h-5 w-5 text-gray-400"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth={2}
-                      viewBox="0 0 24 24"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                      />
-                    </svg>
-                  </div>
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={handleSearchChange}
-                    onKeyPress={handleSearchSubmit}
-                    placeholder="Search providers or locations..."
-                    className="block w-64 pl-10 pr-3 py-2 border border-gray-300 rounded-[28px] leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  />
-                </div>
-              )}
               {rightContent}
             </div>
           </div>

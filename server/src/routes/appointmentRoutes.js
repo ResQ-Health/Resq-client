@@ -90,6 +90,13 @@ router.put(
   appointmentController.confirmAppointment,
 );
 
+// Update appointment service delivery status (provider/clinician/admin)
+router.put(
+  "/:appointmentId/status",
+  protect,
+  appointmentController.updateAppointmentDeliveryStatus,
+);
+
 // Auto-confirm an appointment (system function)
 router.put(
   "/:appointmentId/auto-confirm",

@@ -11,6 +11,20 @@ import { LoadingSpinner } from '../../components/LoadingSpinner';
 // Provider data in JSON format - this will be replaced with dynamic data
 // removed dummy getProviderData; will map from API
 
+// Pagination helper for page numbers with ellipses
+const getPageNumbers = (current: number, total: number) => {
+    if (total <= 7) {
+        return Array.from({ length: total }, (_, i) => i + 1);
+    }
+    if (current <= 4) {
+        return [1, 2, 3, 4, 5, '...', total];
+    }
+    if (current >= total - 3) {
+        return [1, '...', total - 4, total - 3, total - 2, total - 1, total];
+    }
+    return [1, '...', current - 1, current, current + 1, '...', total];
+};
+
 const ProviderPage = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
@@ -33,6 +47,9 @@ const ProviderPage = () => {
     const [activeTab, setActiveTab] = useState('About');
     const [showAllServices, setShowAllServices] = useState(false);
     const [expandedServiceKey, setExpandedServiceKey] = useState<string | null>(null);
+    const [servicesPage, setServicesPage] = useState(1);
+    const [servicesSearchQuery, setServicesSearchQuery] = useState('');
+    const SERVICES_PER_PAGE = 8;
     const [showFullPolicy, setShowFullPolicy] = useState(false);
     const [policyPage, setPolicyPage] = useState(1);
     const [showReviewsModal, setShowReviewsModal] = useState(false);
@@ -133,6 +150,7 @@ const ProviderPage = () => {
             return;
         }
 
+        setError(null);
         const p = providerFromApi as any;
 
         const addressStr = [p?.address?.street, p?.address?.city, p?.address?.state]
@@ -1104,6 +1122,102 @@ const ProviderPage = () => {
         });
     }, [calendarMonth, calendarYear]);
 
+    // Services list calculation for Practice Information with search and pagination
+    const activeServicesList: Array<{
+        id?: string;
+        name: string;
+        price?: string;
+        category?: string;
+        description?: string;
+        uses?: string;
+    }> = useMemo(() => {
+        if (!providerData) return [];
+        if (showAllServices) {
+            const allServices: Array<{
+                id?: string;
+                name: string;
+                price?: string;
+                category?: string;
+                description?: string;
+                uses?: string;
+            }> = [];
+            const serviceNamesSet = new Set<string>();
+
+            const practiceServices = providerData.practiceInfo?.services;
+            if (practiceServices && typeof practiceServices === 'object') {
+                Object.entries(practiceServices).forEach(([category, serviceList]: [string, any]) => {
+                    if (Array.isArray(serviceList)) {
+                        serviceList.forEach((service: any) => {
+                            if (service.name && !serviceNamesSet.has(service.name)) {
+                                allServices.push({
+                                    id: service.id,
+                                    name: service.name,
+                                    price: service.price,
+                                    description: service.description,
+                                    uses: service.uses,
+                                    category,
+                                });
+                                serviceNamesSet.add(service.name);
+                            }
+                        });
+                    }
+                });
+            }
+
+            if (providerData.services && Array.isArray(providerData.services)) {
+                providerData.services.forEach((service: any) => {
+                    const serviceName = typeof service === 'string' ? service : (service?.name || String(service));
+                    if (serviceName && !serviceNamesSet.has(serviceName)) {
+                        const servicePrice = typeof service === 'object' && service?.price ? service.price : '';
+                        allServices.push({ name: serviceName, price: servicePrice });
+                        serviceNamesSet.add(serviceName);
+                    }
+                });
+            }
+
+            if (providerFromApi?.services && Array.isArray(providerFromApi.services)) {
+                providerFromApi.services.forEach((service: any) => {
+                    const serviceName = typeof service === 'string' ? service : (service?.name || service?.serviceName || String(service));
+                    if (serviceName && !serviceNamesSet.has(serviceName)) {
+                        const servicePrice = typeof service === 'object' && service?.price ? service.price : '';
+                        allServices.push({ name: serviceName, price: servicePrice });
+                        serviceNamesSet.add(serviceName);
+                    }
+                });
+            }
+
+            return allServices;
+        } else {
+            const servicesForTab = providerData.practiceInfo?.services?.[activeServiceTab as keyof typeof providerData.practiceInfo.services];
+            if (!Array.isArray(servicesForTab)) return [];
+            return servicesForTab.map((s: any) => ({
+                id: s.id,
+                name: s.name,
+                price: s.price,
+                category: activeServiceTab,
+                description: s.description,
+                uses: s.uses,
+            }));
+        }
+    }, [providerData, showAllServices, activeServiceTab, providerFromApi]);
+
+    const filteredServicesList = useMemo(() => {
+        if (!servicesSearchQuery.trim()) return activeServicesList;
+        const q = servicesSearchQuery.toLowerCase();
+        return activeServicesList.filter(s =>
+            s.name.toLowerCase().includes(q) ||
+            (s.description || '').toLowerCase().includes(q) ||
+            (s.uses || '').toLowerCase().includes(q) ||
+            (s.category || '').toLowerCase().includes(q)
+        );
+    }, [activeServicesList, servicesSearchQuery]);
+
+    const totalServicesPages = Math.ceil(filteredServicesList.length / SERVICES_PER_PAGE) || 1;
+    const paginatedServices = useMemo(() => {
+        const start = (servicesPage - 1) * SERVICES_PER_PAGE;
+        return filteredServicesList.slice(start, start + SERVICES_PER_PAGE);
+    }, [filteredServicesList, servicesPage]);
+
     if (loading) {
         return <LoadingSpinner />;
     }
@@ -1116,7 +1230,7 @@ const ProviderPage = () => {
                     <p className="text-gray-600 mb-4">{error || 'The provider you are looking for does not exist.'}</p>
                     <button
                         onClick={() => window.history.back()}
-                        className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+                        className="bg-[#06202E] text-white px-4 py-2 rounded-md hover:bg-[#0a2e42] transition-colors"
                     >
                         Go Back
                     </button>
@@ -1259,7 +1373,7 @@ const ProviderPage = () => {
                                                                 setShowBookingModal(true);
                                                                 setBookingSelectedService(selectedService);
                                                             }}
-                                                            className="px-2 py-2 rounded-full text-xs border border-blue-100 text-blue-600 bg-blue-50 hover:bg-blue-100 hover:border-blue-200 transition-colors text-center font-medium"
+                                                            className="px-2 py-2 rounded-full text-xs border border-[#06202E]/20 text-[#06202E] bg-[#06202E]/5 hover:bg-[#06202E]/10 hover:border-[#06202E]/40 transition-colors text-center font-medium"
                                                         >
                                                             +{slots.length - 5} slots
                                                         </button>
@@ -1297,7 +1411,7 @@ const ProviderPage = () => {
                                                             }}
                                                             className={`px-2 py-2 rounded-full text-xs border transition-colors text-center ${selectedDate === tomorrowISO && selectedTime && timeStringToMinutes(selectedTime) === timeStringToMinutes(slot)
                                                                 ? 'bg-[#06202E] text-white border-[#06202E]'
-                                                                : 'border-gray-200 text-gray-700 hover:border-blue-500 hover:text-blue-600'
+                                                                : 'border-gray-200 text-gray-700 hover:border-[#06202E] hover:text-[#06202E]'
                                                                 }`}
                                                         >
                                                             {slot}
@@ -1310,7 +1424,7 @@ const ProviderPage = () => {
                                                                 setShowBookingModal(true);
                                                                 setBookingSelectedService(selectedService);
                                                             }}
-                                                            className="px-2 py-2 rounded-full text-xs border border-blue-100 text-blue-600 bg-blue-50 hover:bg-blue-100 hover:border-blue-200 transition-colors text-center font-medium"
+                                                            className="px-2 py-2 rounded-full text-xs border border-[#06202E]/20 text-[#06202E] bg-[#06202E]/5 hover:bg-[#06202E]/10 hover:border-[#06202E]/40 transition-colors text-center font-medium"
                                                         >
                                                             +{slots.length - 5} slots
                                                         </button>
@@ -1349,7 +1463,7 @@ const ProviderPage = () => {
                                                                 }}
                                                                 className={`px-2 py-2 rounded-full text-xs border transition-colors text-center ${selectedDate === nextAvailableFromTomorrowISO && selectedTime && timeStringToMinutes(selectedTime) === timeStringToMinutes(slot)
                                                                     ? 'bg-[#06202E] text-white border-[#06202E]'
-                                                                    : 'border-gray-200 text-gray-700 hover:border-blue-500 hover:text-blue-600'
+                                                                    : 'border-gray-200 text-gray-700 hover:border-[#06202E] hover:text-[#06202E]'
                                                                     }`}
                                                             >
                                                                 {slot}
@@ -1362,7 +1476,7 @@ const ProviderPage = () => {
                                                                     setShowBookingModal(true);
                                                                     setBookingSelectedService(selectedService);
                                                                 }}
-                                                                className="px-2 py-2 rounded-full text-xs border border-blue-100 text-blue-600 bg-blue-50 hover:bg-blue-100 hover:border-blue-200 transition-colors text-center font-medium"
+                                                                className="px-2 py-2 rounded-full text-xs border border-[#06202E]/20 text-[#06202E] bg-[#06202E]/5 hover:bg-[#06202E]/10 hover:border-[#06202E]/40 transition-colors text-center font-medium"
                                                             >
                                                                 +{slots.length - 5} slots
                                                             </button>
@@ -1548,265 +1662,236 @@ const ProviderPage = () => {
                             <h3 className="text-lg font-semibold text-gray-900 mb-6">Practice Information</h3>
 
                             {/* Services Section */}
-                            <div className="mb-8">
-                                <div className="flex items-center justify-between mb-4">
-                                    <h4 className="text-md font-medium text-gray-900">Services</h4>
+                            <div id="provider-services-section" className="mb-8 scroll-mt-24">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
+                                    <div className="flex items-center gap-2.5">
+                                        <h4 className="text-md font-semibold text-gray-900">Services</h4>
+                                        <span className="text-xs bg-gray-100 text-gray-600 px-2.5 py-0.5 rounded-full font-medium">
+                                            {filteredServicesList.length} total
+                                        </span>
+                                    </div>
                                     <button
-                                        onClick={() => setShowAllServices(!showAllServices)}
-                                        className="text-[#06202E] hover:text-[#06202E]/80 text-sm underline"
+                                        type="button"
+                                        onClick={() => {
+                                            setShowAllServices(!showAllServices);
+                                            setServicesPage(1);
+                                        }}
+                                        className="text-[#06202E] hover:text-[#06202E]/80 text-sm font-medium underline self-start sm:self-auto cursor-pointer"
                                     >
                                         {showAllServices ? 'Show by category' : 'Show all'}
                                     </button>
                                 </div>
 
+                                {/* Search Bar for Services */}
+                                <div className="relative mb-4">
+                                    <input
+                                        type="text"
+                                        value={servicesSearchQuery}
+                                        onChange={(e) => {
+                                            setServicesSearchQuery(e.target.value);
+                                            setServicesPage(1);
+                                        }}
+                                        placeholder="Search services or scans (e.g. Brain MRI, CT Chest, Liver)..."
+                                        className="w-full px-3.5 py-2 pl-9 rounded-lg border border-gray-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-[#06202E]/10 focus:border-[#06202E]"
+                                    />
+                                    <svg className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                    </svg>
+                                    {servicesSearchQuery && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setServicesSearchQuery('');
+                                                setServicesPage(1);
+                                            }}
+                                            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs cursor-pointer"
+                                        >
+                                            ✕
+                                        </button>
+                                    )}
+                                </div>
+
                                 {/* Service Tabs - Hide when showing all */}
                                 {!showAllServices && (
-                                    <div className="flex space-x-1 mb-4">
-                                        {['scans', 'tests', 'consultation'].map((tab) => (
-                                            <button
-                                                key={tab}
-                                                onClick={() => setActiveServiceTab(tab)}
-                                                className={`px-4 py-2 text-sm rounded-md transition-colors ${activeServiceTab === tab
-                                                    ? 'bg-gray-800 text-white'
-                                                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    <div className="flex space-x-2 mb-4 overflow-x-auto pb-1">
+                                        {['scans', 'tests', 'consultation'].map((tab) => {
+                                            const tabList = providerData.practiceInfo?.services?.[tab as keyof typeof providerData.practiceInfo.services];
+                                            const count = Array.isArray(tabList) ? tabList.length : 0;
+                                            return (
+                                                <button
+                                                    key={tab}
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setActiveServiceTab(tab);
+                                                        setServicesPage(1);
+                                                    }}
+                                                    className={`px-3.5 py-2 text-xs sm:text-sm rounded-lg font-medium transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
+                                                        activeServiceTab === tab
+                                                            ? 'bg-[#06202E] text-white shadow-xs'
+                                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                                     }`}
-                                            >
-                                                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                                            </button>
-                                        ))}
+                                                >
+                                                    <span>{tab.charAt(0).toUpperCase() + tab.slice(1)}</span>
+                                                    {count > 0 && (
+                                                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${
+                                                            activeServiceTab === tab ? 'bg-white/20 text-white font-bold' : 'bg-gray-200 text-gray-600'
+                                                        }`}>
+                                                            {count}
+                                                        </span>
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
                                     </div>
                                 )}
 
                                 {/* Service List */}
                                 <div className="space-y-3">
-                                    {showAllServices ? (
-                                        // Show all services from all categories
-                                        (() => {
-                                            const allServices: Array<{
-                                                id?: string;
-                                                name: string;
-                                                price?: string;
-                                                category?: string;
-                                                description?: string;
-                                                uses?: string;
-                                            }> = [];
-                                            const serviceNamesSet = new Set<string>(); // To avoid duplicates
-
-                                            // First, get services from practiceInfo.services (categorized)
-                                            const practiceServices = providerData.practiceInfo?.services;
-                                            if (practiceServices && typeof practiceServices === 'object') {
-                                                Object.entries(practiceServices).forEach(([category, serviceList]: [string, any]) => {
-                                                    if (Array.isArray(serviceList)) {
-                                                        serviceList.forEach((service: any) => {
-                                                            if (service.name && !serviceNamesSet.has(service.name)) {
-                                                                allServices.push({
-                                                                    id: service.id,
-                                                                    name: service.name,
-                                                                    price: service.price,
-                                                                    description: service.description,
-                                                                    uses: service.uses,
-                                                                    category,
-                                                                });
-                                                                serviceNamesSet.add(service.name);
-                                                            }
-                                                        });
-                                                    }
-                                                });
-                                            }
-
-                                            // Also add services from providerData.services (flat array) if not already included
-                                            if (providerData.services && Array.isArray(providerData.services)) {
-                                                providerData.services.forEach((service: any) => {
-                                                    const serviceName = typeof service === 'string' ? service : (service?.name || String(service));
-                                                    if (serviceName && !serviceNamesSet.has(serviceName)) {
-                                                        const servicePrice = typeof service === 'object' && service?.price ? service.price : '';
-                                                        allServices.push({ name: serviceName, price: servicePrice });
-                                                        serviceNamesSet.add(serviceName);
-                                                    }
-                                                });
-                                            }
-
-                                            // Also check providerFromApi as additional source
-                                            if (providerFromApi?.services && Array.isArray(providerFromApi.services)) {
-                                                providerFromApi.services.forEach((service: any) => {
-                                                    const serviceName = typeof service === 'string' ? service : (service?.name || service?.serviceName || String(service));
-                                                    if (serviceName && !serviceNamesSet.has(serviceName)) {
-                                                        const servicePrice = typeof service === 'object' && service?.price ? service.price : '';
-                                                        allServices.push({ name: serviceName, price: servicePrice });
-                                                        serviceNamesSet.add(serviceName);
-                                                    }
-                                                });
-                                            }
-
-                                            if (allServices.length === 0) {
-                                                return (
-                                                    <div className="text-gray-500 text-sm py-4 bg-gray-50 rounded-lg text-center">
-                                                        <p>No services available</p>
-                                                    </div>
-                                                );
-                                            }
-
-                                            return allServices.map((service, index) => {
-                                                const key = `${service.id || service.name}-${service.category || 'uncategorized'}-${index}`;
-                                                const isExpanded = expandedServiceKey === key;
-                                                return (
-                                                    <div key={key} className="rounded-xl border border-gray-100 bg-white">
-                                                        <div className="p-4 flex items-start justify-between gap-4">
-                                                            <div className="min-w-0">
-                                                                <div className="flex items-center gap-2 flex-wrap">
-                                                                    <div className="text-sm font-semibold text-gray-900 truncate">
-                                                                        {service.name}
-                                                                    </div>
-                                                                    {service.category && (
-                                                                        <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 capitalize">
-                                                                            {service.category}
-                                                                        </span>
-                                                                    )}
+                                    {paginatedServices.length === 0 ? (
+                                        <div className="text-gray-500 text-sm py-8 bg-gray-50 rounded-lg text-center">
+                                            <p className="font-medium text-gray-700">No services found</p>
+                                            {servicesSearchQuery && (
+                                                <p className="text-xs text-gray-400 mt-1">Try searching for a different keyword</p>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        paginatedServices.map((service, index) => {
+                                            const key = `${service.id || service.name}-${service.category || 'uncategorized'}-${index}`;
+                                            const isExpanded = expandedServiceKey === key;
+                                            return (
+                                                <div key={key} className="rounded-xl border border-gray-100 bg-white hover:border-gray-200 transition-colors">
+                                                    <div className="p-4 flex items-start justify-between gap-4">
+                                                        <div className="min-w-0">
+                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                                <div className="text-sm font-semibold text-gray-900 truncate">
+                                                                    {service.name}
                                                                 </div>
-                                                                {(service.description || service.uses) && (
-                                                                    <div className="text-xs text-gray-500 mt-1 line-clamp-2">
-                                                                        {service.description || service.uses}
-                                                                    </div>
-                                                                )}
-                                                            </div>
-
-                                                            <div className="flex items-center gap-3 shrink-0">
-                                                                {!!service.price && (
-                                                                    <span className="text-sm font-semibold text-gray-900 whitespace-nowrap">
-                                                                        {service.price}
+                                                                {service.category && (
+                                                                    <span className="text-[11px] px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 capitalize font-medium">
+                                                                        {service.category}
                                                                     </span>
                                                                 )}
-                                                                {(service.description || service.uses) && (
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => setExpandedServiceKey((prev) => (prev === key ? null : key))}
-                                                                        className="text-xs text-[#06202E] hover:text-[#06202E]/80 underline whitespace-nowrap"
-                                                                    >
-                                                                        {isExpanded ? 'Hide details' : 'Details'}
-                                                                    </button>
-                                                                )}
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        setShowBookingModal(true);
-                                                                        setBookingSelectedService(service.name);
-                                                                        setShowDateTimeError(false);
-                                                                    }}
-                                                                    className="bg-[#06202E] text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-[#06202E]/90 transition-colors whitespace-nowrap"
-                                                                >
-                                                                    Book
-                                                                </button>
                                                             </div>
+                                                            {(service.description || service.uses) && (
+                                                                <div className="text-xs text-gray-500 mt-1 line-clamp-2">
+                                                                    {service.description || service.uses}
+                                                                </div>
+                                                            )}
                                                         </div>
 
-                                                        {isExpanded && (service.description || service.uses) && (
-                                                            <div className="px-4 pb-4">
-                                                                <div className="bg-gray-50 border border-gray-100 rounded-lg p-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                                    {service.description && (
-                                                                        <div>
-                                                                            <div className="text-[11px] font-semibold text-gray-600 mb-1">Description</div>
-                                                                            <div className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">
-                                                                                {service.description}
-                                                                            </div>
-                                                                        </div>
-                                                                    )}
-                                                                    {service.uses && (
-                                                                        <div>
-                                                                            <div className="text-[11px] font-semibold text-gray-600 mb-1">Uses</div>
-                                                                            <div className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">
-                                                                                {service.uses}
-                                                                            </div>
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        )}
+                                                        <div className="flex items-center gap-3 shrink-0">
+                                                            {!!service.price && (
+                                                                <span className="text-sm font-bold text-emerald-600 whitespace-nowrap">
+                                                                    {service.price}
+                                                                </span>
+                                                            )}
+                                                            {(service.description || service.uses) && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setExpandedServiceKey((prev) => (prev === key ? null : key))}
+                                                                    className="text-xs text-[#06202E] hover:text-[#06202E]/80 underline whitespace-nowrap cursor-pointer"
+                                                                >
+                                                                    {isExpanded ? 'Hide details' : 'Details'}
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => {
+                                                                    setShowBookingModal(true);
+                                                                    setBookingSelectedService(service.name);
+                                                                    setShowDateTimeError(false);
+                                                                }}
+                                                                className="bg-[#06202E] text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-[#06202E]/90 transition-colors whitespace-nowrap cursor-pointer"
+                                                            >
+                                                                Book
+                                                            </button>
+                                                        </div>
                                                     </div>
-                                                );
-                                            });
-                                        })()
-                                    ) : (
-                                        // Show services for active tab
-                                        (() => {
-                                            const servicesForTab = providerData.practiceInfo?.services[activeServiceTab as keyof typeof providerData.practiceInfo.services];
-                                            if (!servicesForTab || servicesForTab.length === 0) {
-                                                return (
-                                                    <div className="text-gray-500 text-sm py-4 bg-gray-50 rounded-lg text-center">
-                                                        <p>No services available</p>
-                                                    </div>
-                                                );
-                                            }
 
-                                            return servicesForTab.map((service: any, index: number) => {
-                                                const key = `${service?.id || service?.name || 'service'}-${activeServiceTab}-${index}`;
-                                                const isExpanded = expandedServiceKey === key;
-                                                return (
-                                                    <div key={key} className="rounded-xl border border-gray-100 bg-white">
-                                                        <div className="p-4 flex items-start justify-between gap-4">
-                                                            <div className="min-w-0">
-                                                                <div className="text-sm font-semibold text-gray-900 truncate">{service.name}</div>
-                                                                {(service.description || service.uses) && (
-                                                                    <div className="text-xs text-gray-500 mt-1 line-clamp-2">
-                                                                        {service.description || service.uses}
+                                                    {isExpanded && (service.description || service.uses) && (
+                                                        <div className="px-4 pb-4">
+                                                            <div className="bg-gray-50 border border-gray-100 rounded-lg p-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                                {service.description && (
+                                                                    <div>
+                                                                        <div className="text-[11px] font-semibold text-gray-600 mb-1">Description</div>
+                                                                        <div className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">
+                                                                            {service.description}
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+                                                                {service.uses && (
+                                                                    <div>
+                                                                        <div className="text-[11px] font-semibold text-gray-600 mb-1">Uses</div>
+                                                                        <div className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">
+                                                                            {service.uses}
+                                                                        </div>
                                                                     </div>
                                                                 )}
                                                             </div>
-
-                                                            <div className="flex items-center gap-3 shrink-0">
-                                                                {!!service.price && (
-                                                                    <span className="text-sm font-semibold text-gray-900 whitespace-nowrap">{service.price}</span>
-                                                                )}
-                                                                {(service.description || service.uses) && (
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={() => setExpandedServiceKey((prev) => (prev === key ? null : key))}
-                                                                        className="text-xs text-[#06202E] hover:text-[#06202E]/80 underline whitespace-nowrap"
-                                                                    >
-                                                                        {isExpanded ? 'Hide details' : 'Details'}
-                                                                    </button>
-                                                                )}
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => {
-                                                                        setShowBookingModal(true);
-                                                                        setBookingSelectedService(service.name);
-                                                                        setShowDateTimeError(false);
-                                                                    }}
-                                                                    className="bg-[#06202E] text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-[#06202E]/90 transition-colors whitespace-nowrap"
-                                                                >
-                                                                    Book
-                                                                </button>
-                                                            </div>
                                                         </div>
-
-                                                        {isExpanded && (service.description || service.uses) && (
-                                                            <div className="px-4 pb-4">
-                                                                <div className="bg-gray-50 border border-gray-100 rounded-lg p-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                                    {service.description && (
-                                                                        <div>
-                                                                            <div className="text-[11px] font-semibold text-gray-600 mb-1">Description</div>
-                                                                            <div className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">
-                                                                                {service.description}
-                                                                            </div>
-                                                                        </div>
-                                                                    )}
-                                                                    {service.uses && (
-                                                                        <div>
-                                                                            <div className="text-[11px] font-semibold text-gray-600 mb-1">Uses</div>
-                                                                            <div className="text-xs text-gray-700 leading-relaxed whitespace-pre-wrap">
-                                                                                {service.uses}
-                                                                            </div>
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                );
-                                            });
-                                        })()
+                                                    )}
+                                                </div>
+                                            );
+                                        })
                                     )}
                                 </div>
+
+                                {/* Pagination Controls */}
+                                {totalServicesPages > 1 && (
+                                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-5 border-t border-gray-100 mt-4">
+                                        <div className="text-xs text-gray-500 font-medium">
+                                            Showing <span className="font-bold text-gray-800">{(servicesPage - 1) * SERVICES_PER_PAGE + 1}</span> to <span className="font-bold text-gray-800">{Math.min(servicesPage * SERVICES_PER_PAGE, filteredServicesList.length)}</span> of <span className="font-bold text-gray-800">{filteredServicesList.length}</span> services
+                                        </div>
+
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                            <button
+                                                type="button"
+                                                disabled={servicesPage <= 1}
+                                                onClick={() => {
+                                                    setServicesPage(p => Math.max(1, p - 1));
+                                                    document.getElementById('provider-services-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                }}
+                                                className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                                            >
+                                                Previous
+                                            </button>
+
+                                            {getPageNumbers(servicesPage, totalServicesPages).map((p, idx) => (
+                                                p === '...' ? (
+                                                    <span key={`ellipsis-${idx}`} className="px-1 text-xs text-gray-400">...</span>
+                                                ) : (
+                                                    <button
+                                                        key={`page-${p}`}
+                                                        type="button"
+                                                        onClick={() => {
+                                                            setServicesPage(Number(p));
+                                                            document.getElementById('provider-services-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                        }}
+                                                        className={`min-w-[30px] h-7 px-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                                                            servicesPage === p
+                                                                ? 'bg-[#06202E] text-white shadow-xs'
+                                                                : 'bg-gray-50 border border-gray-200 text-gray-700 hover:bg-gray-100'
+                                                        }`}
+                                                    >
+                                                        {p}
+                                                    </button>
+                                                )
+                                            ))}
+
+                                            <button
+                                                type="button"
+                                                disabled={servicesPage >= totalServicesPages}
+                                                onClick={() => {
+                                                    setServicesPage(p => Math.min(totalServicesPages, p + 1));
+                                                    document.getElementById('provider-services-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                                }}
+                                                className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
+                                            >
+                                                Next
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             {/* Contact Details */}
@@ -2634,7 +2719,7 @@ const ProviderPage = () => {
                                 <button
                                     onClick={() => {
                                         setShowSignInModal(false);
-                                        navigate('/sign-in-patient', { state: { from: window.location.pathname } });
+                                        navigate('/login', { state: { from: window.location.pathname } });
                                     }}
                                     className="flex-1 px-4 py-2 bg-gray-900 text-white rounded-md hover:bg-gray-800 transition-colors font-medium"
                                 >

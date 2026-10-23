@@ -37,7 +37,7 @@ export default function SettingsPage() {
 
     const handleLogout = () => {
         logout();
-        navigate('/sign-in-patient');
+        navigate('/login');
         toast.success('Logged out successfully');
     };
 

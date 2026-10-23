@@ -2089,7 +2089,11 @@ const getProviderAppointments = async (req, res) => {
         const provider = await Provider.findOne({ user_id: req.user.id });
         if (!provider) return res.status(404).json({ success: false, message: 'Provider not found' });
 
-        const query = { provider_id: provider.id };
+        const providerIds = [provider.id, provider.user_id, String(provider._id)].filter(Boolean);
+        const query = {
+            provider_id: { $in: providerIds },
+            is_deleted: { $ne: true }
+        };
 
         // Period Filter
         const now = new Date();
@@ -3733,14 +3737,16 @@ const getPendingAppointments = async (req, res) => {
         const limit = parseInt(req.query.limit, 10) || 10;
         const startIndex = (page - 1) * limit;
 
-        const total = await Appointment.countDocuments({
-            provider_id: provider.id,
-            status: 'pending'
-        });
-        const appointments = await Appointment.find({
-            provider_id: provider.id,
-            status: 'pending'
-        })
+        const providerIds = [provider.id, provider.user_id, String(provider._id)].filter(Boolean);
+
+        const pendingQuery = {
+            provider_id: { $in: providerIds },
+            status: 'pending',
+            is_deleted: { $ne: true }
+        };
+
+        const total = await Appointment.countDocuments(pendingQuery);
+        const appointments = await Appointment.find(pendingQuery)
             .populate('patient', 'full_name email phone_number profile_picture personal_details location_details')
             .populate('service', 'name category duration price')
             .sort({ created_at: -1 })

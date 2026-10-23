@@ -7,8 +7,24 @@ const PaymentCallback = () => {
     const location = useLocation();
 
     useEffect(() => {
-        // Forward directly to booking-history, retaining any Paystack reference params
-        navigate(`/booking-history${location.search}`, { replace: true });
+        const searchParams = new URLSearchParams(location.search);
+        let appointmentId = searchParams.get('appointmentId') || searchParams.get('appointment_id');
+        if (!appointmentId) {
+            try {
+                const draft = JSON.parse(localStorage.getItem('bookingDraft') || '{}');
+                appointmentId = draft?.appointment?.id || draft?.appointment?._id || draft?.appointmentId;
+            } catch {
+                // Ignore
+            }
+        }
+
+        if (appointmentId) {
+            const separator = location.search.includes('?') ? '&' : '?';
+            const extra = !searchParams.has('appointmentId') ? `${separator}appointmentId=${appointmentId}` : '';
+            navigate(`/patient/booking/success${location.search}${extra}`, { replace: true });
+        } else {
+            navigate(`/booking-history${location.search}`, { replace: true });
+        }
     }, [navigate, location.search]);
 
     return <LoadingSpinner />;

@@ -76,17 +76,22 @@ function SignInProvider() {
           is_onboarding_complete: isOnboardingComplete,
         });
 
-        // Check user type to ensure they are a provider
-        if (data.data.user_type !== 'DiagnosticProvider') {
-          toast.error('This account is not authorized as a Provider.');
-          // Ideally logout immediately, but for now just warn?
-          // Or maybe redirection logic handles it?
-        }
+        const userType = data.data.user_type?.toLowerCase();
+        const isProvider = userType === 'diagnosticprovider' || userType === 'provider' || userType === 'clinician';
 
         if (data.data.email_verified) {
-          navigate(isOnboardingComplete ? '/provider/dashboard' : '/welcome-provider', { replace: true });
+          if (isProvider) {
+            navigate(isOnboardingComplete ? '/provider/dashboard' : '/welcome-provider', { replace: true });
+          } else {
+            const hasCompletedOnboarding = !!data.data.is_onboarding_complete;
+            if (hasCompletedOnboarding) {
+              navigate('/booking-history', { replace: true });
+            } else {
+              navigate('/patient/my-account', { replace: true });
+            }
+          }
         } else {
-          navigate('/verify-provider', { replace: true });
+          navigate(isProvider ? '/providers/verify' : '/verify', { replace: true });
         }
       },
       onError: (error) => {

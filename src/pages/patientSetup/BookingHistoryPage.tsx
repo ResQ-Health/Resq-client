@@ -13,7 +13,11 @@ import {
     FaIdCard, 
     FaUserCheck, 
     FaExclamationTriangle,
-    FaClock
+    FaClock,
+    FaCalendarAlt,
+    FaCreditCard,
+    FaUser,
+    FaUserFriends
 } from 'react-icons/fa';
 import { FiEye, FiDownload } from 'react-icons/fi';
 import { BsThreeDotsVertical } from 'react-icons/bs';
@@ -22,6 +26,7 @@ import { TiPlusOutline } from 'react-icons/ti';
 import { SlHome } from 'react-icons/sl';
 import { RiDeleteBinLine } from 'react-icons/ri';
 import { LiaTimesCircle } from 'react-icons/lia';
+import { TbTruckDelivery } from 'react-icons/tb';
 import { useNavigate } from 'react-router-dom';
 import { usePatientAppointments, useDeleteAppointment, useClaimReferral, Appointment } from '../../services/userService';
 import { fetchPaymentReceipt, PaymentReceiptData, useInitializePayment } from '../../services/providerService';
@@ -102,6 +107,7 @@ export default function BookingHistoryPage() {
     const [showFilterDropdown, setShowFilterDropdown] = useState(false);
     const [selectedAppointment, setSelectedAppointment] = useState<any>(null);
     const [showDetailsModal, setShowDetailsModal] = useState(false);
+    const [modalActiveTab, setModalActiveTab] = useState<'delivery' | 'overview' | 'payment'>('delivery');
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const sortDropdownRef = useRef<HTMLDivElement>(null);
     const filterDropdownRef = useRef<HTMLDivElement>(null);
@@ -222,13 +228,57 @@ export default function BookingHistoryPage() {
         };
     });
 
+    // Helper function to get delivery status labels
+    const getDeliveryStatusLabel = (status: string) => {
+        const s = (status || '').toLowerCase().replace(/_/g, '-');
+        switch (s) {
+            case 'scheduled':
+            case 'confirmed':
+                return 'Scheduled';
+            case 'in-progress':
+                return 'In Progress';
+            case 'completed':
+                return 'Completed';
+            case 'report-processing':
+                return 'Report Processing';
+            case 'report-ready':
+                return 'Report Ready';
+            case 'report-delivered':
+                return 'Report Delivered';
+            case 'no-show':
+                return 'No Show';
+            case 'cancelled':
+            case 'canceled':
+                return 'Cancelled';
+            case 'rejected':
+                return 'Rejected';
+            case 'pending':
+                return 'Booking Requested';
+            case 'accepted':
+                return 'Accepted';
+            default:
+                return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Scheduled';
+        }
+    };
+
     // Helper function to get status colors
     const getStatusColor = (status: string) => {
-        switch (status.toLowerCase()) {
+        const s = (status || '').toLowerCase().replace(/_/g, '-');
+        switch (s) {
             case 'completed':
-                return 'bg-green-100 text-green-800 border-green-200';
+                return 'bg-emerald-100 text-emerald-800 border-emerald-200';
             case 'confirmed':
+            case 'accepted':
+            case 'scheduled':
                 return 'bg-blue-100 text-blue-800 border-blue-200';
+            case 'in-progress':
+                return 'bg-amber-100 text-amber-800 border-amber-200';
+            case 'report-processing':
+                return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+            case 'report-ready':
+                return 'bg-purple-100 text-purple-800 border-purple-200';
+            case 'report-delivered':
+                return 'bg-teal-100 text-teal-800 border-teal-200';
             case 'pending':
                 return 'bg-yellow-100 text-yellow-800 border-yellow-200';
             case 'cancelled':
@@ -573,6 +623,7 @@ export default function BookingHistoryPage() {
         setShowDetailsModal(false);
         setSelectedAppointment(null);
         setShowDeleteConfirm(false);
+        setModalActiveTab('delivery');
     };
 
     const handleDeleteAppointment = () => {
@@ -611,7 +662,7 @@ export default function BookingHistoryPage() {
                 appointmentId: appointment.id,
                 amount: numAmount,
                 email: appointment.contact?.email,
-                callback_url: `${window.location.origin}/booking-history`,
+                callback_url: `${window.location.origin}/patient/booking/success?appointmentId=${appointment.id}`,
             });
 
             if (res?.data?.authorization_url) {
@@ -808,15 +859,7 @@ export default function BookingHistoryPage() {
                     </div>
                     <div className="flex items-center gap-3 flex-wrap">
                         <button
-                            onClick={() => setShowLinkModal(true)}
-                            className="bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 flex items-center gap-2 px-4 py-2.5 rounded-xl font-medium transition-all duration-200 shadow-sm text-sm"
-                            title="Link a referral code provided by your clinician"
-                        >
-                            <FaNotesMedical className="w-3.5 h-3.5 text-purple-600" />
-                            Link Referral
-                        </button>
-                        <button
-                            className='bg-[#16202E] hover:bg-[#0F1C26] flex items-center gap-2 text-white px-5 py-2.5 rounded-xl font-medium transition-all duration-200 shadow-lg shadow-gray-200 hover:shadow-xl transform hover:-translate-y-0.5 text-sm'
+                            className='bg-[#06202E] hover:bg-[#0a2e42] flex items-center gap-2 text-white px-5 py-2.5 rounded-xl font-medium transition-all duration-200 shadow-md hover:shadow-lg transform hover:-translate-y-0.5 text-sm cursor-pointer'
                             onClick={() => navigate('/search')}
                         >
                             <FaPlus className="w-3.5 h-3.5" />
@@ -972,189 +1015,308 @@ export default function BookingHistoryPage() {
                 </div>
 
                 {/* Table Section */}
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    {/* Table Header Info */}
-                    <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/30 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <span className="font-semibold text-gray-900">
-                                {activeTab === 'all' ? 'All Appointments' :
-                                    activeTab === 'upcoming' ? 'Upcoming Appointments' :
-                                        activeTab === 'today' ? "Today's Appointments" : 'Past Appointments'}
-                            </span>
-                            <span className="text-sm text-gray-500 font-normal">({filteredAppointments.length})</span>
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-200/80 overflow-hidden">
+                    {/* Table Header Info Bar */}
+                    <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
+                                <span className="font-bold text-gray-900 text-base">
+                                    {activeTab === 'all' ? 'All Appointments' :
+                                        activeTab === 'upcoming' ? 'Upcoming Visits' :
+                                            activeTab === 'today' ? "Today's Schedule" : 'Past Visits'}
+                                </span>
+                                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-100">
+                                    {filteredAppointments.length} {filteredAppointments.length === 1 ? 'record' : 'records'}
+                                </span>
+                            </div>
+                            {filteredAppointments.length > 0 && (
+                                <span className="text-xs text-gray-400 hidden sm:inline">
+                                    Showing {startIndex + 1}–{Math.min(endIndex, filteredAppointments.length)} of {filteredAppointments.length}
+                                </span>
+                            )}
                         </div>
-                        <button
-                            onClick={() => refetch()}
-                            className="p-2 text-gray-400 hover:text-[#16202E] transition-colors rounded-lg hover:bg-gray-100"
-                            title="Refresh"
-                        >
-                            <MdRefresh className={`w-4 h-4 ${isFetching ? 'animate-spin' : ''}`} />
-                        </button>
+
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => refetch()}
+                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:text-[#06202E] bg-white hover:bg-gray-100 border border-gray-200 rounded-lg transition-all cursor-pointer shadow-2xs"
+                                title="Sync Latest Appointments"
+                            >
+                                <MdRefresh className={`w-3.5 h-3.5 ${isFetching ? 'animate-spin text-[#06202E]' : 'text-gray-400'}`} />
+                                <span className="hidden sm:inline">Refresh Data</span>
+                            </button>
+                        </div>
                     </div>
 
                     <div className="overflow-x-auto">
-                        <table className="w-full">
-                            <thead className="bg-gray-50/50 text-xs uppercase tracking-wider text-gray-500 font-medium">
+                        <table className="w-full text-left border-collapse">
+                            <thead className="bg-gray-50/80 text-[11px] uppercase tracking-wider text-gray-500 font-bold border-b border-gray-100">
                                 <tr>
-                                    <th className="text-left p-4 pl-6">Service & ID</th>
-                                    <th className="text-left p-4">Provider</th>
-                                    <th className="text-left p-4">Date & Time</th>
-                                    <th className="text-left p-4">Patient</th>
-                                    <th className="text-left p-4">Fee / Amount</th>
-                                    <th className="text-left p-4">Status</th>
-                                    <th className="text-left p-4 pr-6">Actions</th>
+                                    <th className="py-3.5 pl-6 pr-4">Service & Procedure</th>
+                                    <th className="py-3.5 px-4">Provider / Facility</th>
+                                    <th className="py-3.5 px-4">Scheduled Time</th>
+                                    <th className="py-3.5 px-4">Patient</th>
+                                    <th className="py-3.5 px-4">Fee / Amount</th>
+                                    <th className="py-3.5 px-4">Status</th>
+                                    <th className="py-3.5 px-4">Payment</th>
+                                    <th className="py-3.5 pl-4 pr-6 text-right">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-gray-50">
+                            <tbody className="divide-y divide-gray-100 text-sm">
                                 {paginatedAppointments.length === 0 ? (
                                     <tr>
-                                        <td colSpan={7} className="p-16 text-center">
-                                            <div className="flex flex-col items-center gap-4">
-                                                <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center">
-                                                    <MdEvent className="w-10 h-10 text-gray-300" />
+                                        <td colSpan={8} className="p-16 text-center">
+                                            <div className="flex flex-col items-center gap-4 max-w-sm mx-auto">
+                                                <div className="w-16 h-16 bg-blue-50/60 rounded-2xl flex items-center justify-center text-blue-600 border border-blue-100/80 shadow-2xs">
+                                                    <MdEvent className="w-8 h-8" />
                                                 </div>
                                                 <div>
-                                                    <p className="text-lg font-medium text-gray-900">No appointments found</p>
-                                                    <p className="text-sm text-gray-500 mt-1">
-                                                        {searchTerm || selectedStatus !== 'all'
-                                                            ? "Try adjusting your filters or search terms."
-                                                            : "You don't have any appointments in this category."}
+                                                    <p className="text-base font-bold text-gray-900">No appointments found</p>
+                                                    <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                                                        {searchTerm || selectedStatus !== 'all' || activeTab !== 'all'
+                                                            ? "No records matched your current query or filters. Try adjusting your search criteria."
+                                                            : "You don't have any appointments in this category yet. Book your first appointment to get started."}
                                                     </p>
                                                 </div>
-                                                {hasActiveFilters && (
+                                                {hasActiveFilters ? (
                                                     <button
                                                         onClick={handleClearAllFilters}
-                                                        className="px-4 py-2 text-sm text-white bg-[#16202E] hover:bg-[#0F1C26] font-medium rounded-lg transition-colors"
+                                                        className="px-4 py-2 text-xs text-white bg-[#06202E] hover:bg-[#0a2e42] font-semibold rounded-xl transition-all shadow-xs cursor-pointer"
                                                     >
                                                         Clear All Filters
+                                                    </button>
+                                                ) : (
+                                                    <button
+                                                        onClick={() => navigate('/search')}
+                                                        className="px-4 py-2 text-xs text-white bg-[#06202E] hover:bg-[#0a2e42] font-semibold rounded-xl transition-all shadow-xs cursor-pointer flex items-center gap-1.5"
+                                                    >
+                                                        <FaPlus className="w-3 h-3" />
+                                                        Book New Appointment
                                                     </button>
                                                 )}
                                             </div>
                                         </td>
                                     </tr>
                                 ) : (
-                                    paginatedAppointments.map((appointment, index) => {
+                                    paginatedAppointments.map((appointment) => {
                                         const appointmentIsToday = isToday(appointment.date);
+                                        const referralCode = appointment.formData?.referralId ||
+                                            (appointment as any).referralId ||
+                                            (appointment.formData?.identificationNumber && String(appointment.formData.identificationNumber).startsWith('REF-') ? appointment.formData.identificationNumber : null);
+                                        const isReferred = Boolean(
+                                            referralCode ||
+                                            appointment.bookedByClinician ||
+                                            appointment.clinician ||
+                                            appointment.formData?.bookedByClinician ||
+                                            (appointment.notes && /referral/i.test(appointment.notes))
+                                        );
+                                        const isSelfBooking = !appointment.bookingType ||
+                                            appointment.bookingType.toLowerCase() === 'self' ||
+                                            appointment.bookingType.toLowerCase() === 'myself' ||
+                                            appointment.formData?.forWhom?.toLowerCase() === 'self' ||
+                                            appointment.formData?.forWhom?.toLowerCase() === 'myself';
+                                        const targetPatientName = appointment.formData?.patientName || appointment.contact?.name;
+                                        const serviceName = appointment.service?.name || appointment.serviceName || appointment.formData?.serviceName || 'Medical Service';
+
+                                        // Status Resolution
+                                        const latestTracking = Array.isArray(appointment.tracking) && appointment.tracking.length > 0
+                                            ? appointment.tracking[appointment.tracking.length - 1].status
+                                            : null;
+                                        const effectiveStatus = latestTracking || appointment.delivery_status || appointment.status;
+                                        const statusKey = (effectiveStatus || '').toLowerCase().replace(/_/g, '-');
+                                        const statusLabel = getDeliveryStatusLabel(effectiveStatus);
+                                        const statusColor = getStatusColor(effectiveStatus);
+
+                                        // Payment Resolution
+                                        const payInfo = getPaymentInfo(appointment);
+                                        const isPaid = payInfo.status === 'paid';
+
                                         return (
                                             <tr
                                                 key={appointment.id}
-                                                className={`group transition-colors hover:bg-gray-50/80 ${appointmentIsToday ? 'bg-blue-50/30' : ''}`}
+                                                className={`group transition-colors hover:bg-slate-50/70 ${
+                                                    appointmentIsToday ? 'bg-blue-50/25 border-l-4 border-l-blue-600' : ''
+                                                }`}
                                             >
-                                                <td className="p-4 pl-6">
-                                                    <div className="flex flex-col gap-1">
+                                                {/* 1. SERVICE & DETAILS */}
+                                                <td className="py-4 pl-6 pr-4 align-middle">
+                                                    <div className="flex flex-col gap-1 min-w-[190px] max-w-[320px]">
                                                         <div className="flex items-center gap-2 flex-wrap">
-                                                            <span className="font-semibold text-gray-900">{appointment.service?.name || 'Unknown Service'}</span>
-                                                            <span className="font-mono text-[11px] bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded border border-gray-200">
-                                                                #{appointment.id}
+                                                            <span
+                                                                onClick={() => handleViewDetails(appointment)}
+                                                                className="font-bold text-gray-900 text-sm leading-snug hover:text-blue-700 transition-colors cursor-pointer"
+                                                                title="Click to view details"
+                                                            >
+                                                                {serviceName}
                                                             </span>
-                                                            {(appointment.formData?.referralId || (appointment as any).referralId || (appointment.formData?.identificationNumber && appointment.formData.identificationNumber.startsWith('REF-'))) && (
-                                                                <span
-                                                                    onClick={(e) => {
-                                                                        e.stopPropagation();
-                                                                        handleCopy(appointment.formData?.referralId || (appointment as any).referralId || appointment.formData?.identificationNumber, 'Referral ID');
-                                                                    }}
-                                                                    className="cursor-pointer font-mono text-[11px] bg-purple-50 hover:bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded border border-purple-200 transition-colors inline-flex items-center gap-1 font-medium"
-                                                                    title="Click to copy Referral ID"
-                                                                >
-                                                                    <span>Ref: {appointment.formData?.referralId || (appointment as any).referralId || appointment.formData?.identificationNumber}</span>
-                                                                    <FaCopy className="w-2.5 h-2.5 opacity-60" />
+                                                            {isReferred && (
+                                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200 shrink-0">
+                                                                    <FaNotesMedical className="w-2.5 h-2.5 text-purple-600" />
+                                                                    Referral
                                                                 </span>
                                                             )}
                                                         </div>
-                                                        <div className="flex items-center gap-2 text-xs text-gray-500">
-                                                            {appointment.service?.category && (
-                                                                <span className="capitalize">{appointment.service.category}</span>
-                                                            )}
+                                                        <div className="flex items-center gap-2 text-xs text-gray-400">
+                                                            <span className="font-mono text-[11px] text-gray-500">
+                                                                ID: {appointment.id?.slice(0, 10) || 'N/A'}
+                                                            </span>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleCopy(appointment.id, 'Appointment ID')}
+                                                                className="hover:text-gray-700 transition-colors cursor-pointer"
+                                                                title="Copy Appointment ID"
+                                                            >
+                                                                {copiedId === appointment.id ? (
+                                                                    <FaCheck className="w-2.5 h-2.5 text-emerald-600" />
+                                                                ) : (
+                                                                    <FaCopy className="w-2.5 h-2.5" />
+                                                                )}
+                                                            </button>
                                                         </div>
-                                                        {(appointment.bookedByClinician || appointment.clinician || appointment.formData?.bookedByClinician) && (
-                                                            <div className="inline-flex items-center gap-1.5 text-[11px] font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-md px-2 py-0.5 w-fit mt-0.5">
-                                                                <FaUserMd className="w-3 h-3 text-purple-600 shrink-0" />
-                                                                <span className="truncate max-w-[200px]">
-                                                                    Referred by {appointment.clinician?.name || appointment.formData?.clinicianName || 'Clinician'}
-                                                                </span>
-                                                            </div>
-                                                        )}
                                                     </div>
                                                 </td>
-                                                <td className="p-4">
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-8 h-8 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center text-xs font-semibold text-blue-700 shrink-0">
-                                                            {appointment.provider_name?.charAt(0) || 'H'}
+
+                                                {/* 2. PROVIDER / FACILITY */}
+                                                <td className="py-4 px-4 whitespace-nowrap align-middle">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 flex items-center justify-center text-xs font-bold text-blue-700 shrink-0 shadow-2xs">
+                                                            <FaHospital className="w-3.5 h-3.5 text-blue-600" />
                                                         </div>
-                                                        <div className="font-medium text-gray-800 text-sm">{appointment.provider_name}</div>
+                                                        <div className="flex flex-col">
+                                                            <span className="font-semibold text-gray-800 text-sm leading-tight">
+                                                                {appointment.provider_name || 'Medical Center'}
+                                                            </span>
+                                                            <span className="text-[11px] text-gray-400">Diagnostic Center</span>
+                                                        </div>
                                                     </div>
                                                 </td>
-                                                <td className="p-4">
-                                                    <div className="flex flex-col">
-                                                        <span className={`font-medium text-sm ${appointmentIsToday ? 'text-blue-700 font-semibold' : 'text-gray-900'}`}>
-                                                            {formatDate(appointment.date)}
-                                                        </span>
-                                                        <span className="text-xs text-gray-500 mt-0.5">
-                                                            {appointment.start_time} - {appointment.end_time}
-                                                        </span>
-                                                    </div>
-                                                </td>
-                                                <td className="p-4">
+
+                                                {/* 3. SCHEDULED TIME */}
+                                                <td className="py-4 px-4 whitespace-nowrap align-middle">
                                                     <div className="flex flex-col gap-0.5">
-                                                        <div className="flex items-center gap-1.5">
-                                                            <span className="text-sm font-medium text-gray-900">
-                                                                {appointment.contact?.name || appointment.formData?.patientName || 'N/A'}
+                                                        <div className="flex items-center gap-1.5 font-semibold text-sm text-gray-900">
+                                                            <FaCalendarAlt className="w-3 h-3 text-gray-400 shrink-0" />
+                                                            <span className={appointmentIsToday ? 'text-blue-700 font-bold' : ''}>
+                                                                {formatDate(appointment.date)}
                                                             </span>
-                                                            <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded ${
-                                                                appointment.bookingType === 'Self' ? 'bg-green-100 text-green-700' : 'bg-indigo-100 text-indigo-700'
-                                                            }`}>
-                                                                {appointment.bookingType === 'Self' ? 'Myself' : 'Other'}
+                                                            {appointmentIsToday && (
+                                                                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                                                                    Today
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex items-center gap-1 text-xs text-gray-500">
+                                                            <FaClock className="w-2.5 h-2.5 text-gray-400 shrink-0" />
+                                                            <span>
+                                                                {appointment.start_time} - {appointment.end_time}
                                                             </span>
                                                         </div>
-                                                        <div className="text-xs text-gray-500">
-                                                            {appointment.contact?.phone || appointment.formData?.patientPhone || appointment.contact?.email || ''}
-                                                        </div>
                                                     </div>
                                                 </td>
-                                                <td className="p-4">
-                                                    <div className="font-semibold text-gray-900 text-sm">
-                                                        {formatAmount(getAppointmentAmount(appointment))}
-                                                    </div>
-                                                    <div className="text-[11px] text-gray-400 capitalize">
-                                                        {appointment.service?.price ? 'Standard Fee' : 'Consultation'}
+
+                                                {/* 4. PATIENT / BENEFICIARY */}
+                                                <td className="py-4 px-4 whitespace-nowrap align-middle">
+                                                    {isSelfBooking ? (
+                                                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-gray-50 text-gray-700 border border-gray-200/80">
+                                                            <FaUser className="w-2.5 h-2.5 text-gray-400" />
+                                                            <span>Myself</span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="flex flex-col">
+                                                            <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-gray-900">
+                                                                <FaUserFriends className="w-3 h-3 text-indigo-500" />
+                                                                <span>{targetPatientName || 'Dependent'}</span>
+                                                            </div>
+                                                            <span className="text-[10px] text-gray-400">Beneficiary</span>
+                                                        </div>
+                                                    )}
+                                                </td>
+
+                                                {/* 5. FEE / AMOUNT */}
+                                                <td className="py-4 px-4 whitespace-nowrap align-middle">
+                                                    <div className="flex flex-col">
+                                                        <span className="font-bold text-gray-900 text-sm tracking-tight">
+                                                            {formatAmount(getAppointmentAmount(appointment))}
+                                                        </span>
+                                                        <span className="text-[11px] text-gray-400">
+                                                            {appointment.service?.price ? 'Standard Fee' : 'Consultation'}
+                                                        </span>
                                                     </div>
                                                 </td>
-                                                <td className="p-4">
-                                                    <div className="flex flex-col gap-1.5 items-start">
-                                                        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border ${getStatusColor(appointment.status)}`}>
-                                                            <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60"></span>
-                                                            {(appointment.status.toLowerCase() === 'cancelled' || appointment.status.toLowerCase() === 'canceled') ? 'rejected' : appointment.status}
-                                                        </div>
-                                                        <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border ${getPaymentInfo(appointment).color}`}>
-                                                            <span className="w-1 h-1 rounded-full bg-current opacity-60"></span>
-                                                            <span>Payment: {getPaymentInfo(appointment).label}</span>
-                                                        </div>
+
+                                                {/* 6. APPOINTMENT / DELIVERY STATUS (DEDICATED COLUMN) */}
+                                                <td className="py-4 px-4 whitespace-nowrap align-middle">
+                                                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border shadow-2xs ${statusColor}`}>
+                                                        {statusKey === 'in-progress' ? (
+                                                            <span className="relative flex h-2 w-2">
+                                                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                                                                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                                                            </span>
+                                                        ) : statusKey === 'completed' ? (
+                                                            <IoCheckmarkDone className="w-3.5 h-3.5 text-emerald-600" />
+                                                        ) : statusKey === 'report-ready' || statusKey === 'report-processing' ? (
+                                                            <FaNotesMedical className="w-3 h-3 text-indigo-600" />
+                                                        ) : statusKey === 'report-delivered' ? (
+                                                            <TbTruckDelivery className="w-3.5 h-3.5 text-teal-600" />
+                                                        ) : statusKey === 'cancelled' || statusKey === 'rejected' ? (
+                                                            <MdCancel className="w-3 h-3 text-rose-500" />
+                                                        ) : (
+                                                            <span className="w-1.5 h-1.5 rounded-full bg-current opacity-70"></span>
+                                                        )}
+                                                        <span>{statusLabel}</span>
+                                                    </span>
+                                                </td>
+
+                                                {/* 7. PAYMENT STATUS (DEDICATED COLUMN) */}
+                                                <td className="py-4 px-4 whitespace-nowrap align-middle">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span
+                                                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold border shadow-2xs ${
+                                                                isPaid
+                                                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                                                    : payInfo.status === 'pending'
+                                                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                                                    : 'bg-rose-50 text-rose-700 border-rose-200'
+                                                            }`}
+                                                        >
+                                                            {isPaid ? (
+                                                                <FaCheck className="w-2.5 h-2.5 text-emerald-600" />
+                                                            ) : payInfo.status === 'pending' ? (
+                                                                <FaHourglassHalf className="w-2.5 h-2.5 text-amber-600" />
+                                                            ) : (
+                                                                <FaExclamationTriangle className="w-2.5 h-2.5 text-rose-600" />
+                                                            )}
+                                                            <span>{payInfo.label}</span>
+                                                        </span>
                                                     </div>
                                                 </td>
-                                                <td className="p-4 pr-6">
-                                                    <div className="flex items-center gap-2">
-                                                        {getPaymentInfo(appointment).status !== 'paid' && (
+
+                                                {/* 8. ACTIONS */}
+                                                <td className="py-4 pl-4 pr-6 whitespace-nowrap text-right align-middle">
+                                                    <div className="flex items-center justify-end gap-1.5">
+                                                        {!isPaid && (
                                                             <button
                                                                 onClick={() => handlePay(appointment)}
                                                                 disabled={isPayingId === appointment.id}
-                                                                className="px-2.5 py-1 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center gap-1 shadow-sm disabled:opacity-50"
+                                                                className="px-3 py-1.5 text-xs font-bold text-white bg-[#06202E] hover:bg-[#0a2e42] rounded-lg transition-all shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
                                                                 title="Pay for Appointment"
                                                             >
-                                                                {isPayingId === appointment.id ? '...' : 'Pay'}
+                                                                <FaCreditCard className="w-3 h-3 text-blue-300" />
+                                                                <span>{isPayingId === appointment.id ? 'Processing...' : 'Pay'}</span>
                                                             </button>
                                                         )}
                                                         <button
                                                             onClick={() => handleViewDetails(appointment)}
-                                                            className="p-2 text-gray-400 hover:text-[#16202E] hover:bg-gray-100 rounded-lg transition-all"
-                                                            title="View Details"
+                                                            className="p-2 text-gray-500 hover:text-[#06202E] hover:bg-gray-100 rounded-lg transition-all cursor-pointer border border-transparent hover:border-gray-200"
+                                                            title="View Full Details"
                                                         >
                                                             <FiEye className="w-4 h-4" />
                                                         </button>
-                                                        {getPaymentInfo(appointment).status === 'paid' && (
+                                                        {isPaid && (
                                                             <button
                                                                 onClick={() => handleDownloadReceipt(appointment.id)}
-                                                                className="p-2 text-gray-400 hover:text-[#16202E] hover:bg-gray-100 rounded-lg transition-all"
-                                                                title="Download Receipt"
+                                                                className="p-2 text-gray-500 hover:text-emerald-700 hover:bg-emerald-50 rounded-lg transition-all cursor-pointer border border-transparent hover:border-emerald-200"
+                                                                title="Download Official Receipt"
                                                                 disabled={isGeneratingReceipt}
                                                             >
                                                                 <FiDownload className="w-4 h-4" />
@@ -1170,16 +1332,30 @@ export default function BookingHistoryPage() {
                         </table>
                     </div>
 
-                    {/* Pagination */}
-                    {filteredAppointments.length > itemsPerPage && (
-                        <div className="border-t border-gray-100 p-4 bg-gray-50/30">
-                            <Pagination
-                                currentPage={currentPage}
-                                totalPages={totalPages}
-                                onPageChange={handlePageChange}
-                            />
+                    {/* Pagination & Item Range Bar */}
+                    <div className="border-t border-gray-100 px-6 py-4 bg-gray-50/40 flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div className="text-xs text-gray-500 font-medium">
+                            {filteredAppointments.length > 0 ? (
+                                <span>
+                                    Showing <strong className="text-gray-800">{startIndex + 1}</strong> to{' '}
+                                    <strong className="text-gray-800">{Math.min(endIndex, filteredAppointments.length)}</strong> of{' '}
+                                    <strong className="text-gray-800">{filteredAppointments.length}</strong> appointments
+                                </span>
+                            ) : (
+                                <span>No entries to display</span>
+                            )}
                         </div>
-                    )}
+
+                        {filteredAppointments.length > itemsPerPage && (
+                            <div className="w-full sm:w-auto">
+                                <Pagination
+                                    currentPage={currentPage}
+                                    totalPages={totalPages}
+                                    onPageChange={handlePageChange}
+                                />
+                            </div>
+                        )}
+                    </div>
                 </div>
             </div>
 
@@ -1235,8 +1411,16 @@ export default function BookingHistoryPage() {
                                     </div>
                                     <div>
                                         <div className="flex items-center gap-2 flex-wrap">
-                                            <h3 className="font-bold text-gray-900 text-lg">{selectedAppointment.service?.name || 'Medical Service'}</h3>
-                                            {selectedAppointment.service?.category && (
+                                            <h3 className="font-bold text-gray-900 text-lg">
+                                                {selectedAppointment.service?.name || selectedAppointment.serviceName || selectedAppointment.formData?.serviceName || 'Medical Service'}
+                                            </h3>
+                                            {(selectedAppointment.referralId || selectedAppointment.formData?.referralId || (selectedAppointment.formData?.identificationNumber && String(selectedAppointment.formData.identificationNumber).startsWith('REF-')) || selectedAppointment.bookedByClinician || selectedAppointment.clinician || selectedAppointment.formData?.bookedByClinician) && (
+                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                                                    <FaNotesMedical className="w-3 h-3 text-purple-600" />
+                                                    Referral
+                                                </span>
+                                            )}
+                                            {selectedAppointment.service?.category && selectedAppointment.service.category !== 'tests' && (
                                                 <span className="text-xs bg-white px-2 py-0.5 rounded-full border border-gray-200 text-gray-600 capitalize font-medium">
                                                     {selectedAppointment.service.category}
                                                 </span>
@@ -1256,44 +1440,352 @@ export default function BookingHistoryPage() {
                                 </div>
                             </div>
 
-                            {/* Schedule & Status Section */}
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {/* Time & Date */}
-                                <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100">
-                                    <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                        <MdEvent className="w-4 h-4 text-blue-600" />
-                                        Schedule & Time
-                                    </h4>
-                                    <div className="font-semibold text-gray-900 text-base">
-                                        {new Date(selectedAppointment.date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-                                    </div>
-                                    <div className="text-sm text-gray-600 mt-1 flex items-center gap-1">
-                                        <FaClock className="w-3 h-3 text-gray-400" />
-                                        <span>{selectedAppointment.start_time} - {selectedAppointment.end_time}</span>
-                                    </div>
-                                </div>
-
-                                {/* Appointment Status */}
-                                <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100">
-                                    <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                        <IoCheckmarkDone className="w-4 h-4 text-emerald-600" />
-                                        Booking Status
-                                    </h4>
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                        <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(selectedAppointment.status)}`}>
-                                            <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60"></span>
-                                            {(selectedAppointment.status.toLowerCase() === 'cancelled' || selectedAppointment.status.toLowerCase() === 'canceled') ? 'Rejected' : selectedAppointment.status}
-                                        </div>
-                                        <div className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${getPaymentInfo(selectedAppointment).color}`}>
-                                            <span className="w-1 h-1 rounded-full bg-current opacity-60"></span>
-                                            <span>Payment: {getPaymentInfo(selectedAppointment).label}</span>
-                                        </div>
-                                    </div>
-                                    <p className="text-xs text-gray-500 mt-1.5">
-                                        {selectedAppointment.status.toLowerCase() === 'confirmed' ? 'Appointment is confirmed by the facility.' : 'Appointment is awaiting confirmation.'}
-                                    </p>
-                                </div>
+                            {/* Modal Navigation Tabs */}
+                            <div className="flex items-center gap-2 border-b border-gray-200/80 pb-2 -mt-1 overflow-x-auto no-scrollbar">
+                                <button
+                                    type="button"
+                                    onClick={() => setModalActiveTab('delivery')}
+                                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all whitespace-nowrap cursor-pointer ${
+                                        modalActiveTab === 'delivery'
+                                            ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
+                                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    <TbTruckDelivery className="w-4 h-4" />
+                                    <span>Service Delivery</span>
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                                        modalActiveTab === 'delivery' ? 'bg-white/20 text-white' : 'bg-blue-50 text-blue-700'
+                                    }`}>
+                                        Live
+                                    </span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setModalActiveTab('overview')}
+                                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all whitespace-nowrap cursor-pointer ${
+                                        modalActiveTab === 'overview'
+                                            ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
+                                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    <MdEvent className="w-4 h-4" />
+                                    <span>Appointment & Details</span>
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setModalActiveTab('payment')}
+                                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all whitespace-nowrap cursor-pointer ${
+                                        modalActiveTab === 'payment'
+                                            ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
+                                            : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                                    }`}
+                                >
+                                    <FaFileInvoiceDollar className="w-4 h-4" />
+                                    <span>Payment & Billing</span>
+                                    <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${
+                                        modalActiveTab === 'payment' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-700'
+                                    }`}>
+                                        {getPaymentInfo(selectedAppointment).label}
+                                    </span>
+                                </button>
                             </div>
+
+                            {/* Service Delivery Tab (Simple & Straightforward) */}
+                            {modalActiveTab === 'delivery' && (() => {
+                                const latestTracking = Array.isArray(selectedAppointment.tracking) && selectedAppointment.tracking.length > 0
+                                    ? selectedAppointment.tracking[selectedAppointment.tracking.length - 1].status
+                                    : null;
+                                const rawStatus = (latestTracking || selectedAppointment.delivery_status || selectedAppointment.status || 'scheduled').toLowerCase().replace(/_/g, '-');
+                                const currentStatus = rawStatus === 'confirmed' ? 'scheduled' : rawStatus;
+                                const isCancelled = ['cancelled', 'canceled', 'rejected'].includes(currentStatus);
+                                const isNoShow = currentStatus === 'no-show';
+                                const isReportDelivered = currentStatus === 'report-delivered';
+                                const isReportReady = currentStatus === 'report-ready';
+                                const isProcessing = currentStatus === 'report-processing';
+                                const isInProgress = ['in-progress', 'completed'].includes(currentStatus);
+
+                                // 4 simple patient-facing stages
+                                const stages = [
+                                    {
+                                        id: 'scheduled',
+                                        title: 'Appointment Scheduled',
+                                        description: 'Booking confirmed with the healthcare center',
+                                        isCompleted: ['in-progress', 'completed', 'report-processing', 'report-ready', 'report-delivered'].includes(currentStatus),
+                                        isCurrent: currentStatus === 'scheduled',
+                                        trackingMatch: ['confirmed', 'scheduled'],
+                                    },
+                                    {
+                                        id: 'procedure',
+                                        title: 'Procedure & Sample Collection',
+                                        description: 'Test conducted at the diagnostic facility',
+                                        isCompleted: ['completed', 'report-processing', 'report-ready', 'report-delivered'].includes(currentStatus),
+                                        isCurrent: currentStatus === 'in-progress' || currentStatus === 'completed',
+                                        trackingMatch: ['in-progress', 'completed'],
+                                    },
+                                    {
+                                        id: 'analysis',
+                                        title: 'Laboratory Analysis',
+                                        description: 'Results analyzed and reviewed by specialists',
+                                        isCompleted: ['report-ready', 'report-delivered'].includes(currentStatus),
+                                        isCurrent: currentStatus === 'report-processing',
+                                        trackingMatch: ['report-processing'],
+                                    },
+                                    {
+                                        id: 'delivered',
+                                        title: 'Diagnostic Report Delivered',
+                                        description: 'Final report signed and available for you',
+                                        isCompleted: currentStatus === 'report-delivered',
+                                        isCurrent: currentStatus === 'report-ready' || currentStatus === 'report-delivered',
+                                        trackingMatch: ['report-ready', 'report-delivered'],
+                                    },
+                                ];
+
+                                // Find tracking item for each stage if available
+                                const getTrackingForStage = (keys: string[]) => {
+                                    if (!Array.isArray(selectedAppointment.tracking)) return null;
+                                    const match = [...selectedAppointment.tracking].reverse().find(t => 
+                                        keys.some(k => (t.status || '').toLowerCase().replace(/_/g, '-') === k)
+                                    );
+                                    return match || null;
+                                };
+
+                                return (
+                                    <div className="space-y-4">
+                                        {/* Status Header Banner */}
+                                        <div className={`p-4 sm:p-5 rounded-2xl border transition-all ${
+                                            isReportDelivered
+                                                ? 'bg-emerald-50/70 border-emerald-200/80 text-emerald-950'
+                                                : isReportReady || isProcessing
+                                                ? 'bg-blue-50/70 border-blue-200/80 text-blue-950'
+                                                : isCancelled || isNoShow
+                                                ? 'bg-rose-50 border-rose-200 text-rose-950'
+                                                : 'bg-slate-50 border-gray-200/80 text-gray-900'
+                                        }`}>
+                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                                <div>
+                                                    <div className="flex items-center gap-2 mb-1">
+                                                        <span className="text-xs font-semibold uppercase tracking-wider text-gray-500">
+                                                            Current Delivery Status
+                                                        </span>
+                                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold border ${getStatusColor(currentStatus)}`}>
+                                                            {getDeliveryStatusLabel(currentStatus)}
+                                                        </span>
+                                                    </div>
+                                                    <h3 className="text-lg font-bold">
+                                                        {isReportDelivered
+                                                            ? 'Your Diagnostic Report Has Been Delivered'
+                                                            : isReportReady
+                                                            ? 'Your Report Is Ready'
+                                                            : isProcessing
+                                                            ? 'Lab Analysis In Progress'
+                                                            : isInProgress
+                                                            ? 'Medical Service Underway'
+                                                            : isCancelled
+                                                            ? 'Appointment Cancelled'
+                                                            : isNoShow
+                                                            ? 'Missed Appointment (No-Show)'
+                                                            : 'Appointment Confirmed & Scheduled'}
+                                                    </h3>
+                                                    <p className="text-xs text-gray-600 mt-1 max-w-xl">
+                                                        {isReportDelivered
+                                                            ? 'Your test report has been signed by the clinician and delivered. You can review your results with your doctor.'
+                                                            : isReportReady
+                                                            ? 'The medical specialist has reviewed and approved your test results.'
+                                                            : isProcessing
+                                                            ? 'Your sample is currently in laboratory processing and analysis.'
+                                                            : isInProgress
+                                                            ? 'The facility is currently conducting your procedure or scan.'
+                                                            : isCancelled
+                                                            ? 'This appointment was cancelled. Please rebook or contact support if this was unintended.'
+                                                            : isNoShow
+                                                            ? 'This booking was marked as unattended.'
+                                                            : 'Your appointment is set. Please arrive at the scheduled time.'}
+                                                    </p>
+                                                </div>
+
+                                                {/* Action / Reassurance Badge */}
+                                                <div className="shrink-0 flex items-center gap-2">
+                                                    {isReportDelivered ? (
+                                                        <div className="px-3.5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm">
+                                                            <FaCheck className="w-3.5 h-3.5" />
+                                                            <span>Completed & Delivered</span>
+                                                        </div>
+                                                    ) : isReportReady ? (
+                                                        <div className="px-3.5 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm">
+                                                            <IoCheckmarkDone className="w-4 h-4" />
+                                                            <span>Report Finalized</span>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="px-3.5 py-2 rounded-xl bg-white border border-gray-200 text-gray-700 text-xs font-medium flex items-center gap-1.5 shadow-xs">
+                                                            <FaClock className="w-3 h-3 text-blue-500" />
+                                                            <span>Live Tracking Active</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Simple & Clean Vertical Timeline */}
+                                        {!isCancelled && !isNoShow && (
+                                            <div className="bg-white rounded-2xl border border-gray-200/80 p-5 shadow-xs">
+                                                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-5 flex items-center gap-2">
+                                                    <TbTruckDelivery className="w-4 h-4 text-blue-600" />
+                                                    Delivery Timeline
+                                                </h4>
+
+                                                <div className="space-y-0">
+                                                    {stages.map((stage, sIdx) => {
+                                                        const isLast = sIdx === stages.length - 1;
+                                                        const trackData = getTrackingForStage(stage.trackingMatch);
+                                                        const isDone = stage.isCompleted;
+                                                        const isAct = stage.isCurrent && !isDone;
+
+                                                        return (
+                                                            <div key={stage.id} className="relative flex items-start gap-4 pb-6 last:pb-1">
+                                                                {/* Vertical connecting line */}
+                                                                {!isLast && (
+                                                                    <div
+                                                                        className={`absolute top-7 left-3.5 -ml-px w-0.5 h-full ${
+                                                                            isDone ? 'bg-emerald-500' : 'bg-gray-200'
+                                                                        }`}
+                                                                    />
+                                                                )}
+
+                                                                {/* Node circle */}
+                                                                <div className="relative z-10 shrink-0">
+                                                                    {isDone ? (
+                                                                        <div className="w-7 h-7 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                                                                            <FaCheck className="w-3.5 h-3.5" />
+                                                                        </div>
+                                                                    ) : isAct ? (
+                                                                        <div className="w-7 h-7 rounded-full bg-blue-600 text-white flex items-center justify-center ring-4 ring-blue-100 shadow-xs animate-pulse">
+                                                                            <div className="w-2 h-2 rounded-full bg-white" />
+                                                                        </div>
+                                                                    ) : (
+                                                                        <div className="w-7 h-7 rounded-full bg-gray-100 border-2 border-gray-200 text-gray-400 flex items-center justify-center">
+                                                                            <div className="w-1.5 h-1.5 rounded-full bg-gray-300" />
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+
+                                                                {/* Content */}
+                                                                <div className="flex-1 min-w-0 pt-0.5">
+                                                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                                                                        <div className="font-semibold text-sm text-gray-900 flex items-center gap-2">
+                                                                            <span>{stage.title}</span>
+                                                                            {isAct && (
+                                                                                <span className="text-[10px] font-bold bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">
+                                                                                    Current Step
+                                                                                </span>
+                                                                            )}
+                                                                        </div>
+                                                                        {trackData && (
+                                                                            <span className="text-[11px] text-gray-400 font-medium">
+                                                                                {new Date(trackData.timestamp).toLocaleDateString(undefined, {
+                                                                                    month: 'short',
+                                                                                    day: 'numeric',
+                                                                                })}{' '}
+                                                                                •{' '}
+                                                                                {new Date(trackData.timestamp).toLocaleTimeString([], {
+                                                                                    hour: '2-digit',
+                                                                                    minute: '2-digit',
+                                                                                })}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    <p className="text-xs text-gray-500 mt-0.5">
+                                                                        {stage.description}
+                                                                    </p>
+                                                                    {trackData?.note && (
+                                                                        <div className="mt-1.5 inline-block text-[11px] bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1 text-gray-600">
+                                                                            💬 {trackData.note}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* Facility & Assigned Specialist Card */}
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                            <div className="p-3.5 bg-gray-50/70 rounded-xl border border-gray-100 flex items-center gap-3">
+                                                <div className="w-9 h-9 rounded-lg bg-blue-100/70 text-blue-600 flex items-center justify-center shrink-0">
+                                                    <FaHospital className="w-4 h-4" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider block">Diagnostic Facility</span>
+                                                    <span className="text-sm font-semibold text-gray-900 truncate block">
+                                                        {selectedAppointment.provider_name || 'Medical Center'}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            <div className="p-3.5 bg-gray-50/70 rounded-xl border border-gray-100 flex items-center gap-3">
+                                                <div className="w-9 h-9 rounded-lg bg-purple-100/70 text-purple-600 flex items-center justify-center shrink-0">
+                                                    <FaUserMd className="w-4 h-4" />
+                                                </div>
+                                                <div className="min-w-0">
+                                                    <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider block">Assigned Specialist</span>
+                                                    <span className="text-sm font-semibold text-gray-900 truncate block">
+                                                        {selectedAppointment.technician_name || 'Duty Radiologist / Lab Tech'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })()}
+
+                            {/* Appointment & Patient Details Tab */}
+                            {modalActiveTab === 'overview' && (
+                                <div className="space-y-4">
+                                    {/* Schedule & Status Section */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        {/* Time & Date */}
+                                        <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100">
+                                            <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                                <MdEvent className="w-4 h-4 text-blue-600" />
+                                                Schedule & Time
+                                            </h4>
+                                            <div className="font-semibold text-gray-900 text-base">
+                                                {new Date(selectedAppointment.date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                                            </div>
+                                            <div className="text-sm text-gray-600 mt-1 flex items-center gap-1">
+                                                <FaClock className="w-3 h-3 text-gray-400" />
+                                                <span>{selectedAppointment.start_time} - {selectedAppointment.end_time}</span>
+                                            </div>
+                                        </div>
+
+                                        {/* Appointment Status */}
+                                        <div className="p-4 bg-gray-50/50 rounded-xl border border-gray-100">
+                                            <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                                                <IoCheckmarkDone className="w-4 h-4 text-emerald-600" />
+                                                Booking Status
+                                            </h4>
+                                            <div className="flex items-center gap-2 flex-wrap">
+                                                <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${getStatusColor(selectedAppointment.status)}`}>
+                                                    <span className="w-1.5 h-1.5 rounded-full bg-current opacity-60"></span>
+                                                    {getDeliveryStatusLabel(selectedAppointment.status)}
+                                                </div>
+                                                <div className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${getPaymentInfo(selectedAppointment).color}`}>
+                                                    <span className="w-1 h-1 rounded-full bg-current opacity-60"></span>
+                                                    <span>Payment: {getPaymentInfo(selectedAppointment).label}</span>
+                                                </div>
+                                            </div>
+                                            <p className="text-xs text-gray-500 mt-1.5">
+                                                {selectedAppointment.status.toLowerCase() === 'confirmed' || selectedAppointment.status.toLowerCase() === 'scheduled'
+                                                    ? 'Appointment is confirmed by the facility and scheduled.'
+                                                    : selectedAppointment.status.toLowerCase() === 'completed'
+                                                    ? 'Medical service has been completed.'
+                                                    : selectedAppointment.status.toLowerCase() === 'report-delivered'
+                                                    ? 'Service & diagnostic report delivered.'
+                                                    : `Current status: ${getDeliveryStatusLabel(selectedAppointment.status)}.`}
+                                            </p>
+                                        </div>
+                                    </div>
 
                             {/* Referring Clinician Details (if available) */}
                             {(selectedAppointment.bookedByClinician || selectedAppointment.clinician || selectedAppointment.formData?.clinicianName) && (
@@ -1482,13 +1974,17 @@ export default function BookingHistoryPage() {
                                     )}
                                 </div>
                             </div>
+                            </div>
+                            )}
 
-                            {/* Payment & Billing Breakdown */}
-                            <div className="border-t border-gray-100 pt-5">
-                                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                                    <FaFileInvoiceDollar className="w-4 h-4 text-emerald-600" />
-                                    Payment & Billing Breakdown
-                                </h4>
+                            {/* Payment & Billing Breakdown Tab */}
+                            {modalActiveTab === 'payment' && (
+                                <div className="space-y-4">
+                                    <div className="pt-1">
+                                        <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                                            <FaFileInvoiceDollar className="w-4 h-4 text-emerald-600" />
+                                            Payment & Billing Breakdown
+                                        </h4>
                                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                                     <div className="p-3 rounded-xl border border-gray-100 bg-gray-50/30">
                                         <span className="text-[11px] text-gray-400 block mb-0.5 font-medium">Total Amount</span>
@@ -1540,6 +2036,8 @@ export default function BookingHistoryPage() {
                                     )}
                                 </div>
                             </div>
+                            </div>
+                            )}
                         </div>
 
                         {/* Modal Footer */}

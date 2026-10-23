@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { usePaymentReceipt } from '../../services/providerService';
 import check from '/success.png';
@@ -11,12 +11,49 @@ const BookingRequestSuccessPage = () => {
 
     const { data: receiptData, isLoading, error } = usePaymentReceipt(appointmentId || undefined);
 
+    const draft = useMemo(() => {
+        try {
+            const raw = localStorage.getItem('bookingDraft');
+            return raw ? JSON.parse(raw) : null;
+        } catch {
+            return null;
+        }
+    }, []);
+
     // Clear booking draft on successful load
     useEffect(() => {
         if (receiptData?.success) {
             localStorage.removeItem('bookingDraft');
         }
     }, [receiptData]);
+
+    const activeData = useMemo(() => {
+        if (receiptData?.data) {
+            return receiptData.data;
+        }
+        if (draft) {
+            const appt = draft.appointment || {};
+            const fd = appt.formData || draft.formData || draft.patientDetails || {};
+            return {
+                patient: {
+                    name: fd.patientName || `${fd.firstName || ''} ${fd.lastName || ''}`.trim() || 'Valued Patient',
+                    email: fd.patientEmail || fd.email || '',
+                    mobile_number: fd.patientPhone || fd.phoneNumber || '',
+                    address: fd.patientAddress || fd.address || '',
+                    gender: fd.patientGender || fd.gender || '',
+                    date_of_birth: fd.patientDOB || fd.dob || '',
+                },
+                appointment: {
+                    location: fd.facilityName || 'ABC Diagnostics',
+                    type: fd.serviceName || appt.service_id || 'Medical Service',
+                    date: appt.appointment_date || new Date().toISOString(),
+                    time: appt.start_time || '10:00 AM',
+                    booking_id: appt.id || appointmentId || 'N/A',
+                }
+            };
+        }
+        return null;
+    }, [receiptData, draft, appointmentId]);
 
     const formatDate = (dateString: string) => {
         const date = new Date(dateString);
@@ -32,28 +69,36 @@ const BookingRequestSuccessPage = () => {
         return timeString.toUpperCase();
     };
 
-    if (isLoading) {
+    if (isLoading && !activeData) {
         return <LoadingSpinner />;
     }
 
-    if (error || !receiptData?.success) {
+    if (!activeData && error) {
         return (
             <div className="min-h-screen flex items-center justify-center">
                 <div className="text-center">
                     <h1 className="text-2xl font-bold text-red-600 mb-4">Error Loading Request</h1>
                     <p className="text-gray-600 mb-4">Unable to load booking details. Please try again.</p>
-                    <button
-                        onClick={() => navigate('/patient/my-account')}
-                        className="px-6 py-3 bg-gray-900 text-white rounded-md hover:bg-gray-800 transition-colors"
-                    >
-                        Go to My Account
-                    </button>
+                    <div className="flex gap-4 justify-center">
+                        <button
+                            onClick={() => navigate('/booking-history')}
+                            className="px-6 py-3 bg-gray-900 text-white rounded-md hover:bg-gray-800 transition-colors"
+                        >
+                            Go to Booking History
+                        </button>
+                        <button
+                            onClick={() => navigate('/patient/my-account')}
+                            className="px-6 py-3 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 transition-colors"
+                        >
+                            Go to My Account
+                        </button>
+                    </div>
                 </div>
             </div>
         );
     }
 
-    const { patient, appointment } = receiptData.data;
+    const { patient, appointment } = activeData || { patient: {} as any, appointment: {} as any };
     const formatAddress = (loc: any) => {
         if (!loc) return '';
         if (typeof loc === 'string') {

@@ -68,18 +68,29 @@ function LoginPatientPage() {
         // Update auth context
         login(data.data.token, data.data);
 
-        // Navigate based on email verification status
-        if (data.data.email_verified) {
-          const hasCompletedOnboarding = !!data.data.is_onboarding_complete;
+        // Navigate based on user role and verification status
+        const userType = data.data.user_type?.toLowerCase();
+        const isProvider = userType === 'diagnosticprovider' || userType === 'provider' || userType === 'clinician';
 
-          if (hasCompletedOnboarding) {
-            localStorage.setItem('justLoggedIn', 'false'); // Explicitly prevent toast
-            navigate('/booking-history');
+        if (data.data.email_verified) {
+          if (isProvider) {
+            const isProviderOnboardingComplete =
+              data.data.is_onboarding_complete ??
+              data.data.provider?.profile_complete ??
+              data.data.profile_complete;
+
+            navigate(isProviderOnboardingComplete ? '/provider/dashboard' : '/welcome-provider', { replace: true });
           } else {
-            navigate('/patient/my-account');
+            const hasCompletedOnboarding = !!data.data.is_onboarding_complete;
+            if (hasCompletedOnboarding) {
+              localStorage.setItem('justLoggedIn', 'false');
+              navigate('/booking-history');
+            } else {
+              navigate('/patient/my-account');
+            }
           }
         } else {
-          navigate('/verify');
+          navigate(isProvider ? '/providers/verify' : '/verify');
         }
       },
       onError: (error) => {
@@ -121,19 +132,31 @@ function LoginPatientPage() {
             login(data.data.token, data.data as any);
           }
 
-          // Navigate based on email verification status + onboarding flag
+          // Navigate based on user role and verification status
+          const userType = data?.data?.user_type?.toLowerCase();
+          const isProvider = userType === 'diagnosticprovider' || userType === 'provider' || userType === 'clinician';
+
           if (data?.data?.email_verified === false) {
-            navigate('/verify');
+            navigate(isProvider ? '/providers/verify' : '/verify');
             return;
           }
 
-          const hasCompletedOnboarding = !!data?.data?.is_onboarding_complete;
-          if (hasCompletedOnboarding) {
-            localStorage.setItem('justLoggedIn', 'false'); // Explicitly prevent toast
-            navigate('/booking-history');
+          if (isProvider) {
+            const isProviderOnboardingComplete =
+              data?.data?.is_onboarding_complete ??
+              data?.data?.provider?.profile_complete ??
+              data?.data?.profile_complete;
+
+            navigate(isProviderOnboardingComplete ? '/provider/dashboard' : '/welcome-provider', { replace: true });
           } else {
-            localStorage.setItem('justLoggedIn', 'true');
-            navigate('/patient/my-account');
+            const hasCompletedOnboarding = !!data?.data?.is_onboarding_complete;
+            if (hasCompletedOnboarding) {
+              localStorage.setItem('justLoggedIn', 'false');
+              navigate('/booking-history');
+            } else {
+              localStorage.setItem('justLoggedIn', 'true');
+              navigate('/patient/my-account');
+            }
           }
         },
         onError: (error: any) => {

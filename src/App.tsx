@@ -34,6 +34,7 @@ import ProviderLayout from './components/ProviderLayout'
 import DashboardPage from './pages/provider/DashboardPage'
 
 import ProviderCalendarPage from './pages/provider/ProviderCalendarPage'
+import ServiceDeliveryPage from './pages/provider/ServiceDeliveryPage'
 import ProviderPatientsPage from './pages/provider/ProviderPatientsPage'
 import ProviderServicesPage from './pages/provider/ProviderServicesPage'
 import ProviderPaymentsPage from './pages/provider/ProviderPaymentsPage'
@@ -46,13 +47,15 @@ import ProviderSupportPage from './pages/provider/ProviderSupportPage'
 import PendingAppointmentsPage from './pages/provider/PendingAppointmentsPage'
 import { ProviderSearchProvider } from './contexts/ProviderSearchContext'
 
+import LoginPage from './pages/LoginPage'
+
 function App() {
 
   return (
     <Routes>
       {/* Provider Dashboard Routes - Independent Layout */}
       <Route element={
-        <ProtectedRoute>
+        <ProtectedRoute allowedRoles={['DiagnosticProvider', 'Clinician', 'Provider']}>
           <ProviderSearchProvider>
             <ProviderLayout />
           </ProviderSearchProvider>
@@ -61,6 +64,7 @@ function App() {
         <Route path="/provider/dashboard" element={<DashboardPage />} />
         <Route path="/provider/pending-appointments" element={<PendingAppointmentsPage />} />
         <Route path="/provider/calendar" element={<ProviderCalendarPage />} />
+        <Route path="/provider/service-delivery" element={<ServiceDeliveryPage />} />
         <Route path="/provider/patients" element={<ProviderPatientsPage />} />
         <Route path="/provider/services" element={<ProviderServicesPage />} />
         <Route path="/provider/payments" element={<ProviderPaymentsPage />} />
@@ -71,7 +75,7 @@ function App() {
       </Route>
 
       <Route element={<Layout />}>
-        {/* Patient routes */}
+        {/* Public Landing & Onboarding */}
         <Route path="/" element={
           <PublicRoute>
             <OnboardingPage />
@@ -82,15 +86,22 @@ function App() {
             <OnboardingPage />
           </PublicRoute>
         } />
+
+        {/* Single Unified Login Route for both Patient and Provider */}
+        <Route path="/login" element={
+          <PublicRoute>
+            <LoginPage />
+          </PublicRoute>
+        } />
+        <Route path="/signin" element={<Navigate to="/login" replace />} />
+        <Route path="/sign-in-patient" element={<Navigate to="/login" replace />} />
+        <Route path="/Sign-in-Patient" element={<Navigate to="/login" replace />} />
+        <Route path="/providers/signin" element={<Navigate to="/login" replace />} />
+
         <Route path="/calendar" element={
           <ProtectedRoute>
             <CalendarPage />
           </ProtectedRoute>
-        } />
-        <Route path="/sign-in-patient" element={
-          <PublicRoute>
-            <LoginPatientPage />
-          </PublicRoute>
         } />
         <Route path="/verify" element={
           <PublicRoute>
@@ -130,22 +141,21 @@ function App() {
 
         {/* Patient pages with PatientLayout */}
         <Route path="/patientSetup/Myaccount" element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['Patient']}>
             <PatientLayout>
               <Myaccount />
             </PatientLayout>
           </ProtectedRoute>
         } />
-        {/* Patient pages with PatientLayout */}
         <Route path="/patient/my-account" element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['Patient']}>
             <PatientLayout>
               <Myaccount />
             </PatientLayout>
           </ProtectedRoute>
         } />
         <Route path="/account" element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['Patient']}>
             <OnboardingRoute>
               <PatientLayout>
                 <AccountDetailsPage />
@@ -154,7 +164,7 @@ function App() {
           </ProtectedRoute>
         } />
         <Route path="/booking-history" element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['Patient']}>
             <OnboardingRoute>
               <PatientLayout>
                 <BookingHistoryPage />
@@ -164,7 +174,7 @@ function App() {
         } />
         <Route path="/patient/appointments" element={<Navigate to="/booking-history" replace />} />
         <Route path="/favourites" element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['Patient']}>
             <OnboardingRoute>
               <PatientLayout>
                 <FavouritesPage />
@@ -173,7 +183,7 @@ function App() {
           </ProtectedRoute>
         } />
         <Route path="/patient/settings" element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['Patient']}>
             <PatientLayout>
               <SettingsPage />
             </PatientLayout>
@@ -186,18 +196,13 @@ function App() {
             <OnboardingProviderPage />
           </PublicRoute>
         } />
-        <Route path="/providers/signin" element={
-          <PublicRoute>
-            <SignInProvider />
-          </PublicRoute>
-        } />
         <Route path="/providers/verify" element={
           <PublicRoute>
             <VerificationProviderPage />
           </PublicRoute>
         } />
         <Route path="/welcome-provider" element={
-          <ProtectedRoute>
+          <ProtectedRoute allowedRoles={['DiagnosticProvider', 'Clinician', 'Provider']}>
             <WelcomeProviderPage />
           </ProtectedRoute>
         } />

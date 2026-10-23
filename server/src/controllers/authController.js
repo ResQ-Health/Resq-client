@@ -741,21 +741,12 @@ const loginUser = async (req, res) => {
         const passwordMatches = await user.matchPassword(password);
 
         if (passwordMatches) {
-            // Enforce Patient-only login for this endpoint
-            if (user.user_type !== 'Patient') {
-                return res.status(403).json({
-                    success: false,
-                    message: 'Patients only.'
-                });
-            }
             // Generate token
             const token = generateToken(user.id);
 
-            // Compute onboarding status (patients)
-            const onboarding = computePatientOnboardingStatus(user);
+            const isProvider = user.user_type === 'DiagnosticProvider' || user.user_type === 'Clinician';
 
             // Prepare user data for response and cache
-            // Include profile_picture in cached data to prevent inconsistencies
             const userData = {
                 id: user.id,
                 full_name: user.full_name,
@@ -766,16 +757,37 @@ const loginUser = async (req, res) => {
                 email_verified: user.email_verified,
                 created_at: user.created_at,
                 profile_picture: user.profile_picture || { url: '' },
-                is_onboarding_complete: onboarding.is_onboarding_complete,
-                onboarding_missing_sections: onboarding.missing_sections
             };
+
+            if (isProvider) {
+                // Fetch provider details
+                const provider = await Provider.findOne({ user_id: user.id });
+                if (provider) {
+                    userData.provider = {
+                        id: provider.id,
+                        provider_name: provider.provider_name,
+                        work_email: provider.work_email,
+                        work_phone: provider.work_phone,
+                        services: provider.services,
+                        profile_complete: provider.profile_complete
+                    };
+                    userData.is_onboarding_complete = provider.profile_complete;
+                    userData.profile_complete = provider.profile_complete;
+                } else {
+                    userData.is_onboarding_complete = false;
+                    userData.profile_complete = false;
+                }
+            } else {
+                // Compute onboarding status (patients)
+                const onboarding = computePatientOnboardingStatus(user);
+                userData.is_onboarding_complete = onboarding.is_onboarding_complete;
+                userData.onboarding_missing_sections = onboarding.missing_sections;
+            }
 
             // Store user data in Redis cache if Redis is connected
             try {
                 if (redisClient.isReady) {
-                    // Cache user by ID - include profile_picture to prevent cache inconsistencies
                     await redisClient.set(`user:${user.id}`, JSON.stringify(userData), { EX: 60 * 60 * 24 }); // Expire in 24 hours
-                    // Cache email to ID mapping for faster lookups
                     await redisClient.set(`user:email:${normalizedEmail}`, user.id, { EX: 60 * 60 * 24 });
                 }
             } catch (redisError) {
@@ -804,118 +816,11 @@ const loginUser = async (req, res) => {
     }
 };
 
-// @desc    Authenticate provider & get token
+// @desc    Authenticate provider & get token (Delegates to unified loginUser)
 // @route   POST /api/auth/provider/login
 // @access  Public
 const loginProvider = async (req, res) => {
-    try {
-        const { email, password } = req.body;
-
-        // Normalize email to lowercase for consistent matching
-        const normalizedEmail = email ? email.toLowerCase().trim() : null;
-
-        if (!normalizedEmail) {
-            return res.status(400).json({
-                success: false,
-                message: 'Email is required.'
-            });
-        }
-
-        // Find user by email - select password
-        const user = await User.findOne({ email: normalizedEmail }).select('+password');
-
-        // Check if user exists
-        if (!user) {
-            return res.status(401).json({
-                success: false,
-                message: 'Invalid email or password.'
-            });
-        }
-
-        // Check if user has a password
-        if (!user.password) {
-            return res.status(401).json({
-                success: false,
-                message: 'Invalid email or password.'
-            });
-        }
-
-        // Check if password matches
-        const passwordMatches = await user.matchPassword(password);
-
-        if (passwordMatches) {
-            // Enforce Provider/Clinician login for this endpoint
-            // Allow Clinician and DiagnosticProvider
-            const allowedTypes = ['Clinician', 'DiagnosticProvider'];
-
-            if (!allowedTypes.includes(user.user_type)) {
-                return res.status(403).json({
-                    success: false,
-                    message: 'Access denied. Providers only.'
-                });
-            }
-
-            // Generate token
-            const token = generateToken(user.id);
-
-            // Fetch provider details
-            const provider = await Provider.findOne({ user_id: user.id });
-
-            // Prepare user data for response
-            const userData = {
-                id: user.id,
-                full_name: user.full_name,
-                email: user.email,
-                phone_number: user.phone_number,
-                user_type: user.user_type,
-                is_admin: user.is_admin,
-                email_verified: user.email_verified,
-                created_at: user.created_at,
-                profile_picture: user.profile_picture || { url: '' }
-            };
-
-            // Add provider details if found
-            if (provider) {
-                userData.provider = {
-                    id: provider.id,
-                    provider_name: provider.provider_name,
-                    work_email: provider.work_email,
-                    work_phone: provider.work_phone,
-                    services: provider.services,
-                    profile_complete: provider.profile_complete
-                };
-            }
-
-            // Store user data in Redis cache if Redis is connected
-            try {
-                if (redisClient.isReady) {
-                    await redisClient.set(`user:${user.id}`, JSON.stringify(userData), { EX: 60 * 60 * 24 }); // Expire in 24 hours
-                    await redisClient.set(`user:email:${normalizedEmail}`, user.id, { EX: 60 * 60 * 24 });
-                }
-            } catch (redisError) {
-                // Continue without Redis caching
-            }
-
-            return res.json({
-                success: true,
-                data: {
-                    ...userData,
-                    token
-                }
-            });
-        } else {
-            return res.status(401).json({
-                success: false,
-                message: 'Invalid email or password.'
-            });
-        }
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({
-            success: false,
-            message: 'Something went wrong.'
-        });
-    }
+    return loginUser(req, res);
 };
 
 // @desc    Update user profile (all fields, including profile picture)
@@ -1629,13 +1534,7 @@ const socialOAuthLogin = async (req, res) => {
             });
         }
 
-        // Enforce Patient-only login for OAuth
-        if (user.user_type !== 'Patient') {
-            return res.status(403).json({
-                success: false,
-                message: 'OAuth login is only available for patients.'
-            });
-        }
+        const isProvider = user.user_type === 'DiagnosticProvider' || user.user_type === 'Clinician';
 
         // Generate JWT token
         const token = generateToken(user.id);
@@ -1650,8 +1549,32 @@ const socialOAuthLogin = async (req, res) => {
             is_admin: user.is_admin,
             email_verified: user.email_verified,
             oauth_provider: user.oauth_provider,
-            created_at: user.created_at
+            created_at: user.created_at,
+            profile_picture: user.profile_picture || { url: '' },
         };
+
+        if (isProvider) {
+            const provider = await Provider.findOne({ user_id: user.id });
+            if (provider) {
+                userData.provider = {
+                    id: provider.id,
+                    provider_name: provider.provider_name,
+                    work_email: provider.work_email,
+                    work_phone: provider.work_phone,
+                    services: provider.services,
+                    profile_complete: provider.profile_complete
+                };
+                userData.is_onboarding_complete = provider.profile_complete;
+                userData.profile_complete = provider.profile_complete;
+            } else {
+                userData.is_onboarding_complete = false;
+                userData.profile_complete = false;
+            }
+        } else {
+            const onboarding = computePatientOnboardingStatus(user);
+            userData.is_onboarding_complete = onboarding.is_onboarding_complete;
+            userData.onboarding_missing_sections = onboarding.missing_sections;
+        }
 
         // Store user data in Redis cache if Redis is connected
         try {
@@ -1669,18 +1592,9 @@ const socialOAuthLogin = async (req, res) => {
         return res.json({
             success: true,
             data: {
-                id: savedUser.id,
-                full_name: savedUser.full_name,
-                email: savedUser.email,
-                phone_number: savedUser.phone_number,
-                user_type: savedUser.user_type,
-                is_admin: savedUser.is_admin,
-                email_verified: savedUser.email_verified,
-                oauth_provider: savedUser.oauth_provider,
+                ...userData,
                 oauth_id: savedUser.oauth_id,
                 oauth_metadata: savedUser.oauth_metadata || null,
-                profile_picture: savedUser.profile_picture,
-                created_at: savedUser.created_at,
                 token
             },
             message: savedUser.oauth_provider ? 'Login successful' : 'Account created and logged in successfully'

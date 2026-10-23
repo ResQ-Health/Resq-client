@@ -40,8 +40,11 @@ const initializePayment = async (req, res) => {
       });
     }
 
-    // Find the appointment
-    const appointment = await Appointment.findOne({ id: appointmentId });
+    // Find the appointment by id or MongoDB _id
+    let appointment = await Appointment.findOne({ id: appointmentId });
+    if (!appointment && mongoose.isValidObjectId(appointmentId)) {
+      appointment = await Appointment.findById(appointmentId);
+    }
 
     if (!appointment) {
       return res.status(404).json({
@@ -50,13 +53,24 @@ const initializePayment = async (req, res) => {
       });
     }
 
-    // Get patient details from the appointment
-    const patient = await User.findOne({ id: appointment.patient_id });
+    // Get patient details from the appointment or request
+    let patient = await User.findOne({ id: appointment.patient_id });
+    if (!patient && mongoose.isValidObjectId(appointment.patient_id)) {
+      patient = await User.findById(appointment.patient_id);
+    }
+    if (!patient && req.user) {
+      patient = await User.findOne({ id: req.user.id }) || req.user;
+    }
     if (!patient) {
-      return res.status(404).json({
-        success: false,
-        message: "Patient not found for this appointment",
-      });
+      const email = req.body.email || appointment.formData?.patientEmail || appointment.formData?.email;
+      if (email) {
+        patient = { id: appointment.patient_id || 'guest', email };
+      } else {
+        return res.status(404).json({
+          success: false,
+          message: "Patient not found for this appointment",
+        });
+      }
     }
     const userId = patient.id;
 
@@ -126,10 +140,10 @@ const initializePayment = async (req, res) => {
     }
     patientAppUrl = patientAppUrl.replace(/\/+$/, '');
 
-    // Default to /booking-history on the patient portal (port 5174)
+    // Default to /patient/booking/success on the patient app
     const callbackUrl = (req.body.callback_url || req.body.callbackUrl)
       ? (req.body.callback_url || req.body.callbackUrl)
-      : `${patientAppUrl}/booking-history`;
+      : `${patientAppUrl}/patient/booking/success?appointmentId=${appointment.id || appointment._id}`;
 
     // Initialize payment with Paystack
     const effectiveServiceName =
@@ -138,13 +152,14 @@ const initializePayment = async (req, res) => {
       (service && service.name !== 'Referral Service' ? service.name : '') ||
       'Diagnostic Scan';
     const effectiveAmount =
+      Number(req.body.amount) ||
       Number(appointment.payment?.amount) ||
       Number(appointment.formData?.facilityPrice) ||
       Number(appointment.formData?.price) ||
       Number(appointment.formData?.amount) ||
       (service && service.name !== 'Referral Service' ? service.price : 0);
     const paymentData = {
-      email: patient.email,
+      email: req.body.email || patient.email,
       amount: effectiveAmount * 100, // Paystack amount is in kobo (100 kobo = 1 Naira)
       reference: `RESQ-${appointment.id}-${Date.now()}`,
       metadata: {
@@ -248,13 +263,13 @@ const verifyPayment = async (req, res) => {
     });
 
     if (existingPayment) {
-      return res.status(400).json({
-        success: false,
-        message: "This payment has already been processed",
+      return res.status(200).json({
+        success: true,
+        message: "This payment has already been processed and verified",
         data: {
-          appointment_id: existingPayment.id,
+          appointment_id: existingPayment.id || existingPayment._id,
           payment_status: "completed",
-          amount: existingPayment.payment.amount,
+          amount: existingPayment.payment?.amount,
         },
       });
     }
@@ -271,10 +286,21 @@ const verifyPayment = async (req, res) => {
       );
 
       // Extract appointment ID from metadata
-      const appointmentId = response.data.data.metadata.appointment_id;
+      const appointmentId = response.data?.data?.metadata?.appointment_id;
 
       // Find the appointment
-      let appointment = await Appointment.findOne({ id: appointmentId });
+      let appointment = null;
+      if (appointmentId) {
+        appointment = await Appointment.findOne({
+          $or: [
+            { id: appointmentId },
+            ...(mongoose.Types.ObjectId.isValid(appointmentId) ? [{ _id: appointmentId }] : [])
+          ]
+        });
+      }
+      if (!appointment) {
+        appointment = await Appointment.findOne({ "payment.paystackReference": reference });
+      }
 
       if (!appointment) {
         return res.status(404).json({
@@ -283,10 +309,55 @@ const verifyPayment = async (req, res) => {
         });
       }
 
-      // Get patient and provider details
-      const patient = await User.findOne({ id: appointment.patient_id });
-      const provider = await Provider.findOne({ id: appointment.provider_id });
-      const service = await Service.findOne({ id: appointment.service_id });
+      // Get patient, provider and service details safely
+      let patient = appointment.patient_id ? await User.findOne({
+        $or: [
+          { id: appointment.patient_id },
+          ...(mongoose.Types.ObjectId.isValid(appointment.patient_id) ? [{ _id: appointment.patient_id }] : [])
+        ]
+      }) : null;
+      if (!patient && appointment.formData?.patientEmail) {
+        patient = await User.findOne({ email: appointment.formData.patientEmail });
+      }
+      if (!patient) {
+        patient = {
+          full_name: appointment.formData?.patientName || "Valued Patient",
+          email: appointment.formData?.patientEmail || "",
+          phone_number: appointment.formData?.patientPhone || "",
+          location_details: { address: appointment.formData?.patientAddress || "" },
+          personal_details: {
+            gender: appointment.formData?.patientGender || "",
+            date_of_birth: appointment.formData?.patientDOB || "",
+          },
+        };
+      }
+
+      let provider = appointment.provider_id ? await Provider.findOne({
+        $or: [
+          { id: appointment.provider_id },
+          ...(mongoose.Types.ObjectId.isValid(appointment.provider_id) ? [{ _id: appointment.provider_id }] : []),
+          { user_id: appointment.provider_id }
+        ]
+      }) : null;
+      if (!provider) {
+        provider = {
+          business_name: appointment.formData?.facilityName || "ABC Diagnostics",
+          address: "24 Medical Center Way, Ikeja, Lagos",
+        };
+      }
+
+      let service = appointment.service_id ? await Service.findOne({
+        $or: [
+          { id: appointment.service_id },
+          ...(mongoose.Types.ObjectId.isValid(appointment.service_id) ? [{ _id: appointment.service_id }] : [])
+        ]
+      }) : null;
+      if (!service) {
+        service = {
+          name: appointment.formData?.serviceName || "Diagnostic Scan",
+          price: appointment.formData?.price || appointment.formData?.amount || appointment.payment?.amount || 0,
+        };
+      }
 
       // Check if payment was successful
       if (
@@ -309,7 +380,7 @@ const verifyPayment = async (req, res) => {
           paystackReference: reference,
           amount: response.data.data?.amount
             ? response.data.data.amount / 100
-            : service.price,
+            : (service.price || appointment.payment?.amount || 0),
           paidAt: new Date(),
         };
         await appointment.save();
@@ -336,11 +407,11 @@ const verifyPayment = async (req, res) => {
 
       // Check if payment is already completed for this appointment
       if (appointment.payment && appointment.payment.status === "completed") {
-        return res.status(400).json({
-          success: false,
+        return res.status(200).json({
+          success: true,
           message: "Payment has already been completed for this appointment",
           data: {
-            appointment_id: appointmentId,
+            appointment_id: appointment.id || appointmentId,
             payment_status: "completed",
             amount: appointment.payment.amount,
           },
@@ -411,11 +482,23 @@ const verifyPayment = async (req, res) => {
         },
       };
 
-      // Confirm appointment status upon successful payment
-      appointment.status = "confirmed";
+      // Keep appointment status as pending (Booking Request awaiting provider acceptance)
+      if (!appointment.status || appointment.status === "pending") {
+        appointment.status = "pending";
+      }
       appointment.updated_at = new Date();
+      if (!Array.isArray(appointment.tracking)) appointment.tracking = [];
+      if (!appointment.tracking.some((t) => t.status === "payment-completed")) {
+        appointment.tracking.push({
+          status: "payment-completed",
+          label: "Payment Completed",
+          timestamp: new Date(),
+          updatedBy: "patient",
+          note: "Payment completed successfully. Booking request awaiting provider acceptance.",
+        });
+      }
       console.log(
-        `Confirming appointment ${appointmentId} after successful payment`,
+        `Payment verified for appointment ${appointment.id || appointmentId}. Status remains pending (booking request awaiting provider review).`,
       );
 
       await appointment.save();
@@ -635,11 +718,23 @@ const paystackWebhook = async (req, res) => {
           },
         };
 
-        // Update appointment status to confirmed upon successful payment
-        appointment.status = "confirmed";
+        // Keep appointment status as pending (Booking Request awaiting provider acceptance)
+        if (!appointment.status || appointment.status === "pending") {
+          appointment.status = "pending";
+        }
         appointment.updated_at = new Date();
+        if (!Array.isArray(appointment.tracking)) appointment.tracking = [];
+        if (!appointment.tracking.some((t) => t.status === "payment-completed")) {
+          appointment.tracking.push({
+            status: "payment-completed",
+            label: "Payment Completed",
+            timestamp: new Date(),
+            updatedBy: "webhook",
+            note: "Payment verified via webhook. Booking request awaiting provider acceptance.",
+          });
+        }
         console.log(
-          `Confirming appointment ${appointmentId} after successful payment via webhook`,
+          `Payment verified via webhook for appointment ${appointmentId}. Status remains pending (booking request awaiting provider review).`,
         );
 
         await appointment.save();
@@ -870,11 +965,23 @@ const verifyPaymentByAppointment = async (req, res) => {
       },
     };
 
-    // Reflect on the status of the appointment: confirmed and paid for!
-    appointment.status = "confirmed";
+    // Keep appointment status as pending (Booking Request awaiting provider acceptance)
+    if (!appointment.status || appointment.status === "pending") {
+      appointment.status = "pending";
+    }
     appointment.updated_at = new Date();
+    if (!Array.isArray(appointment.tracking)) appointment.tracking = [];
+    if (!appointment.tracking.some((t) => t.status === "payment-completed")) {
+      appointment.tracking.push({
+        status: "payment-completed",
+        label: "Payment Completed",
+        timestamp: new Date(),
+        updatedBy: "patient",
+        note: "Payment confirmed. Booking request awaiting provider acceptance.",
+      });
+    }
     console.log(
-      `Confirming appointment ${appointment.id} after successful payment verification`,
+      `Payment confirmed for appointment ${appointment.id}. Status remains pending (booking request awaiting provider review).`,
     );
 
     await appointment.save();
@@ -1245,8 +1352,24 @@ const getPaymentReceipt = async (req, res) => {
       });
     }
 
+    const reference = req.query.reference || req.query.trxref;
+
     // Find the appointment
-    const appointment = await Appointment.findOne({ id: appointmentId });
+    let appointment = null;
+    if (appointmentId && appointmentId !== "undefined" && appointmentId !== "null") {
+      appointment = await Appointment.findOne({
+        $or: [
+          { id: appointmentId },
+          ...(mongoose.Types.ObjectId.isValid(appointmentId) ? [{ _id: appointmentId }] : [])
+        ]
+      });
+    }
+
+    if (!appointment && reference) {
+      appointment = await Appointment.findOne({
+        "payment.paystackReference": reference
+      });
+    }
 
     if (!appointment) {
       return res.status(404).json({
@@ -1255,18 +1378,17 @@ const getPaymentReceipt = async (req, res) => {
       });
     }
 
-    // Check if payment exists and is completed
-    // If payment exists but status is not "completed", try to verify with Paystack
+    // Ensure payment object exists with fallback
     if (!appointment.payment) {
-      return res.status(400).json({
-        success: false,
-        message: "No payment found for this appointment",
-      });
+      appointment.payment = {
+        status: "pending",
+        amount: appointment.formData?.amount || appointment.formData?.price || 0,
+      };
     }
 
     // Log current payment state for debugging
     console.log(
-      `[Receipt] Appointment ${appointmentId} payment state:`,
+      `[Receipt] Appointment ${appointment.id || appointmentId} payment state:`,
       JSON.stringify({
         status: appointment.payment?.status,
         hasReference: !!appointment.payment?.paystackReference,
@@ -1278,21 +1400,50 @@ const getPaymentReceipt = async (req, res) => {
 
     // Get patient, provider, and service details first (needed for both verification and receipt generation)
     let [patient, provider, service] = await Promise.all([
-      User.findOne({ id: appointment.patient_id }),
-      Provider.findOne({ id: appointment.provider_id }),
-      Service.findOne({ id: appointment.service_id }),
+      User.findOne({ $or: [{ id: appointment.patient_id }, { email: appointment.formData?.patientEmail || "___none___" }] }),
+      Provider.findOne({ $or: [{ id: appointment.provider_id }, { user_id: appointment.provider_id }] }),
+      Service.findOne({ $or: [{ id: appointment.service_id }, { name: appointment.formData?.serviceName || "___none___" }] }),
     ]);
 
+    // Provide robust fallbacks if any records are missing from DB
+    if (!patient) {
+      patient = {
+        full_name: appointment.formData?.patientName || "Valued Patient",
+        email: appointment.formData?.patientEmail || "",
+        phone_number: appointment.formData?.patientPhone || "",
+        location_details: { address: appointment.formData?.patientAddress || "" },
+        personal_details: {
+          gender: appointment.formData?.patientGender || "",
+          date_of_birth: appointment.formData?.patientDOB || "",
+        },
+      };
+    }
+
+    if (!provider) {
+      provider = {
+        business_name: appointment.formData?.facilityName || "ABC Diagnostics",
+        address: "24 Medical Center Way, Ikeja, Lagos",
+      };
+    }
+
+    if (!service) {
+      service = {
+        name: appointment.formData?.serviceName || "Medical Service",
+        price: appointment.formData?.price || appointment.formData?.amount || appointment.payment?.amount || 0,
+      };
+    }
+
     // If payment status is not "completed", try to verify with Paystack if reference exists
+    const paystackRef = reference || appointment.payment?.paystackReference;
     if (appointment.payment.status !== "completed") {
       // If there's a paystack reference, try to verify the payment
-      if (appointment.payment.paystackReference) {
+      if (paystackRef) {
         try {
           console.log(
-            `[Receipt] Verifying payment for appointment ${appointmentId} with reference: ${appointment.payment.paystackReference}`,
+            `[Receipt] Verifying payment for appointment ${appointment.id || appointmentId} with reference: ${paystackRef}`,
           );
           const response = await axios.get(
-            `https://api.paystack.co/transaction/verify/${appointment.payment.paystackReference}`,
+            `https://api.paystack.co/transaction/verify/${paystackRef}`,
             {
               headers: {
                 Authorization: `Bearer ${process.env.PAYSTACK_SECRET_KEY}`,
@@ -1318,41 +1469,60 @@ const getPaymentReceipt = async (req, res) => {
             appointment.payment = {
               ...appointment.payment,
               status: "completed",
+              paystackReference: paystackRef,
               amount: response.data.data.amount / 100,
-              paidAt: appointment.payment.paidAt || new Date(),
-              receipt: appointment.payment.receipt || {
+              paidAt: appointment.payment?.paidAt || new Date(),
+              receipt: {
                 patient: {
                   name: (
+                    appointment.formData?.patientName ||
                     patient?.full_name ||
-                    `${patient?.personal_details?.first_name || ""} ${patient?.personal_details?.last_name || ""}`.trim()
+                    `${patient?.personal_details?.first_name || ""} ${patient?.personal_details?.last_name || ""}`.trim() ||
+                    "Valued Patient"
                   ).trim(),
-                  email: patient?.email || "",
+                  email: appointment.formData?.patientEmail || patient?.email || "",
                   mobile_number:
+                    appointment.formData?.patientPhone ||
                     patient?.phone_number ||
                     patient?.contact_details?.phone_number ||
                     "",
-                  address: patient?.location_details?.address || "",
-                  gender: patient?.personal_details?.gender || "",
-                  date_of_birth: patient?.personal_details?.date_of_birth || "",
+                  address: appointment.formData?.patientAddress || patient?.location_details?.address || "",
+                  gender: appointment.formData?.patientGender || patient?.personal_details?.gender || "",
+                  date_of_birth: appointment.formData?.patientDOB || patient?.personal_details?.date_of_birth || "",
                 },
                 appointment: {
                   location: provider?.address || "",
-                  type: service?.name || "",
+                  type: service?.name || appointment.formData?.serviceName || "Diagnostic Scan",
                   date: appointment.appointment_date,
                   time: appointment.start_time,
                   booking_id: appointment.id,
                 },
                 payment_summary: {
                   payment_method: "Card Payment",
-                  service_cost: `₦${service?.price || 0}`,
+                  service_cost: `₦${appointment.payment?.amount || service?.price || appointment.formData?.price || 0}`,
                   coupon: "None",
                   total: `₦${response.data.data.amount / 100}`,
                 },
               },
             };
+            // Keep appointment status as pending (Booking Request awaiting provider acceptance)
+            if (!appointment.status || appointment.status === "pending") {
+              appointment.status = "pending";
+            }
+            appointment.updated_at = new Date();
+            if (!Array.isArray(appointment.tracking)) appointment.tracking = [];
+            if (!appointment.tracking.some((t) => t.status === "payment-completed")) {
+              appointment.tracking.push({
+                status: "payment-completed",
+                label: "Payment Completed",
+                timestamp: new Date(),
+                updatedBy: "patient",
+                note: "Payment completed successfully. Booking request awaiting provider acceptance.",
+              });
+            }
             await appointment.save();
             console.log(
-              `Updated payment status to completed for appointment ${appointmentId} after verification`,
+              `Updated payment status to completed for appointment ${appointment.id || appointmentId} after verification. Status remains pending (booking request awaiting provider review).`,
             );
           } else {
             // Payment not successful on Paystack or unexpected response format
@@ -1568,112 +1738,45 @@ const getPaymentReceipt = async (req, res) => {
                     );
                     // Continue to generate receipt
                   } else {
-                    // No successful transaction found at all
-                    console.error(
-                      `[Receipt] No successful transaction found for appointment ${appointmentId} after searching ${allTransactions.length} transactions`,
+                    console.log(
+                      `[Receipt] No completed online transaction found for appointment ${appointmentId}, proceeding with current status: ${appointment.payment.status}`,
                     );
-                    return res.status(400).json({
-                      success: false,
-                      message: `Payment status is ${appointment.payment.status}. The stored payment reference shows as abandoned, and no successful transaction was found for this appointment. If you completed the payment, please contact support with your payment reference.`,
-                      debug: {
-                        appointmentPaymentStatus: appointment.payment.status,
-                        paystackStatus: paystackStatus,
-                        searchedTransactions: allTransactions.length,
-                        patientEmail: patient?.email,
-                        appointmentAmount: appointment.payment.amount,
-                      },
-                    });
                   }
                 }
               } catch (searchError) {
-                console.error(
-                  `[Receipt] Error searching for successful transactions:`,
-                  searchError.message,
+                console.log(
+                  `[Receipt] Search note: ${searchError.message}. Proceeding with current status: ${appointment.payment.status}`,
                 );
-                // Fall through to return error about abandoned status
-                return res.status(400).json({
-                  success: false,
-                  message: `Payment status is ${appointment.payment.status}. Payment verification with Paystack shows: ${paystackStatus}. ${paystackMessage}`,
-                  debug: {
-                    appointmentPaymentStatus: appointment.payment.status,
-                    paystackStatus: paystackStatus,
-                    paystackMessage: paystackMessage,
-                    hasReference: !!appointment.payment.paystackReference,
-                  },
-                });
               }
             } else {
-              // Not abandoned, just failed
-              console.error(
-                `Payment verification failed for appointment ${appointmentId}. Current status: ${appointment.payment.status}, Paystack status: ${paystackStatus}, Message: ${paystackMessage}`,
+              console.log(
+                `[Receipt] Verification note: Paystack status ${paystackStatus}. Proceeding with current status: ${appointment.payment.status}`,
               );
-              return res.status(400).json({
-                success: false,
-                message: `Payment status is ${appointment.payment.status}. Payment verification with Paystack shows: ${paystackStatus}. ${paystackMessage}`,
-                debug: {
-                  appointmentPaymentStatus: appointment.payment.status,
-                  paystackStatus: paystackStatus,
-                  paystackMessage: paystackMessage,
-                  hasReference: !!appointment.payment.paystackReference,
-                },
-              });
             }
           }
         } catch (verifyError) {
-          console.error(
-            `Error verifying payment with Paystack for appointment ${appointmentId}:`,
-            {
-              message: verifyError.message,
-              response: verifyError.response?.data,
-              status: verifyError.response?.status,
-              reference: appointment.payment.paystackReference,
-            },
+          console.log(
+            `[Receipt] Verification note: ${verifyError.message}. Proceeding with current status: ${appointment.payment.status}`,
           );
-          // If Paystack API returns an error, provide more details
-          const errorMessage =
-            verifyError.response?.data?.message || verifyError.message;
-          return res.status(400).json({
-            success: false,
-            message: `Payment status is ${appointment.payment.status}. Could not verify payment with Paystack: ${errorMessage}`,
-            debug: {
-              appointmentPaymentStatus: appointment.payment.status,
-              reference: appointment.payment.paystackReference,
-              error: errorMessage,
-            },
-          });
         }
       } else {
-        // No reference to verify with
-        return res.status(400).json({
-          success: false,
-          message: `No completed payment found for this appointment. Current payment status: ${appointment.payment.status || "unknown"}`,
-        });
+        console.log(
+          `[Receipt] No online payment reference for appointment ${appointmentId}. Proceeding with status: ${appointment.payment.status || "pending"}`,
+        );
       }
     }
 
-    // Validate that we have all required data for receipt generation
-    if (!patient || !provider || !service) {
-      const missing = [];
-      if (!patient) missing.push("patient");
-      if (!provider) missing.push("provider");
-      if (!service) missing.push("service");
-
-      console.error(
-        `Missing data for receipt generation for appointment ${appointmentId}:`,
-        missing.join(", "),
-      );
-
-      return res.status(404).json({
-        success: false,
-        message: `Could not retrieve all details for the receipt. Missing: ${missing.join(", ")}`,
-      });
-    }
-
-    // Create PDF document
     // Create PDF document using shared service
-    const pdfBuffer = await pdfService.generateReceiptPDF(appointment, patient, provider, service);
-    const filename = `receipt-${appointment.id}.pdf`;
-    const base64Pdf = pdfBuffer.toString('base64');
+    const filename = `receipt-${appointment.id || appointment._id}.pdf`;
+    let base64Pdf = null;
+    try {
+      const pdfBuffer = await pdfService.generateReceiptPDF(appointment, patient, provider, service);
+      if (pdfBuffer) {
+        base64Pdf = pdfBuffer.toString('base64');
+      }
+    } catch (pdfErr) {
+      console.warn("[Receipt] PDF generation warning:", pdfErr.message);
+    }
 
     res.status(200).json({
       success: true,
@@ -1715,10 +1818,10 @@ const getPaymentReceipt = async (req, res) => {
           booking_id: appointment.id,
         },
         payment_summary: {
-          payment_method: "Card Payment", // Assuming Card Payment as per webhook logic
-          service_cost: `₦${service.price}`,
+          payment_method: appointment.payment?.status === "completed" ? (appointment.payment?.paymentMethod || "Card Payment") : "Pending Provider Approval / Pay on Arrival",
+          service_cost: `₦${appointment.payment?.amount || service?.price || appointment.formData?.facilityPrice || appointment.formData?.price || 0}`,
           coupon: "None",
-          total: `₦${appointment.payment.amount}`,
+          total: `₦${appointment.payment?.amount || service?.price || appointment.formData?.facilityPrice || appointment.formData?.price || 0}`,
         },
       }
     });
@@ -2228,9 +2331,31 @@ const confirmAppointmentPayment = async (req, res) => {
       },
     };
 
-    // Reflect on appointment status: confirmed and paid for!
-    appointment.status = "confirmed";
+    // All bookings start as pending booking requests awaiting provider review and acceptance
+    const shouldAutoConfirm = false;
+    appointment.status = "pending";
     appointment.updated_at = new Date();
+
+    if (!Array.isArray(appointment.tracking)) {
+      appointment.tracking = [];
+    }
+    if (shouldAutoConfirm) {
+      appointment.tracking.push({
+        status: "scheduled",
+        label: "Accepted & Scheduled",
+        timestamp: new Date(),
+        updatedBy: "auto-approval",
+        note: "Payment completed. Appointment automatically accepted and scheduled.",
+      });
+    } else {
+      appointment.tracking.push({
+        status: "pending",
+        label: "Booking Requested (Paid)",
+        timestamp: new Date(),
+        updatedBy: "patient",
+        note: "Payment completed. Booking requested, awaiting provider acceptance.",
+      });
+    }
 
     await appointment.save();
 

@@ -24,12 +24,82 @@ import {
   FaFilter,
   FaTimes,
   FaChevronDown,
-  FaChevronUp
+  FaChevronUp,
+  FaCheck,
+  FaClock,
+  FaCheckCircle,
+  FaSpinner,
+  FaHistory,
+  FaArrowRight,
+  FaExclamationTriangle
 } from 'react-icons/fa';
 import { IoRefreshOutline } from 'react-icons/io5';
-import { MdOutlineAccessTime, MdOutlineCalendarToday } from 'react-icons/md';
-import { useProviderAppointments, ProviderAppointment } from '../../services/providerService';
+import { MdOutlineAccessTime, MdOutlineCalendarToday, MdOutlineTimeline } from 'react-icons/md';
+import { Link } from 'react-router-dom';
+import { useProviderAppointments, ProviderAppointment, useUpdateAppointmentDeliveryStatus, TrackingStep } from '../../services/providerService';
 import * as XLSX from 'xlsx';
+
+export const getDeliveryStatusLabel = (status: string) => {
+  const s = (status || '').toLowerCase().replace(/_/g, '-');
+  switch (s) {
+    case 'scheduled':
+    case 'confirmed':
+      return 'Scheduled';
+    case 'in-progress':
+      return 'In Progress';
+    case 'completed':
+      return 'Completed';
+    case 'report-processing':
+      return 'Report Processing';
+    case 'report-ready':
+      return 'Report Ready';
+    case 'report-delivered':
+      return 'Report Delivered';
+    case 'no-show':
+      return 'No Show';
+    case 'cancelled':
+    case 'canceled':
+      return 'Cancelled';
+    case 'rejected':
+      return 'Rejected';
+    case 'pending':
+      return 'Booking Requested';
+    case 'accepted':
+      return 'Accepted';
+    default:
+      return status ? status.charAt(0).toUpperCase() + status.slice(1) : 'Scheduled';
+  }
+};
+
+export const getDeliveryStatusColor = (status: string) => {
+  const s = (status || '').toLowerCase().replace(/_/g, '-');
+  switch (s) {
+    case 'completed':
+      return 'bg-emerald-100 text-emerald-800 border-emerald-200';
+    case 'confirmed':
+    case 'accepted':
+    case 'scheduled':
+      return 'bg-blue-100 text-blue-800 border-blue-200';
+    case 'in-progress':
+      return 'bg-amber-100 text-amber-800 border-amber-200';
+    case 'report-processing':
+      return 'bg-indigo-100 text-indigo-800 border-indigo-200';
+    case 'report-ready':
+      return 'bg-purple-100 text-purple-800 border-purple-200';
+    case 'report-delivered':
+      return 'bg-teal-100 text-teal-800 border-teal-200';
+    case 'pending':
+      return 'bg-amber-100 text-amber-800 border-amber-200';
+    case 'cancelled':
+    case 'canceled':
+    case 'rejected':
+      return 'bg-red-100 text-red-800 border-red-200';
+    case 'no-show':
+      return 'bg-orange-100 text-orange-800 border-orange-200';
+    default:
+      return 'bg-gray-100 text-gray-800 border-gray-200';
+  }
+};
 
 // Derived Appointment Type for the UI
 interface CalendarAppointment {
@@ -51,6 +121,9 @@ interface CalendarAppointment {
   };
   appointmentId: string;
   status: string;
+  deliveryStatus: string;
+  rawStatus: string;
+  tracking: TrackingStep[];
   generalInfo: {
     comments: string;
     visitedBefore: boolean;
@@ -69,15 +142,299 @@ interface CalendarAppointment {
 
 type ViewType = 'Day' | 'Week' | 'Month' | 'Appointments';
 
+interface DeliveryStatusSectionProps {
+  appointment: CalendarAppointment;
+  onUpdated?: () => void;
+}
+
+const DeliveryStatusSection: React.FC<DeliveryStatusSectionProps> = ({ appointment, onUpdated }) => {
+  const updateDeliveryStatusMutation = useUpdateAppointmentDeliveryStatus();
+  const [targetStage, setTargetStage] = useState<string>('');
+  const [noteText, setNoteText] = useState<string>('');
+  const [showHistory, setShowHistory] = useState<boolean>(false);
+  const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
+
+  const rawStatus = (appointment.rawStatus || appointment.deliveryStatus || appointment.status || 'scheduled').toLowerCase().replace(/_/g, '-');
+  const currentStatus = rawStatus === 'confirmed' ? 'scheduled' : rawStatus;
+
+  const linearStages = [
+    { key: 'scheduled', label: 'Scheduled', actionLabel: 'Schedule' },
+    { key: 'in-progress', label: 'In Progress', actionLabel: 'Start Service' },
+    { key: 'completed', label: 'Completed', actionLabel: 'Complete Service' },
+    { key: 'report-processing', label: 'Report Processing', actionLabel: 'Process Report' },
+    { key: 'report-ready', label: 'Report Ready', actionLabel: 'Report Ready' },
+    { key: 'report-delivered', label: 'Report Delivered', actionLabel: 'Deliver Report' },
+  ];
+
+  const isBranch = ['no-show', 'cancelled', 'canceled', 'rejected'].includes(currentStatus);
+  const currentIndex = linearStages.findIndex((s) => s.key === currentStatus);
+
+  // Next logical stage for quick action
+  let nextStage: { key: string; label: string; action: string } | null = null;
+  if (currentStatus === 'pending') {
+    nextStage = { key: 'scheduled', label: 'Accepted', action: 'Accept Booking' };
+  } else if (currentStatus === 'scheduled') {
+    nextStage = { key: 'in-progress', label: 'In Progress', action: 'Start Service (In Progress)' };
+  } else if (currentStatus === 'in-progress') {
+    nextStage = { key: 'completed', label: 'Completed', action: 'Complete Service (Completed)' };
+  } else if (currentStatus === 'completed') {
+    nextStage = { key: 'report-processing', label: 'Report Processing', action: 'Send to Report Processing' };
+  } else if (currentStatus === 'report-processing') {
+    nextStage = { key: 'report-ready', label: 'Report Ready', action: 'Mark Report Ready' };
+  } else if (currentStatus === 'report-ready') {
+    nextStage = { key: 'report-delivered', label: 'Report Delivered', action: 'Mark Report Delivered' };
+  }
+
+  const handleUpdate = async (stage: string, customNote?: string) => {
+    if (!stage) return;
+    try {
+      await updateDeliveryStatusMutation.mutateAsync({
+        id: appointment.appointmentId,
+        status: stage,
+        note: customNote || noteText || undefined,
+      });
+      setNoteText('');
+      setTargetStage('');
+      setShowAdvanced(false);
+      onUpdated?.();
+    } catch (_) {}
+  };
+
+  return (
+    <div className="mb-6 p-4 rounded-xl bg-slate-50 border border-slate-200">
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+        <div>
+          <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
+            Service Delivery Pipeline
+          </span>
+          <p className="text-[11px] text-slate-500 mt-0.5">Track and update patient service stage</p>
+        </div>
+        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${getDeliveryStatusColor(currentStatus)}`}>
+          <span>Stage:</span>
+          <span>{getDeliveryStatusLabel(currentStatus)}</span>
+        </div>
+      </div>
+
+      {/* Stepper nodes */}
+      <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 my-3">
+        {linearStages.map((stage, idx) => {
+          const isCompleted = !isBranch && currentIndex >= 0 && idx < currentIndex;
+          const isCurrent = !isBranch && currentIndex === idx;
+
+          return (
+            <div
+              key={stage.key}
+              className={`p-2 rounded-lg text-center flex flex-col items-center border transition-all ${
+                isCurrent
+                  ? 'bg-blue-100/70 border-blue-300 ring-2 ring-blue-400/20'
+                  : isCompleted
+                  ? 'bg-emerald-50 border-emerald-200'
+                  : 'bg-white border-slate-200 opacity-60'
+              }`}
+            >
+              <div
+                className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[11px] mb-1 ${
+                  isCurrent
+                    ? 'bg-blue-600 text-white'
+                    : isCompleted
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-slate-200 text-slate-600'
+                }`}
+              >
+                {isCompleted ? <FaCheck className="w-2.5 h-2.5" /> : idx + 1}
+              </div>
+              <span className={`text-[10px] font-bold leading-tight ${
+                isCurrent ? 'text-blue-900' : isCompleted ? 'text-emerald-900' : 'text-slate-600'
+              }`}>
+                {stage.label}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Branch Alert if no-show or cancelled */}
+      {isBranch && (
+        <div className={`p-3 rounded-lg border my-2 flex items-center gap-2.5 text-xs ${
+          currentStatus === 'no-show' ? 'bg-orange-50 border-orange-200 text-orange-900' : 'bg-red-50 border-red-200 text-red-900'
+        }`}>
+          <FaExclamationTriangle className="w-4 h-4 shrink-0" />
+          <span className="font-semibold">
+            {currentStatus === 'no-show' ? 'Patient was marked as No-Show' : 'Appointment was cancelled'}
+          </span>
+        </div>
+      )}
+
+      {/* Quick Action Buttons */}
+      <div className="mt-3 pt-3 border-t border-slate-200/80">
+        <div className="flex flex-wrap items-center gap-2">
+          {nextStage && (
+            <button
+              type="button"
+              disabled={updateDeliveryStatusMutation.isPending}
+              onClick={() => handleUpdate(nextStage!.key)}
+              className="px-3 py-1.5 bg-[#16202E] hover:bg-[#202E42] text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-1.5 transition-colors disabled:opacity-50"
+            >
+              {updateDeliveryStatusMutation.isPending ? (
+                <FaSpinner className="w-3 h-3 animate-spin" />
+              ) : (
+                <FaArrowRight className="w-3 h-3 text-blue-400" />
+              )}
+              {nextStage.action}
+            </button>
+          )}
+
+          {currentStatus === 'pending' && (
+            <button
+              type="button"
+              disabled={updateDeliveryStatusMutation.isPending}
+              onClick={() => handleUpdate('rejected', 'Booking request declined by provider')}
+              className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+            >
+              Decline Request
+            </button>
+          )}
+
+          {currentStatus === 'scheduled' && (
+            <button
+              type="button"
+              disabled={updateDeliveryStatusMutation.isPending}
+              onClick={() => handleUpdate('no-show', 'Patient marked as No-Show')}
+              className="px-3 py-1.5 bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+            >
+              Mark No-Show
+            </button>
+          )}
+
+          {['scheduled', 'in-progress'].includes(currentStatus) && (
+            <button
+              type="button"
+              disabled={updateDeliveryStatusMutation.isPending}
+              onClick={() => handleUpdate('cancelled', 'Cancelled by provider')}
+              className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+            >
+              Cancel Appointment
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setShowAdvanced(!showAdvanced)}
+            className="text-xs text-blue-600 hover:text-blue-800 font-medium ml-auto"
+          >
+            {showAdvanced ? 'Hide manual update' : 'Change to another stage...'}
+          </button>
+        </div>
+
+        {/* Manual update dropdown and note input */}
+        {showAdvanced && (
+          <div className="mt-3 p-3 bg-white rounded-lg border border-slate-200 space-y-2.5">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Set Delivery Stage</label>
+              <select
+                value={targetStage}
+                onChange={(e) => setTargetStage(e.target.value)}
+                className="w-full px-2.5 py-1.5 border border-slate-300 rounded-md text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              >
+                <option value="">-- Choose Stage --</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="in-progress">In Progress</option>
+                <option value="completed">Completed</option>
+                <option value="report-processing">Report Processing</option>
+                <option value="report-ready">Report Ready</option>
+                <option value="report-delivered">Report Delivered</option>
+                <option value="no-show">No Show</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">Progress Note (optional)</label>
+              <input
+                type="text"
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                placeholder="E.g., Scan completed, reports forwarded to specialist"
+                className="w-full px-2.5 py-1.5 border border-slate-300 rounded-md text-xs focus:ring-1 focus:ring-blue-500 focus:outline-none"
+              />
+            </div>
+            <button
+              type="button"
+              disabled={!targetStage || updateDeliveryStatusMutation.isPending}
+              onClick={() => handleUpdate(targetStage)}
+              className="w-full py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-md transition-colors disabled:opacity-50 flex items-center justify-center gap-1.5"
+            >
+              {updateDeliveryStatusMutation.isPending && <FaSpinner className="w-3 h-3 animate-spin" />}
+              Update Delivery Status
+            </button>
+          </div>
+        )}
+
+        {/* Tracking history toggle */}
+        {Array.isArray(appointment.tracking) && appointment.tracking.length > 0 && (
+          <div className="mt-3 pt-2 border-t border-slate-200/60">
+            <button
+              type="button"
+              onClick={() => setShowHistory(!showHistory)}
+              className="text-[11px] font-semibold text-slate-600 hover:text-slate-900 flex items-center gap-1.5"
+            >
+              <FaHistory className="w-3 h-3 text-slate-400" />
+              <span>{showHistory ? 'Hide Tracking History' : `View Tracking History (${appointment.tracking.length} logs)`}</span>
+            </button>
+
+            {showHistory && (
+              <div className="mt-2.5 space-y-2">
+                {appointment.tracking.map((step, sIdx) => {
+                  const stepDate = new Date(step.timestamp);
+                  const isAuto = String(step.updatedBy || '').toLowerCase().includes('auto');
+                  return (
+                    <div
+                      key={sIdx}
+                      className="p-2 bg-white rounded-md border border-slate-200 text-[11px] flex items-start justify-between gap-2"
+                    >
+                      <div className="flex items-start gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-600 mt-1 shrink-0" />
+                        <div>
+                          <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                            <span>{step.label || getDeliveryStatusLabel(step.status)}</span>
+                            <span className={`px-1 py-0.2 rounded text-[9px] font-medium ${
+                              isAuto ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600'
+                            }`}>
+                              {isAuto ? '⚡ Auto-Approval' : step.updatedBy || 'Provider'}
+                            </span>
+                          </div>
+                          {step.note && <p className="text-slate-500 mt-0.5">{step.note}</p>}
+                        </div>
+                      </div>
+                      <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                        {!isNaN(stepDate.getTime())
+                          ? stepDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' ' + stepDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                          : ''}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 interface AppointmentModalProps {
   isOpen: boolean;
   onClose: () => void;
   appointment: CalendarAppointment | null;
   position?: { top: number; left: number } | null;
+  onStatusUpdated?: () => void;
 }
 
-const AppointmentModal: React.FC<AppointmentModalProps> = ({ isOpen, onClose, appointment, position }) => {
+const AppointmentModal: React.FC<AppointmentModalProps> = ({ isOpen, onClose, appointment, position, onStatusUpdated }) => {
   if (!isOpen || !appointment) return null;
+
+  const [modalTab, setModalTab] = useState<'delivery' | 'details' | 'booking'>('delivery');
 
   const initials = appointment.patient.fullName
     .split(' ')
@@ -86,14 +443,15 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ isOpen, onClose, ap
     .map((p) => p[0]?.toUpperCase())
     .join('');
 
-  const statusLower = appointment.status.toLowerCase();
-  const isConfirmed = statusLower === 'confirmed';
-  const isRejected = statusLower === 'rejected' || statusLower === 'cancelled';
-  const isPending = statusLower === 'pending';
+  const statusLower = (appointment.rawStatus || appointment.deliveryStatus || appointment.status || '').toLowerCase().replace(/_/g, '-');
+  const isCompleted = statusLower === 'completed' || statusLower === 'report-delivered';
+  const isRejected = statusLower === 'rejected' || statusLower === 'cancelled' || statusLower === 'no-show';
+  const isScheduled = statusLower === 'scheduled' || statusLower === 'confirmed';
+  const isInProgress = statusLower === 'in-progress' || statusLower === 'report-processing' || statusLower === 'report-ready';
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-transparent"
+      className="fixed inset-0 z-50 bg-black/30 backdrop-blur-xs"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -101,26 +459,29 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ isOpen, onClose, ap
       <div
         className="fixed z-50 transition-all duration-200"
         style={{
-          top: position?.top ?? 120,
+          top: position?.top ?? 80,
           left: position?.left ?? 24,
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="w-[420px] shadow-2xl rounded-[18px] overflow-hidden bg-white border border-gray-100 ring-1 ring-black/5 flex flex-col max-h-[85vh]">
+        <div className="w-[540px] max-w-[95vw] shadow-2xl rounded-[18px] overflow-hidden bg-white border border-gray-100 ring-1 ring-black/5 flex flex-col max-h-[88vh]">
           {/* Status banner */}
-          <div className={`px-6 py-4 text-center text-white text-sm font-medium flex-shrink-0 ${isConfirmed ? 'bg-green-600' :
-              isPending ? 'bg-yellow-500' :
-                isRejected ? 'bg-red-600' :
-                  'bg-gray-500'
-            }`}>
-            {isConfirmed ? 'Appointment is confirmed' : `Appointment is ${appointment.status}`}
+          <div className={`px-6 py-3.5 text-center text-white text-sm font-semibold flex-shrink-0 ${
+            isCompleted ? 'bg-emerald-600' :
+            isInProgress ? 'bg-amber-600' :
+            isScheduled ? 'bg-blue-600' :
+            statusLower === 'pending' ? 'bg-yellow-500' :
+            isRejected ? 'bg-red-600' :
+            'bg-gray-600'
+          }`}>
+            {`Service Delivery: ${getDeliveryStatusLabel(statusLower)}`}
           </div>
 
           {/* Main card */}
           <div className="bg-white flex flex-col flex-1 min-h-0">
             {/* Title row */}
-            <div className="flex items-center justify-between px-6 py-5 flex-shrink-0 border-b border-gray-100">
-              <h3 className="text-base font-semibold text-[#16202E]">Appointment Details</h3>
+            <div className="flex items-center justify-between px-6 py-4 flex-shrink-0 border-b border-gray-100">
+              <h3 className="text-base font-semibold text-[#16202E]">Appointment & Delivery Details</h3>
               <button
                 onClick={onClose}
                 className="text-gray-400 hover:text-gray-600 transition-colors"
@@ -130,117 +491,168 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ isOpen, onClose, ap
               </button>
             </div>
 
+            {/* Modal Tabs Header */}
+            <div className="flex items-center border-b border-gray-200 px-6 pt-2 bg-gray-50/60 gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => setModalTab('delivery')}
+                className={`flex items-center gap-2 py-2.5 px-3 border-b-2 text-xs font-bold transition-all ${
+                  modalTab === 'delivery'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse shrink-0" />
+                Service Delivery
+              </button>
+              <button
+                type="button"
+                onClick={() => setModalTab('details')}
+                className={`py-2.5 px-3 border-b-2 text-xs font-bold transition-all ${
+                  modalTab === 'details'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                Patient & Service
+              </button>
+              <button
+                type="button"
+                onClick={() => setModalTab('booking')}
+                className={`py-2.5 px-3 border-b-2 text-xs font-bold transition-all ${
+                  modalTab === 'booking'
+                    ? 'border-blue-600 text-blue-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                General & Booker
+              </button>
+            </div>
+
             <div className="px-6 pb-6 overflow-y-auto flex-1">
               {/* Patient name row */}
-              <div className="flex items-center gap-4 mb-6">
-                <div className="w-12 h-12 rounded-full bg-[#E7E1FF] flex items-center justify-center text-[#16202E] font-semibold text-base">
+              <div className="flex items-center gap-4 my-4">
+                <div className="w-12 h-12 rounded-full bg-[#E7E1FF] flex items-center justify-center text-[#16202E] font-semibold text-base shrink-0">
                   {initials || 'PT'}
                 </div>
                 <div>
-                  <p className="text-sm text-gray-500">Patient name</p>
-                  <p className="text-xl font-semibold text-[#16202E] leading-tight">
+                  <p className="text-xs text-gray-500">Patient name</p>
+                  <p className="text-lg font-bold text-[#16202E] leading-tight">
                     {appointment.patient.fullName}
                   </p>
                 </div>
               </div>
 
-              {/* 3-up summary */}
-              <div className="grid grid-cols-3 gap-4 mb-6">
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">Appointment ID</p>
-                  <p className="text-sm font-medium text-[#16202E] truncate" title={appointment.appointmentId}>{appointment.appointmentId}</p>
+              {/* TAB 1: Service Delivery Tracking & Controls */}
+              {modalTab === 'delivery' && (
+                <div className="animate-in fade-in duration-150">
+                  <DeliveryStatusSection appointment={appointment} onUpdated={onStatusUpdated} />
                 </div>
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">Service</p>
-                  <p className="text-sm font-medium text-[#16202E] truncate" title={appointment.service}>{appointment.service}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-500 mb-1">Date and Time</p>
-                  <p className="text-sm font-medium text-[#16202E]">
-                    {format(appointment.date, 'EEE, dd MMM')}
-                  </p>
-                  <p className="text-sm font-medium text-[#16202E]">
-                    {appointment.time}–{appointment.endTime}
-                  </p>
-                </div>
-              </div>
+              )}
 
-              {/* Patient Information */}
-              <div>
-                <h4 className="text-lg font-semibold text-[#16202E] mb-4">Patient Information</h4>
-                <div className="grid grid-cols-2 gap-x-10 gap-y-4">
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Full name</p>
-                    <p className="text-sm font-medium text-[#16202E]">{appointment.patient.fullName}</p>
+              {/* TAB 2: Patient & Service Details */}
+              {modalTab === 'details' && (
+                <div className="space-y-6 animate-in fade-in duration-150">
+                  {/* 3-up summary */}
+                  <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                    <div>
+                      <p className="text-xs text-gray-500 mb-0.5">Appointment ID</p>
+                      <p className="text-xs font-bold text-[#16202E] font-mono truncate" title={appointment.appointmentId}>{appointment.appointmentId}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-0.5">Service</p>
+                      <p className="text-xs font-bold text-[#16202E] truncate" title={appointment.service}>{appointment.service}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-0.5">Date & Time</p>
+                      <p className="text-xs font-bold text-[#16202E]">
+                        {format(appointment.date, 'dd MMM')} • {appointment.time}
+                      </p>
+                    </div>
                   </div>
+                  {/* Patient Information */}
                   <div>
-                    <p className="text-xs text-gray-500 mb-1">Phone number</p>
-                    <p className="text-sm font-medium text-[#16202E]">{appointment.patient.phone}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Date of birth</p>
-                    <p className="text-sm font-medium text-[#16202E]">{appointment.patient.dob}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Email</p>
-                    <p className="text-sm font-medium text-[#16202E] break-all">{appointment.patient.email}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Gender</p>
-                    <p className="text-sm font-medium text-[#16202E]">{appointment.patient.gender}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Address</p>
-                    <p className="text-sm font-medium text-[#16202E]">{appointment.patient.address}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Identification Number</p>
-                    <p className="text-sm font-medium text-[#16202E]">{appointment.patient.identificationNumber || 'N/A'}</p>
+                    <h4 className="text-sm font-bold text-[#16202E] mb-3">Patient Information</h4>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                      <div>
+                        <p className="text-xs text-gray-400 mb-0.5">Full name</p>
+                        <p className="text-xs font-semibold text-[#16202E]">{appointment.patient.fullName}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 mb-0.5">Phone number</p>
+                        <p className="text-xs font-semibold text-[#16202E]">{appointment.patient.phone}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 mb-0.5">Date of birth</p>
+                        <p className="text-xs font-semibold text-[#16202E]">{appointment.patient.dob}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 mb-0.5">Email</p>
+                        <p className="text-xs font-semibold text-[#16202E] break-all">{appointment.patient.email}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 mb-0.5">Gender</p>
+                        <p className="text-xs font-semibold text-[#16202E]">{appointment.patient.gender}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 mb-0.5">Identification Number</p>
+                        <p className="text-xs font-semibold text-[#16202E]">{appointment.patient.identificationNumber || 'N/A'}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-xs text-gray-400 mb-0.5">Address</p>
+                        <p className="text-xs font-semibold text-[#16202E]">{appointment.patient.address}</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
-              {/* General Info Section */}
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <h4 className="text-lg font-semibold text-[#16202E] mb-4">General Information</h4>
-                <div className="grid grid-cols-2 gap-x-10 gap-y-4">
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Booking For</p>
-                    <p className="text-sm font-medium text-[#16202E]">{appointment.generalInfo.forWhom}</p>
+              {/* TAB 3: General & Booker Details */}
+              {modalTab === 'booking' && (
+                <div className="space-y-6 animate-in fade-in duration-150">
+                  {/* General Info Section */}
+                  <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                    <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-3">General Information</h4>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                      <div>
+                        <p className="text-xs text-gray-400 mb-0.5">Booking For</p>
+                        <p className="text-xs font-semibold text-[#16202E]">{appointment.generalInfo.forWhom}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 mb-0.5">Visited Before</p>
+                        <p className="text-xs font-semibold text-[#16202E]">{appointment.generalInfo.visitedBefore ? 'Yes (Returning)' : 'No (First-time)'}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-xs text-gray-400 mb-0.5">Comments</p>
+                        <p className="text-xs font-medium text-[#16202E]">{appointment.generalInfo.comments || 'No comments'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 mb-0.5">Payment Status</p>
+                        <p className="text-xs font-bold text-[#16202E] capitalize">{appointment.paymentStatus}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Visited Before</p>
-                    <p className="text-sm font-medium text-[#16202E]">{appointment.generalInfo.visitedBefore ? 'Yes' : 'No'}</p>
-                  </div>
-                  <div className="col-span-2">
-                    <p className="text-xs text-gray-500 mb-1">Comments</p>
-                    <p className="text-sm font-medium text-[#16202E]">{appointment.generalInfo.comments || 'No comments'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Payment Status</p>
-                    <p className="text-sm font-medium text-[#16202E] capitalize">{appointment.paymentStatus}</p>
-                  </div>
-                </div>
-              </div>
 
-              {/* Booker Info Section */}
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <h4 className="text-lg font-semibold text-[#16202E] mb-4">Booker Information</h4>
-                <div className="grid grid-cols-2 gap-x-10 gap-y-4">
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Full Name</p>
-                    <p className="text-sm font-medium text-[#16202E]">{appointment.bookerInfo.fullName || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Email</p>
-                    <p className="text-sm font-medium text-[#16202E] break-all">{appointment.bookerInfo.email || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-gray-500 mb-1">Phone</p>
-                    <p className="text-sm font-medium text-[#16202E]">{appointment.bookerInfo.phone || 'N/A'}</p>
+                  {/* Booker Info Section */}
+                  <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
+                    <h4 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-3">Booker Information</h4>
+                    <div className="grid grid-cols-2 gap-x-6 gap-y-3">
+                      <div>
+                        <p className="text-xs text-gray-400 mb-0.5">Full Name</p>
+                        <p className="text-xs font-semibold text-[#16202E]">{appointment.bookerInfo.fullName || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 mb-0.5">Email</p>
+                        <p className="text-xs font-semibold text-[#16202E] break-all">{appointment.bookerInfo.email || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-400 mb-0.5">Phone</p>
+                        <p className="text-xs font-semibold text-[#16202E]">{appointment.bookerInfo.phone || 'N/A'}</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </div>
@@ -249,118 +661,147 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ isOpen, onClose, ap
   );
 };
 
-const AppointmentDetailsInline: React.FC<{ appointment: CalendarAppointment; className?: string }> = ({ appointment, className }) => {
-  const statusLower = appointment.status.toLowerCase();
-  const isConfirmed = statusLower === 'confirmed';
-  const isRejected = statusLower === 'rejected' || statusLower === 'cancelled';
-  const isPending = statusLower === 'pending';
+const AppointmentDetailsInline: React.FC<{ appointment: CalendarAppointment; className?: string; onUpdated?: () => void }> = ({ appointment, className, onUpdated }) => {
+  const [inlineTab, setInlineTab] = useState<'delivery' | 'details'>('delivery');
+  const statusLower = (appointment.rawStatus || appointment.deliveryStatus || appointment.status || '').toLowerCase().replace(/_/g, '-');
 
   return (
     <div className={`bg-gray-50 border-t border-gray-100 p-4 mt-2 rounded-b-lg animate-in fade-in slide-in-from-top-2 duration-200 ${className || '-mx-2 sm:-mx-6 sm:px-6'}`}>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Status & Basic Info */}
-        <div>
-          <div className={`inline-block px-3 py-1 rounded-full text-xs font-medium mb-4 ${isConfirmed ? 'bg-green-100 text-green-800' :
-              isPending ? 'bg-yellow-100 text-yellow-800' :
-                isRejected ? 'bg-red-100 text-red-800' :
-                  'bg-gray-100 text-gray-800'
-            }`}>
-            {isConfirmed ? 'Confirmed' : appointment.status}
-          </div>
-
-          <div className="space-y-3">
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Appointment ID</p>
-              <p className="text-sm font-medium text-[#16202E]">{appointment.appointmentId}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Service</p>
-              <p className="text-sm font-medium text-[#16202E]">{appointment.service}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Time</p>
-              <p className="text-sm font-medium text-[#16202E]">{appointment.time} - {appointment.endTime}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-wide">Payment Status</p>
-              <p className="text-sm font-medium text-[#16202E] capitalize">{appointment.paymentStatus}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Patient Details */}
-        <div>
-          <h4 className="text-sm font-bold text-[#16202E] mb-3">Patient Information</h4>
-          <div className="grid grid-cols-2 gap-y-3 gap-x-4">
-            <div>
-              <p className="text-xs text-gray-500">Full Name</p>
-              <p className="text-sm font-medium text-[#16202E]">{appointment.patient.fullName}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500">Phone</p>
-              <p className="text-sm font-medium text-[#16202E]">{appointment.patient.phone}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500">Email</p>
-              <p className="text-sm font-medium text-[#16202E] break-all">{appointment.patient.email}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500">DOB</p>
-              <p className="text-sm font-medium text-[#16202E]">{appointment.patient.dob}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500">Gender</p>
-              <p className="text-sm font-medium text-[#16202E]">{appointment.patient.gender}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500">ID Number</p>
-              <p className="text-sm font-medium text-[#16202E]">{appointment.patient.identificationNumber || 'N/A'}</p>
-            </div>
-            <div className="col-span-2">
-              <p className="text-xs text-gray-500">Address</p>
-              <p className="text-sm font-medium text-[#16202E]">{appointment.patient.address}</p>
-            </div>
-          </div>
-        </div>
+      {/* Inline Tabs */}
+      <div className="flex items-center gap-2 border-b border-gray-200 mb-4 pb-2">
+        <button
+          type="button"
+          onClick={() => setInlineTab('delivery')}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+            inlineTab === 'delivery'
+              ? 'bg-[#06202E] text-white shadow-xs'
+              : 'text-gray-600 hover:bg-gray-200/60'
+          }`}
+        >
+          <span className="w-2 h-2 rounded-full bg-blue-400 animate-pulse" />
+          Service Delivery Pipeline
+        </button>
+        <button
+          type="button"
+          onClick={() => setInlineTab('details')}
+          className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+            inlineTab === 'details'
+              ? 'bg-[#06202E] text-white shadow-xs'
+              : 'text-gray-600 hover:bg-gray-200/60'
+          }`}
+        >
+          Patient & Booking Info
+        </button>
       </div>
 
-      {/* General Info Section */}
-      <div className="mt-6 pt-6 border-t border-gray-200">
-        <h4 className="text-sm font-bold text-[#16202E] mb-3">General Information</h4>
-        <div className="grid grid-cols-2 gap-y-3 gap-x-4">
-          <div>
-            <p className="text-xs text-gray-500">Booking For</p>
-            <p className="text-sm font-medium text-[#16202E]">{appointment.generalInfo.forWhom}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500">Visited Before</p>
-            <p className="text-sm font-medium text-[#16202E]">{appointment.generalInfo.visitedBefore ? 'Yes' : 'No'}</p>
-          </div>
-          <div className="col-span-2">
-            <p className="text-xs text-gray-500">Comments</p>
-            <p className="text-sm font-medium text-[#16202E]">{appointment.generalInfo.comments || 'No comments'}</p>
-          </div>
-        </div>
-      </div>
+      {inlineTab === 'delivery' ? (
+        /* TAB 1: Service Delivery Controls */
+        <DeliveryStatusSection appointment={appointment} onUpdated={onUpdated} />
+      ) : (
+        /* TAB 2: Full Patient & Booking Details */
+        <div className="space-y-6 animate-in fade-in duration-150">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Status & Basic Info */}
+            <div>
+              <div className={`inline-block px-3 py-1 rounded-full text-xs font-semibold mb-4 border ${getDeliveryStatusColor(statusLower)}`}>
+                {getDeliveryStatusLabel(statusLower)}
+              </div>
 
-      {/* Booker Info Section */}
-      <div className="mt-6 pt-6 border-t border-gray-200">
-        <h4 className="text-sm font-bold text-[#16202E] mb-3">Booker Information</h4>
-        <div className="grid grid-cols-2 gap-y-3 gap-x-4">
-          <div>
-            <p className="text-xs text-gray-500">Full Name</p>
-            <p className="text-sm font-medium text-[#16202E]">{appointment.bookerInfo.fullName || 'N/A'}</p>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Appointment ID</p>
+                  <p className="text-sm font-medium text-[#16202E]">{appointment.appointmentId}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Service</p>
+                  <p className="text-sm font-medium text-[#16202E]">{appointment.service}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Time</p>
+                  <p className="text-sm font-medium text-[#16202E]">{appointment.time} - {appointment.endTime}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 uppercase tracking-wide">Payment Status</p>
+                  <p className="text-sm font-medium text-[#16202E] capitalize">{appointment.paymentStatus}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Patient Details */}
+            <div>
+              <h4 className="text-sm font-bold text-[#16202E] mb-3">Patient Information</h4>
+              <div className="grid grid-cols-2 gap-y-3 gap-x-4">
+                <div>
+                  <p className="text-xs text-gray-500">Full Name</p>
+                  <p className="text-sm font-medium text-[#16202E]">{appointment.patient.fullName}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Phone</p>
+                  <p className="text-sm font-medium text-[#16202E]">{appointment.patient.phone}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Email</p>
+                  <p className="text-sm font-medium text-[#16202E] break-all">{appointment.patient.email}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">DOB</p>
+                  <p className="text-sm font-medium text-[#16202E]">{appointment.patient.dob}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Gender</p>
+                  <p className="text-sm font-medium text-[#16202E]">{appointment.patient.gender}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">ID Number</p>
+                  <p className="text-sm font-medium text-[#16202E]">{appointment.patient.identificationNumber || 'N/A'}</p>
+                </div>
+                <div className="col-span-2">
+                  <p className="text-xs text-gray-500">Address</p>
+                  <p className="text-sm font-medium text-[#16202E]">{appointment.patient.address}</p>
+                </div>
+              </div>
+            </div>
           </div>
-          <div>
-            <p className="text-xs text-gray-500">Email</p>
-            <p className="text-sm font-medium text-[#16202E] break-all">{appointment.bookerInfo.email || 'N/A'}</p>
+
+          {/* General Info Section */}
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <h4 className="text-sm font-bold text-[#16202E] mb-3">General Information</h4>
+            <div className="grid grid-cols-2 gap-y-3 gap-x-4">
+              <div>
+                <p className="text-xs text-gray-500">Booking For</p>
+                <p className="text-sm font-medium text-[#16202E]">{appointment.generalInfo.forWhom}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Visited Before</p>
+                <p className="text-sm font-medium text-[#16202E]">{appointment.generalInfo.visitedBefore ? 'Yes' : 'No'}</p>
+              </div>
+              <div className="col-span-2">
+                <p className="text-xs text-gray-500">Comments</p>
+                <p className="text-sm font-medium text-[#16202E]">{appointment.generalInfo.comments || 'No comments'}</p>
+              </div>
+            </div>
           </div>
-          <div>
-            <p className="text-xs text-gray-500">Phone</p>
-            <p className="text-sm font-medium text-[#16202E]">{appointment.bookerInfo.phone || 'N/A'}</p>
+
+          {/* Booker Info Section */}
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <h4 className="text-sm font-bold text-[#16202E] mb-3">Booker Information</h4>
+            <div className="grid grid-cols-2 gap-y-3 gap-x-4">
+              <div>
+                <p className="text-xs text-gray-500">Full Name</p>
+                <p className="text-sm font-medium text-[#16202E]">{appointment.bookerInfo.fullName || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Email</p>
+                <p className="text-sm font-medium text-[#16202E] break-all">{appointment.bookerInfo.email || 'N/A'}</p>
+              </div>
+              <div>
+                <p className="text-xs text-gray-500">Phone</p>
+                <p className="text-sm font-medium text-[#16202E]">{appointment.bookerInfo.phone || 'N/A'}</p>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
@@ -415,6 +856,10 @@ const ProviderCalendarPage: React.FC = () => {
         const patientGender = apt.formData?.patientGender || '';
         const patientDOB = apt.formData?.patientDOB || '';
 
+        const rawStatus = (apt.status || 'pending').toLowerCase().replace(/_/g, '-');
+        const deliveryStatus = apt.delivery_status || (rawStatus === 'confirmed' ? 'scheduled' : rawStatus);
+        const tracking = Array.isArray(apt.tracking) ? apt.tracking : [];
+
         return {
           id: apt.id,
           title: apt.service_name,
@@ -433,7 +878,10 @@ const ProviderCalendarPage: React.FC = () => {
             identificationNumber: apt.formData?.identificationNumber || '',
           },
           appointmentId: apt.id,
-          status: (apt.status || 'pending').charAt(0).toUpperCase() + (apt.status || 'pending').slice(1),
+          status: getDeliveryStatusLabel(deliveryStatus),
+          deliveryStatus,
+          rawStatus,
+          tracking,
           generalInfo: {
             comments: apt.formData?.comments || '',
             visitedBefore: apt.formData?.visitedBefore || false,
@@ -732,19 +1180,30 @@ const ProviderCalendarPage: React.FC = () => {
             </div>
           </div>
 
-          <div className="flex bg-gray-100 p-1 rounded-lg">
-            {(['Day', 'Week', 'Month', 'Appointments'] as ViewType[]).map((v) => (
-              <button
-                key={v}
-                onClick={() => setView(v)}
-                className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${view === v
-                  ? 'bg-white text-[#16202E] shadow-sm'
-                  : 'text-gray-500 hover:text-gray-700'
-                  }`}
-              >
-                {v}
-              </button>
-            ))}
+          <div className="flex items-center gap-2.5">
+            <div className="flex bg-gray-100 p-1 rounded-lg">
+              {(['Day', 'Week', 'Month', 'Appointments'] as ViewType[]).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setView(v)}
+                  className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${view === v
+                    ? 'bg-white text-[#16202E] shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                >
+                  {v}
+                </button>
+              ))}
+            </div>
+
+            <Link
+              to="/provider/service-delivery"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-bold transition-all shadow-2xs"
+              title="Open Service Delivery Command Center"
+            >
+              <MdOutlineTimeline size={16} />
+              <span>Service Delivery Pipeline</span>
+            </Link>
           </div>
 
           <div className="flex items-center gap-4">
@@ -796,9 +1255,14 @@ const ProviderCalendarPage: React.FC = () => {
                         className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-[#06202E] focus:border-transparent"
                       >
                         <option value="all">All Statuses</option>
-                        <option value="pending">Pending</option>
-                        <option value="confirmed">Confirmed</option>
+                        <option value="scheduled">Scheduled</option>
+                        <option value="in-progress">In Progress</option>
                         <option value="completed">Completed</option>
+                        <option value="report-processing">Report Processing</option>
+                        <option value="report-ready">Report Ready</option>
+                        <option value="report-delivered">Report Delivered</option>
+                        <option value="no-show">No Show</option>
+                        <option value="pending">Booking Requested</option>
                         <option value="cancelled">Cancelled</option>
                       </select>
                     </div>
@@ -910,7 +1374,7 @@ const ProviderCalendarPage: React.FC = () => {
                           </div>
                           {isExpanded && (
                             <div className="px-6 pb-4">
-                              <AppointmentDetailsInline appointment={apt} />
+                              <AppointmentDetailsInline appointment={apt} onUpdated={refetch} />
                             </div>
                           )}
                         </div>
@@ -1036,6 +1500,7 @@ const ProviderCalendarPage: React.FC = () => {
                                         <AppointmentDetailsInline
                                           appointment={apt}
                                           className="-mx-2 mt-3 rounded-none border-t border-gray-200 bg-gray-50"
+                                          onUpdated={refetch}
                                         />
                                       </div>
                                     )}
@@ -1072,6 +1537,7 @@ const ProviderCalendarPage: React.FC = () => {
         onClose={closeModal}
         appointment={selectedAppointment}
         position={modalPosition}
+        onStatusUpdated={refetch}
       />
     </div>
   );

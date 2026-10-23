@@ -74,6 +74,14 @@ export interface PatientProfileRequest {
     metadata?: Metadata;
 }
 
+export interface TrackingStep {
+    status: string;
+    label: string;
+    timestamp: string | Date;
+    updatedBy: string;
+    note?: string;
+}
+
 // Appointment types
 export interface Appointment {
     id: string;
@@ -87,7 +95,9 @@ export interface Appointment {
     time: string; // Replaces start_time/end_time
     start_time?: string; // Added for compatibility
     end_time?: string; // Added for compatibility
-    status: 'upcoming' | 'completed' | 'cancelled' | 'pending' | 'confirmed' | 'rejected' | 'no-show'; // Added other statuses
+    status: 'upcoming' | 'completed' | 'cancelled' | 'pending' | 'confirmed' | 'rejected' | 'no-show' | 'scheduled' | 'in-progress' | 'report-processing' | 'report-ready' | 'report-delivered' | string;
+    delivery_status?: string;
+    tracking?: TrackingStep[];
     amount: number;
     paymentStatus: 'paid' | 'unpaid' | 'pending';
     paidAt?: string;
@@ -516,3 +526,43 @@ export const useClaimReferral = () => {
         },
     });
 };
+
+export interface MedicalService {
+    _id?: string;
+    id: string;
+    provider_id: string;
+    category: 'scans' | 'tests' | 'consultation';
+    service_type: string;
+    modality: string | null;
+    name: string;
+    description: string;
+    uses?: string;
+    codes?: Array<{ system: string; code: string }>;
+    body_part?: string | null;
+    procedure_details?: {
+        contrast?: string;
+        laterality?: string;
+        specimen?: string;
+        fasting_required?: boolean;
+        views?: number;
+    };
+    price: number;
+    currency: string;
+    duration: number;
+    preparation?: string;
+    requirements?: string[];
+    report_turnaround?: { min: number; max: number; unit: string };
+    is_available?: boolean;
+}
+
+export const useAllServices = () => {
+    return useQuery<MedicalService[]>({
+        queryKey: ['allServices'],
+        queryFn: async () => {
+            const res = await apiClient.get('/api/v1/services');
+            return res.data?.data || [];
+        },
+        staleTime: 5 * 60 * 1000,
+    });
+};
+

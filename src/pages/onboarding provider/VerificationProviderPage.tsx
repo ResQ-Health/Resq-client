@@ -163,9 +163,9 @@ function VerificationProviderPage() {
           localStorage.removeItem('pending_email');
           localStorage.removeItem(TIMER_KEY);
           
-          // Optional: Navigate to welcome page after a delay
+          // Navigate to unified signin page after a delay
           setTimeout(() => {
-            navigate('/providers/signin');
+            navigate('/login');
           }, 2000);
         },
         onError: () => {

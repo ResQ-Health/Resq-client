@@ -95,8 +95,8 @@ const getServicesByProvider = async (req, res) => {
     try {
         const { providerId } = req.params;
 
-        // Check if provider exists
-        const provider = await Provider.findOne({ id: providerId });
+        // Check if provider exists by id or user_id
+        const provider = await Provider.findOne({ $or: [{ id: providerId }, { user_id: providerId }] });
         if (!provider) {
             return res.status(404).json({
                 success: false,
@@ -104,7 +104,12 @@ const getServicesByProvider = async (req, res) => {
             });
         }
 
-        const services = await Service.find({ provider_id: providerId }).sort({ name: 1 });
+        const services = await Service.find({ 
+            $or: [
+                { provider_id: provider.id },
+                { provider_id: provider.user_id }
+            ]
+        }).sort({ name: 1 });
 
         res.json({
             success: true,

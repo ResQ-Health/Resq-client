@@ -31,7 +31,7 @@ export const PublicRoute: React.FC<PublicRouteProps> = ({
         const userType = user?.user_type?.toLowerCase();
         let targetPath = '/patient/my-account';
 
-        if (userType === 'provider' || userType === 'diagnosticprovider') {
+        if (userType === 'provider' || userType === 'diagnosticprovider' || userType === 'clinician') {
             const isOnboardingComplete =
                 user?.is_onboarding_complete ??
                 user?.provider?.profile_complete ??

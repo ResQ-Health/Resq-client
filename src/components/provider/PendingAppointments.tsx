@@ -58,9 +58,9 @@ const PendingAppointments: React.FC = () => {
                         </svg>
                     </div>
                     <div>
-                        <h3 className="font-bold text-lg text-[#16202E]">Pending Appointments</h3>
+                        <h3 className="font-bold text-lg text-[#16202E]">Booking Requests</h3>
                         <p className="text-sm text-gray-500">
-                            {pendingAppointments.length} request{pendingAppointments.length !== 1 ? 's' : ''} waiting for action
+                            {pendingAppointments.length} requested appointment{pendingAppointments.length !== 1 ? 's' : ''} waiting for action
                         </p>
                     </div>
                 </div>
@@ -188,7 +188,7 @@ const PendingAppointments: React.FC = () => {
                                                     ) : (
                                                         <IoCheckmarkCircleOutline className="w-4 h-4" />
                                                     )}
-                                                    Grant
+                                                    Accept
                                                 </button>
                                                 <button
                                                     onClick={() => handleAction(apt.id, 'reject')}
@@ -198,7 +198,7 @@ const PendingAppointments: React.FC = () => {
                                                     {updateStatusMutation.isPending ? null : (
                                                         <IoCloseCircleOutline className="w-4 h-4" />
                                                     )}
-                                                    Reject
+                                                    Decline
                                                 </button>
                                             </div>
                                         </td>

@@ -101,6 +101,30 @@ const formDataSchema = new mongoose.Schema({
     }
 }, { _id: false });
 
+// Define service delivery tracking schema
+const trackingStepSchema = new mongoose.Schema({
+    status: {
+        type: String,
+        required: true
+    },
+    label: {
+        type: String,
+        required: true
+    },
+    timestamp: {
+        type: Date,
+        default: Date.now
+    },
+    updatedBy: {
+        type: String,
+        default: 'system'
+    },
+    note: {
+        type: String,
+        trim: true
+    }
+}, { _id: false });
+
 // Define the payment schema
 const paymentSchema = new mongoose.Schema({
     status: {
@@ -185,8 +209,24 @@ const appointmentSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['pending', 'confirmed', 'cancelled', 'completed', 'no-show', 'rejected'],
+        enum: [
+            'pending',
+            'confirmed',
+            'scheduled',
+            'in-progress',
+            'no-show',
+            'completed',
+            'report-processing',
+            'report-ready',
+            'report-delivered',
+            'cancelled',
+            'rejected'
+        ],
         default: 'pending'
+    },
+    tracking: {
+        type: [trackingStepSchema],
+        default: []
     },
     review: {
         rating: { type: Number, min: 1, max: 5 },
@@ -196,6 +236,11 @@ const appointmentSchema = new mongoose.Schema({
     notes: {
         type: String,
         trim: true
+    },
+    is_deleted: {
+        type: Boolean,
+        default: false,
+        index: true
     },
     created_at: {
         type: Date,

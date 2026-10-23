@@ -20,8 +20,7 @@ router.post("/retry", paymentController.retryPayment);
 // Verify payment
 router.get(
   "/verify/:reference",
-  protect,
-  patientOnly,
+  optionalAuth,
   paymentController.verifyPayment,
 );
 
