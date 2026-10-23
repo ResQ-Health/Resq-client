@@ -87,7 +87,39 @@ connectRedis().then((client) => {
 app.use(compression()); // Compress responses for faster transfer
 app.use(express.json()); // Parse JSON request body
 app.use(express.urlencoded({ extended: false })); // Parse URL-encoded request body
-app.use(cors()); // Enable CORS
+// CORS Whitelist Configuration
+const allowedOrigins = [
+  "https://resqhealth.africa",
+  "https://www.resqhealth.africa",
+  "https://ref.resqhealth.africa",       // For Clinician portal
+  "https://resq-client.vercel.app",      // Keep for fallback/staging
+  "https://resq-health-referral-system.vercel.app",
+  "https://rego.resqhealth.africa",
+  "http://localhost:5173",               // Local dev
+  "http://localhost:5174",
+  "http://localhost:3000"
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, server-to-server)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
+    }
+    // Allow any localhost port in non-production
+    if (process.env.NODE_ENV !== 'production' && /^http:\/\/localhost(:\d+)?$/.test(origin)) {
+      return callback(null, true);
+    }
+    return callback(new Error(`CORS blocked for origin: ${origin}`));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin']
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 app.use(helmet()); // Security headers
 
 // Ensure database connection before handling requests (crucial for serverless environments like Vercel)

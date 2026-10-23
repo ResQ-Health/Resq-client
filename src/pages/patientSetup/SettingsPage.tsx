@@ -37,8 +37,7 @@ export default function SettingsPage() {
 
     const handleLogout = () => {
         logout();
-        navigate('/login');
-        toast.success('Logged out successfully');
+        window.location.href = 'https://resqhealth.africa';
     };
 
     const handleCloseAccount = () => {

@@ -275,7 +275,7 @@ const sendPasswordResetEmail = async (to, resetToken, userName, resetUrl = null,
             process.env.PRODUCTION_FRONTEND_URL ||
             process.env.PATIENT_PORTAL_URL ||
             process.env.STAGING_URL ||
-            'https://resq-client.vercel.app'
+            'https://resqhealth.africa'
         ).replace(/\/+$/, '');
 
         let frontendUrl;

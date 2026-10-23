@@ -1246,7 +1246,7 @@ const ProviderPage = () => {
             '@context': 'https://schema.org',
             '@type': 'MedicalClinic',
             name: providerData.name,
-            image: providerData.image || 'https://rego.resqhealth.africa/og-image.jpg',
+            image: providerData.image || 'https://resqhealth.africa/og-image.jpg',
             address: {
                 '@type': 'PostalAddress',
                 streetAddress: providerData.address || '',
@@ -1259,7 +1259,7 @@ const ProviderPage = () => {
                     reviewCount: providerData.rating.total_reviews || 1,
                 }
             } : {}),
-            url: `https://rego.resqhealth.africa/search/provider/${id}`,
+            url: `https://resqhealth.africa/search/provider/${id}`,
         };
     }, [providerData, id]);
 

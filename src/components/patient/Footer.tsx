@@ -9,10 +9,10 @@ const Footer = () => {
                     {/* Left Half - Branding and Social Media */}
                     <div className="space-y-6">
                         {/* Logo Section */}
-                        <div className="flex items-center gap-2 text-white">
+                        <a href="https://resqhealth.africa" className="flex items-center gap-2 text-white hover:opacity-90 transition-opacity">
                             <img src={logo} alt="RESQ" className="w-10 h-10 object-contain brightness-0 invert" />
                             <span className="text-xl font-bold">RESQ</span>
-                        </div>
+                        </a>
 
                         {/* Tagline */}
                         <div className="space-y-1">

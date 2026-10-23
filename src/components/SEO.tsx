@@ -15,7 +15,7 @@ export interface SEOProps {
 const DEFAULT_TITLE = 'ResQ Health | Find & Book Diagnostic Scans, Imaging & Medical Tests';
 const DEFAULT_DESCRIPTION = 'ResQ Health connects patients with top accredited diagnostic centers and healthcare providers across Nigeria. Compare prices, book MRI, CT scans, X-rays, Ultrasounds, and laboratory tests online.';
 const DEFAULT_KEYWORDS = 'ResQ Health, diagnostic centers in Nigeria, medical imaging Lagos, MRI scan Lagos, CT scan price Nigeria, X-ray booking, ultrasound clinic, diagnostic test online booking, healthcare Nigeria';
-const SITE_URL = 'https://rego.resqhealth.africa';
+const SITE_URL = 'https://resqhealth.africa';
 const DEFAULT_IMAGE = `${SITE_URL}/og-image.jpg`;
 
 export const SEO: React.FC<SEOProps> = ({

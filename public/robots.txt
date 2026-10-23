@@ -1,5 +1,5 @@
 # Robots.txt for ResQ Health
-# Production Domain: https://rego.resqhealth.africa
+# Production Domain: https://resqhealth.africa
 
 User-agent: *
 Allow: /
@@ -20,5 +20,5 @@ Disallow: /payment/callback
 Disallow: /api/
 
 # Host & Sitemap Specifications
-Host: https://rego.resqhealth.africa
-Sitemap: https://rego.resqhealth.africa/sitemap.xml
+Host: https://resqhealth.africa
+Sitemap: https://resqhealth.africa/sitemap.xml

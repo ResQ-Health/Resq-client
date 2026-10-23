@@ -50,8 +50,8 @@ export const ProfileMenu: React.FC<ProfileMenuProps> = ({ isOpen, onClose }) => 
 
     const handleLogout = () => {
         logout();
-        navigate('/login');
         onClose();
+        window.location.href = 'https://resqhealth.africa';
     };
 
     const getUserInitials = () => {

@@ -136,7 +136,7 @@ const initializePayment = async (req, res) => {
     // Determine patient frontend client URL for callback redirect
     let patientAppUrl = process.env.PATIENT_FRONTEND_URL || 'http://localhost:5174';
     if (process.env.NODE_ENV === 'production' && patientAppUrl.includes('localhost')) {
-      patientAppUrl = process.env.STAGING_URL || 'https://resq-client.vercel.app';
+      patientAppUrl = process.env.PRODUCTION_FRONTEND_URL || process.env.STAGING_URL || 'https://resqhealth.africa';
     }
     patientAppUrl = patientAppUrl.replace(/\/+$/, '');
 

@@ -97,7 +97,6 @@ describe('ProfileMenu', () => {
         fireEvent.click(logoutButton)
 
         expect(mockLogout).toHaveBeenCalled()
-        expect(mockNavigate).toHaveBeenCalledWith('/')
         expect(mockOnClose).toHaveBeenCalled()
     })
 

@@ -141,10 +141,13 @@ function Navbar() {
       <nav className={`bg-white border-b border-[#E1E3E6] py-3 px-4 sm:px-8 lg:px-16 transition-colors duration-200 sticky top-0 z-50`}>
         <div className="flex justify-between items-center max-w-[1440px] mx-auto gap-2">
           {/* Left section - Logo */}
-          <div className={`text-base sm:text-lg flex items-center gap-2 font-bold shrink-0 text-[#06202E]`}>
+          <a
+            href="https://resqhealth.africa"
+            className="text-base sm:text-lg flex items-center gap-2 font-bold shrink-0 text-[#06202E] hover:opacity-90 transition-opacity"
+          >
             <img src={logo} alt="RESQ" className="w-8 h-8 sm:w-10 sm:h-10" />
             RESQ
-          </div>
+          </a>
 
           {/* Center section - Navigation */}
           <div className="flex justify-center flex-1">

@@ -45,12 +45,12 @@ const ProviderLayout: React.FC = () => {
         className={`${isCollapsed ? 'w-20' : 'w-64'} bg-white border-r border-gray-200 flex flex-col fixed h-full z-20 transition-all duration-300 ease-in-out`}
       >
         <div className="p-6 flex items-center justify-between">
-          <Link to="/provider/dashboard" className="flex items-center gap-2 overflow-hidden">
+          <a href="https://resqhealth.africa" className="flex items-center gap-2 overflow-hidden hover:opacity-90 transition-opacity">
             <img src={logo} alt="RESQ" className="w-10 h-10 min-w-[40px]" />
             <span className={`text-2xl font-bold text-[#06202E] transition-opacity duration-300 ${isCollapsed ? 'opacity-0 hidden' : 'opacity-100'}`}>
               RESQ
             </span>
-          </Link>
+          </a>
         </div>
 
         {/* Toggle Button */}
@@ -124,7 +124,7 @@ const ProviderLayout: React.FC = () => {
               title={isCollapsed ? 'Logout' : ''}
               onClick={() => {
                 logout();
-                navigate('/', { replace: true });
+                window.location.href = 'https://resqhealth.africa';
               }}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50 ${isCollapsed ? 'justify-center px-2' : ''}`}
             >
