@@ -94,7 +94,6 @@ const allowedOrigins = [
   "https://ref.resqhealth.africa",       // For Clinician portal
   "https://resq-client.vercel.app",      // Keep for fallback/staging
   "https://resq-health-referral-system.vercel.app",
-  "https://rego.resqhealth.africa",
   "http://localhost:5173",               // Local dev
   "http://localhost:5174",
   "http://localhost:3000"

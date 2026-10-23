@@ -2,8 +2,7 @@ import axios from 'axios';
 
 // API Configuration:
 // When running locally with Vite dev server proxy, API requests use relative paths ('').
-// In production builds (or when accessed via www.resqhealth.africa / resqhealth.africa),
-// requests point to the backend API server (https://rego.resqhealth.africa).
+// In production builds, requests point to the backend API server (configured via VITE_API_URL or staging fallback).
 const getApiBaseUrl = (): string => {
     // 1. Explicit environment variable override
     if (import.meta.env.VITE_API_URL) {
@@ -20,8 +19,8 @@ const getApiBaseUrl = (): string => {
         return '';
     }
 
-    // 4. Default for production deployment: point to the official API server
-    return 'https://rego.resqhealth.africa';
+    // 4. Fallback for production deployment
+    return 'https://resq-client.vercel.app';
 };
 
 export const API_BASE_URL = getApiBaseUrl();
