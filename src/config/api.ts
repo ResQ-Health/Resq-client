@@ -4,24 +4,27 @@ import axios from 'axios';
 // When running locally with Vite dev server proxy, API requests use relative paths ('').
 // In production builds, requests point to the backend API server (configured via VITE_API_URL or staging fallback).
 const getApiBaseUrl = (): string => {
-    const envUrl = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
+    // 1. Browser runtime check: if running on localhost or 127.0.0.1, use relative path for local proxy
+    if (typeof window !== 'undefined') {
+        const hostname = window.location.hostname;
+        if (hostname === 'localhost' || hostname === '127.0.0.1') {
+            return '';
+        }
+    }
 
-    // 1. Explicit environment variable override (ignore if accidentally set to marketing landing domain)
-    if (envUrl && envUrl !== 'https://resqhealth.africa' && envUrl !== 'https://www.resqhealth.africa') {
+    // 2. Explicit environment variable override (ignore if accidentally pointing to the marketing/landing page)
+    const envUrl = (import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '');
+    if (
+        envUrl &&
+        envUrl !== 'https://resqhealth.africa' &&
+        envUrl !== 'https://www.resqhealth.africa' &&
+        !envUrl.includes('localhost') &&
+        !envUrl.includes('127.0.0.1')
+    ) {
         return envUrl;
     }
 
-    // 2. Local development: use relative path for Vite proxy
-    if (import.meta.env.DEV) {
-        return '';
-    }
-
-    // 3. Browser runtime check: if running on localhost, use relative path for local proxy
-    if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-        return '';
-    }
-
-    // 4. Fallback for production deployment: point to the active backend API server
+    // 3. Fallback for production deployment: point to the active backend API server
     return 'https://resq-client.vercel.app';
 };
 
@@ -47,6 +50,20 @@ export const apiClient = axios.create({
 // Request interceptor for adding auth token
 apiClient.interceptors.request.use(
     (config) => {
+        // Enforce backend URL if running in production browser and baseURL was left empty or set to landing page
+        if (typeof window !== 'undefined') {
+            const hostname = window.location.hostname;
+            if (hostname !== 'localhost' && hostname !== '127.0.0.1') {
+                if (
+                    !config.baseURL ||
+                    config.baseURL === 'https://resqhealth.africa' ||
+                    config.baseURL === 'https://www.resqhealth.africa'
+                ) {
+                    config.baseURL = 'https://resq-client.vercel.app';
+                }
+            }
+        }
+
         const token = localStorage.getItem('authToken');
         if (token) {
             config.headers.Authorization = `Bearer ${token}`;
