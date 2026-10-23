@@ -1,0 +1,24 @@
+# Robots.txt for ResQ Health
+# Production Domain: https://rego.resqhealth.africa
+
+User-agent: *
+Allow: /
+Allow: /search
+Allow: /search/*
+Allow: /terms-and-policy
+Allow: /support
+Allow: /login
+
+# Disallow authenticated, provider and private booking pipelines from indexation
+Disallow: /provider/
+Disallow: /patientSetup/
+Disallow: /patient/my-account
+Disallow: /patient/booking/*/payment
+Disallow: /patient/booking/success
+Disallow: /patient/booking/request-success
+Disallow: /payment/callback
+Disallow: /api/
+
+# Host & Sitemap Specifications
+Host: https://rego.resqhealth.africa
+Sitemap: https://rego.resqhealth.africa/sitemap.xml

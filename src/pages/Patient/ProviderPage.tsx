@@ -7,6 +7,7 @@ import { useToggleFavoriteProvider, useFavoriteStatus } from '../../services/use
 import { useAuth } from '../../contexts/AuthContext';
 import toast from 'react-hot-toast';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
+import { SEO } from '../../components/SEO';
 
 // Provider data in JSON format - this will be replaced with dynamic data
 // removed dummy getProviderData; will map from API
@@ -1239,8 +1240,40 @@ const ProviderPage = () => {
         );
     }
 
+    const providerStructuredData = useMemo(() => {
+        if (!providerData) return undefined;
+        return {
+            '@context': 'https://schema.org',
+            '@type': 'MedicalClinic',
+            name: providerData.name,
+            image: providerData.image || 'https://rego.resqhealth.africa/og-image.jpg',
+            address: {
+                '@type': 'PostalAddress',
+                streetAddress: providerData.address || '',
+                addressCountry: 'NG',
+            },
+            ...(providerData.rating?.score ? {
+                aggregateRating: {
+                    '@type': 'AggregateRating',
+                    ratingValue: providerData.rating.score,
+                    reviewCount: providerData.rating.total_reviews || 1,
+                }
+            } : {}),
+            url: `https://rego.resqhealth.africa/search/provider/${id}`,
+        };
+    }, [providerData, id]);
+
     return (
         <div className="min-h-screen w-full bg-gray-50">
+            <SEO
+                title={providerData.name ? `${providerData.name} - Diagnostic Center & Medical Tests` : 'Diagnostic Provider Details'}
+                description={`Book appointments at ${providerData.name}${providerData.address ? ` in ${providerData.address}` : ''}. View available scans, verified prices, working hours, and patient reviews on ResQ Health.`}
+                keywords={`${providerData.name}, diagnostic center ${providerData.address || 'Lagos'}, medical scans, MRI booking, CT scan, X-ray, ResQ Health`}
+                canonicalPath={`/search/provider/${id}`}
+                ogType="profile"
+                ogImage={providerData.image}
+                structuredData={providerStructuredData}
+            />
             {/* Header Banner with Overlapping Availability Card */}
             <div className="relative  ">
                 {/* Banner Background */}

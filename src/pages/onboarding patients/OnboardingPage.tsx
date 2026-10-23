@@ -9,8 +9,8 @@ import { apiClient } from '../../config/api';
 import { signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider } from '../../config/firebase';
 import toast from 'react-hot-toast';
-
 import { LoadingSpinner } from '../../components/LoadingSpinner';
+import { SEO } from '../../components/SEO';
 
 // Module-level flag to prevent multiple auth checks across component instances
 let globalAuthCheckInProgress = false;
@@ -201,6 +201,11 @@ function OnboardingPage() {
 
   return (
     <div className="min-h-screen pb-[155px] mx-auto flex flex-col justify-center max-w-[480px] px-4 items-center">
+      <SEO
+        title="Find & Book Diagnostic Scans, Imaging & Medical Tests"
+        description="Book appointments at top accredited diagnostic centers across Nigeria. Compare prices and book MRI, CT scans, X-rays, Ultrasounds, and laboratory tests seamlessly."
+        canonicalPath="/"
+      />
       {/* Header Section */}
       <div className="w-full mb-8 text-center">
       <h1

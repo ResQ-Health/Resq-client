@@ -32,6 +32,7 @@ import { useAllServices, MedicalService } from '../../services/userService';
 import { useAllProviders } from '../../services/providerService';
 import { useAuth } from '../../contexts/AuthContext';
 import { LoadingSpinner } from '../../components/LoadingSpinner';
+import { SEO } from '../../components/SEO';
 
 // Curated default diagnostic centers in Lagos for rich marketplace simulation
 const DEFAULT_CENTERS = [
@@ -610,6 +611,12 @@ export default function SearchPage() {
 
     return (
         <div className="min-h-screen bg-[#F8FAFC] pb-24 text-gray-900" onClick={() => setOpenDropdown(null)}>
+            <SEO
+                title="Search Diagnostic Centers, Scans & Lab Tests"
+                description="Search and compare accredited diagnostic centers across Nigeria. Find prices for MRI, CT scans, X-rays, Ultrasounds, and Lab tests. Book verified slots online."
+                keywords="diagnostic centers Lagos, MRI scan price Nigeria, CT scan booking, X-ray center near me, ultrasound scan Nigeria, ResQ medical search"
+                canonicalPath="/search"
+            />
             {/* 1. TOP HEADER & BREADCRUMBS BAR */}
             <div className="bg-white border-b border-gray-200/80 sticky top-0 z-40 shadow-xs">
                 <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-4 py-3">

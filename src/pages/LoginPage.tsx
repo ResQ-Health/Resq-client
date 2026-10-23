@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider } from '../config/firebase';
 import toast from 'react-hot-toast';
+import { SEO } from '../components/SEO';
 
 export const LoginPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
@@ -172,6 +173,11 @@ export const LoginPage: React.FC = () => {
 
   return (
     <div className="min-h-[calc(100vh-theme(spacing.16))] flex flex-col items-center justify-between bg-white px-4">
+      <SEO
+        title="Sign In"
+        description="Sign in to your ResQ Health account to access diagnostic test bookings, medical imaging results, and healthcare provider tools."
+        canonicalPath="/login"
+      />
       <div className="flex-1 w-full max-w-[480px] flex flex-col justify-center py-10 sm:py-14">
         {/* Header */}
         <div className="text-center mb-8">

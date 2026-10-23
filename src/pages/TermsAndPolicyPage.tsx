@@ -1,11 +1,17 @@
 import { useNavigate } from 'react-router-dom';
 import { AiOutlineArrowLeft } from 'react-icons/ai';
+import { SEO } from '../components/SEO';
 
 function TermsAndPolicyPage() {
   const navigate = useNavigate();
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
+      <SEO
+        title="Terms of Service & Privacy Policy"
+        description="Read the Terms of Service and Privacy Policy for ResQ Health digital healthcare and diagnostic booking platform."
+        canonicalPath="/terms-and-policy"
+      />
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="mb-8">

@@ -1,9 +1,15 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { SEO } from '../components/SEO';
 
 const SupportPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#F6F8FA] pt-8 pb-12 px-4 sm:px-6 lg:px-8">
+      <SEO
+        title="Support & Help Center"
+        description="Get help with diagnostic scan bookings, test results, and healthcare provider inquiries. ResQ Health customer support."
+        canonicalPath="/support"
+      />
       <div className="max-w-3xl mx-auto">
         <h1 className="text-3xl font-bold text-[#06202E] mb-2 text-center">Help Center</h1>
         <p className="text-gray-500 text-center mb-8">We're here to help you with any questions or issues.</p>
